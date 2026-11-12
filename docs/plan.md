@@ -104,6 +104,9 @@ browser: grid with status pills (pending/approved/retake/stale), filters in URL 
 POST /api/events → the same writer the CLI uses → registry/assets/.../events/<ULID>.json (in git)
 hook (SessionStart + UserPromptSubmit): injects retake decisions not yet answered by a newer version
 without a server the page is read-only; no localStorage decisions
+live updates: server-sent events push new items and versions to the open page; no reload
+one hub per project: port and pid in .cache/mozg/hub.json, skills reuse it, `assetkit hub stop` ends it
+session-start hook prints the running hub's URL
 ```
 
 ## Localization (godot-l10n)
@@ -164,13 +167,13 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 
 ### Phase B — godot-assets
 
-| #   | Milestone                                                                                                                   | verify                                                                                                                        |
-| --- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Contracts `asset`, `asset-version`, `item-event`; assetkit `new`, `version add`, `note`, `decide`, `status`, sqlite index   | two git worktrees add versions and events to one asset and merge with no conflict; status fold covers every transition        |
-| B2  | `promote` (UID read after headless import), `doctor` (moved, missing, sha mismatch), `ship-report`, prune to blob store     | fixture project: moved file found by UID, edited file flagged, AI-generated shipped asset listed                              |
-| B3  | `hub build` (2D images) + `hub serve` with security; decisions written as events                                            | pytest: token/Host/Origin/path traversal rejected; headless Chrome approve/retake writes an event; new version makes it stale |
-| B4  | Viewers: sprite frames, audio (waveform, seam, A/B), 3D (model-viewer, three.js inspect), video, UI multi-res, region notes | one fixture per kind renders in headless Chrome with no console errors                                                        |
-| B5  | Retake hook + `assetkit pending`; skills asset-registry, review-hub; importer for AloneGodot's 36 manifests (dry run)       | hook injects a fixture retake; AloneGodot scratch worktree imports with a report of unmapped fields; evals pass               |
+| #   | Milestone                                                                                                                                                                         | verify                                                                                                                                                                                                                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Contracts `asset`, `asset-version`, `item-event`; assetkit `new`, `version add`, `note`, `decide`, `status`, sqlite index                                                         | two git worktrees add versions and events to one asset and merge with no conflict; status fold covers every transition                                                                                                     |
+| B2  | `promote` (UID read after headless import), `doctor` (moved, missing, sha mismatch), `ship-report`, prune to blob store                                                           | fixture project: moved file found by UID, edited file flagged, AI-generated shipped asset listed                                                                                                                           |
+| B3  | `hub build` (2D images) + `hub serve` with security, live updates (SSE), one hub per project (`hub.json`, `hub stop`), URL in the session-start hook; decisions written as events | pytest: token/Host/Origin/path traversal rejected; a second `serve` reuses the running hub; headless Chrome approve/retake writes an event; a new version reaches the open page without reload and makes the old one stale |
+| B4  | Viewers: sprite frames, audio (waveform, seam, A/B), 3D (model-viewer, three.js inspect), video, UI multi-res, region notes                                                       | one fixture per kind renders in headless Chrome with no console errors                                                                                                                                                     |
+| B5  | Retake hook + `assetkit pending`; skills asset-registry, review-hub; importer for AloneGodot's 36 manifests (dry run)                                                             | hook injects a fixture retake; AloneGodot scratch worktree imports with a report of unmapped fields; evals pass                                                                                                            |
 
 ### Phase C — game-design
 

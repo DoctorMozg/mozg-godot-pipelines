@@ -27,11 +27,11 @@ from godotkit_rig import (
 def make_project(tmp_path: Path) -> ProjectFactory:
     """Writes a one-scene project whose main script is the given source; runs never pollute git."""
 
-    def build(main_script: str) -> Path:
+    def build(main_script: str, scene: str = MAIN_SCENE) -> Path:
         project = tmp_path / "project"
         project.mkdir()
         (project / "project.godot").write_text(PROJECT_GODOT)
-        (project / "main.tscn").write_text(MAIN_SCENE)
+        (project / "main.tscn").write_text(scene)
         (project / "main.gd").write_text(main_script)
         return project
 

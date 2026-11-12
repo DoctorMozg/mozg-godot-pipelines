@@ -7,6 +7,7 @@ import struct
 import zlib
 from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 from godotkit.locate import GodotBinary
 
@@ -35,7 +36,11 @@ NULL_CALL_SCRIPT = (
 )
 PARSE_ERROR_SCRIPT = 'extends Node\n\nfunc _ready() -> void\n\tprint("never")\n'
 
-ProjectFactory = Callable[[str], Path]
+
+class ProjectFactory(Protocol):
+    def __call__(self, main_script: str, scene: str = MAIN_SCENE) -> Path: ...
+
+
 FakeGodotFactory = Callable[..., GodotBinary]
 CliRunner = Callable[[list[str], GodotBinary], tuple[int, dict[str, object]]]
 

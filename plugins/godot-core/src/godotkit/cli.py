@@ -16,6 +16,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from godotkit.doctor import Doctor
+from godotkit.gates import ParseGate
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
@@ -55,6 +56,10 @@ def _parser() -> argparse.ArgumentParser:
     imp.add_argument(
         "--single-thread", action="store_true", help="import with use_multiple_threads=false"
     )
+
+    check = commands.add_parser("check", help="parse gate: every script under res:// loads")
+    check.add_argument("--project", type=Path, default=Path.cwd())
+    check.add_argument("--timeout", type=float, default=300.0)
 
     worktree = commands.add_parser("worktree", help="scratch git worktrees with a warm cache")
     actions = worktree.add_subparsers(dest="action", required=True)
@@ -136,6 +141,28 @@ def _import(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if verdict.ok else EXIT_FAILED
 
 
+def _check(args: argparse.Namespace, runner: GodotRunner) -> int:
+    try:
+        outcome = ParseGate(runner).run(args.project.resolve(), args.timeout)
+    except ValueError as error:
+        _emit({"cmd": "check", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    verdict = outcome.verdict
+    _emit(
+        {
+            "cmd": "check",
+            "ok": verdict.ok,
+            "reason": verdict.reason,
+            "duration_s": round(outcome.result.duration_s, 3),
+            "imported_first": outcome.imported_first,
+            "summary": verdict.summary,
+            "failed_scripts": outcome.failed_scripts,
+            "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
+        }
+    )
+    return EXIT_OK if verdict.ok else EXIT_FAILED
+
+
 def _worktree(args: argparse.Namespace) -> int:
     manager = WorktreeManager()
     path = args.path.resolve()
@@ -188,4 +215,5 @@ def main(argv: Sequence[str]) -> int:
         _emit({"cmd": args.command, "ok": False, "reason": "no_godot", "detail": str(error)})
         return EXIT_SETUP
     runner = GodotRunner(binary)
-    return _import(args, runner) if args.command == "import" else _run(args, runner)
+    handlers = {"import": _import, "check": _check, "run": _run}
+    return handlers[args.command](args, runner)

@@ -17,6 +17,7 @@ Status: approved 2026-11-12, including the asset registry and localization added
 - Godot 4.7.2 at `/home/drmozg/Tools/Godot_v4.7.2-stable_linux.x86_64` is the test engine; support floor 4.4 (UID files) is checked by fixtures later, not promised now.
 - AloneGodot is a **read-only** test bed: kits run against a scratch worktree of it, never commit to it.
 - Browser libraries are vendored into the plugin (offline, pinned), not loaded from a CDN at runtime.
+- Genres: the suite targets any Godot game. Besides AloneGodot (2D, UI-heavy campaign), two tiny test beds in `testbeds/` cover a 3D action arena and an RTS, so every check is proven on three kinds of game.
 - Disk is ext4: `cp --reflink=auto` falls back to a real copy of `.godot` (still avoids reimport). Disk is 95 % full: fixtures stay small, scratch worktrees are cleaned.
 
 ## Structure
@@ -162,6 +163,8 @@ skills: gd-interview (numbered questions → decision log), gd-canon, gd-contrac
         gd-balance, gd-review (judge), gd-research (web: reference games/mechanics, sourced, via pipeline-web-researcher)
 ```
 
+Balance models. `analyze` (graph, reachability, pacing) works for any genre. `simulate` runs one balance model, each with its own JSON schema: campaign and economy (AloneGodot) first, then combat (DPS, time to kill, encounter pacing) on the arena test bed and build order plus counter matrix on the RTS test bed. The shared model interface is extracted only once the second model exists, so it fits two real cases instead of a guess.
+
 ## Development process (godot-studio)
 
 Research: `docs/research/07-orchestration-dx.md` (how Codex built AloneGodot). One orchestrator session plans, hands out lanes and merges; each lane is a subagent in its own warm worktree with a set of files it owns. Review in the hub never blocks a lane.
@@ -219,7 +222,7 @@ design (designkit) ──► tasks with acceptance checks ◄── retake hook 
 
 ## Milestones
 
-Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Order: A → B → C → L → D to G.
+Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Order: A → T → B → C → L → M → P → D to G.
 
 ### Phase A — repo and godot-core
 
@@ -233,10 +236,20 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 | A4b | GdUnit4 adapter (`results.xml`, `--ignoreHeadlessMode`, empty report fails) and GUT adapter (`-gjunit_xml_file`)                                                                               | done: real GdUnit4 6.2.3 and GUT 9.7.1 judge pass, fail and parse-error suites right; GUT exits 0 on a parse error                                        |
 | A5  | Tier 0: formatter/lint wrapper, `strict`, `lint` rules, `arch` (layers from `architecture.json` on the dependency graph), LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint | diagnostics for a broken fixture in < 1 s with a warm LSP; an Error-level warning fails `check` on real Godot; a forbidden layer edge fails `arch`        |
 | A5s | Shader gate: headless load of every `.gdshader`/material with marked log sections; shader `lint` rules; `doctor` reports Xvfb and Mesa drivers                                                 | a fixture with an unknown identifier fails `check` on real Godot with the shader path named; a `SCREEN_TEXTURE` fixture fails `lint`                      |
+| A5r | Baseline: `baseline write`, `baseline shrink`; `check`, `lint`, `arch` and `strict` fail only on new violations or growing counts; a file joins the strict profile once clean                  | a fixture with old violations passes; one new violation fails; `shrink` never raises a count                                                              |
 | A6  | `gate` + receipts (`receipt write`, `receipt verify`); receipts carry reach metrics against the base commit; duration-balanced shards; post-merge rebuild of generated files                   | gate on fixtures writes a receipt; an edit after the receipt makes verify fail; a change adding a cross-layer edge shows a reach increase                 |
 | A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt, single-writer guard (`project.godot`, main scene, theme → request file)                      | hook unit tests; hook adds < 1 s per edit on AloneGodot; a lane edit of `project.godot` is refused with the request path                                  |
 | A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                                                                                            | lint_skills clean; ≥ 3 eval cases per skill pass                                                                                                          |
 | A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                                                                                      | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                                                    |
+
+### Phase T — test beds
+
+Two tiny projects of plain text files (scenes, scripts, primitive meshes, no binary assets), each under 300 KB, used by `live_godot` tests from Phase A on.
+
+| #   | Milestone                                                                                                                 | verify                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| T1  | `testbeds/arena3d`: CharacterBody3D player, one enemy, AnimationTree, Camera3D with collision, Jolt physics, seeded start | parse, boot and test gates pass; a scripted bot finishes the arena with a summary line |
+| T2  | `testbeds/rts`: about 500 units as MultiMesh, NavigationAgents, one resource, two bases, seeded match                     | gates pass; a bot-vs-bot match ends within a tick budget with a summary line           |
 
 ### Phase B — godot-assets
 
@@ -250,12 +263,13 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 
 ### Phase C — game-design
 
-| #   | Milestone                                                                                                    | verify                                                                       |
-| --- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| C1  | Schemas + `designkit validate`, `designkit analyze`                                                          | AloneGodot progression fixture: dead end and unreachable node reported       |
-| C2  | `simulate` (duration, economy, hazards) + `render` into the hub (graph, pacing, duration, coverage, economy) | seeded runs reproducible; views render; per-node retake reaches the registry |
-| C3  | `sync` drift check + skills gd-interview, gd-canon, gd-contracts/handoff, gd-review judge                    | drift fixture catches stale number (oxygenPerDay case); evals pass           |
-| C4  | gd-research skill (web research on reference games/mechanics, cited) + gd-balance skill                      | evals pass; sample research report has a source per claim                    |
+| #   | Milestone                                                                                                    | verify                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| C1  | Schemas + `designkit validate`, `designkit analyze`                                                          | AloneGodot progression fixture: dead end and unreachable node reported                       |
+| C2  | `simulate` (duration, economy, hazards) + `render` into the hub (graph, pacing, duration, coverage, economy) | seeded runs reproducible; views render; per-node retake reaches the registry                 |
+| C3  | `sync` drift check + skills gd-interview, gd-canon, gd-contracts/handoff, gd-review judge                    | drift fixture catches stale number (oxygenPerDay case); evals pass                           |
+| C4  | gd-research skill (web research on reference games/mechanics, cited) + gd-balance skill                      | evals pass; sample research report has a source per claim                                    |
+| C5  | Combat model (arena) and RTS model (build order, counter matrix); shared model interface extracted           | both test beds simulate from JSON; a dominant-unit fixture is reported by the counter matrix |
 
 ### Phase L — godot-l10n
 
@@ -267,6 +281,27 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 | L4  | Translation: `batch export` (masked, glossary, style, TM, context) and `batch apply` (restore, parity, provenance); QA judge; skills | eval: a fixture batch translated and applied with placeholders intact; a hook blocks edits of `build/`               |
 | L5  | In Godot: `max_px`, font coverage, pseudo-loc layout and override runs; per-locale screenshots and string review in the hub          | overflow fixture caught at one resolution; a hardcoded label exposed by the override run; hub review sets `reviewed` |
 
+### Phase M — migration of an existing project
+
+Rehearsed on a scratch worktree of AloneGodot; applying it to AloneGodot itself is a separate task for its owner.
+
+| #   | Milestone                                                                                                                                             | verify                                                                                       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| M1  | `godot-init` on an existing project: `godotkit.json`, `architecture.json` describing the current graph, `baseline write`, `doctor` report of blockers | AloneGodot worktree: gates pass on unchanged code; the blocker report lists the known issues |
+| M2  | Hooks, gates and receipts on; only new code must be clean                                                                                             | a new untyped function fails, old code passes                                                |
+| M3  | Imports for real: asset manifests → registry, CSV → string store, design data → JSON                                                                  | round trips give identical files; the hub shows the imported items                           |
+| M4  | Clean-up lanes shrink the baseline one module at a time                                                                                               | the baseline count drops and no gate regresses                                               |
+
+### Phase P — gameplay probes
+
+Each probe runs headless where possible, prints one summary line and is judged by `godotkit` like the other gates. Research: 23, 24, 25, 28, 34.
+
+| #   | Milestone                                                                          | verify                                                                         |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| P1  | Determinism: fixed-tick replay of recorded inputs gives the same state hash        | arena and RTS replays match; a seeded random leak fixture fails                |
+| P2  | Scale: units at N = 100, 500, 2,000 report frame time, draw calls, navigation time | RTS budget table in the receipt; a fixture without MultiMesh breaks the budget |
+| P3  | Feel: input-to-response frames, camera clipping, stuck detection                   | arena fixture with a one-frame input delay is reported                         |
+
 ### Phase D–G — outlines (detailed when reached)
 
 - **D godot-studio**: role map → subagents, ownership manifest + hook, delegation template (base commit, owned files, checks, return contract), request files for single-writer files and the merge queue that applies them, frozen-test lock, worktree lifecycle, risk-based review depth on mz-dev-pipe, decision-record template + options-and-scores step + architecture reviewer agent (see Development process).
@@ -277,8 +312,9 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 ## Decisions (2026-11-12)
 
 1. `godot-assets` (registry + hub) replaces `godot-review`; hub decisions are events in git; no localStorage decisions.
-1. `godot-l10n` is its own plugin, built after game design: A → B → C → L → D to G.
+1. `godot-l10n` is its own plugin, built after game design: A → B → C → L → D to G (test beds, migration and probes added 2026-11-13: A → T → B → C → L → M → P → D to G).
 1. JSON for registry, i18n and design data; no YAML in kits.
 1. Built `.po` files are committed; the gate fails when they are stale.
 1. Development runs as an orchestrator with file-owned lanes in warm worktrees and a one-at-a-time merge queue; `project.godot`, the main scene and the theme are single-writer (2026-11-13).
 1. Architecture is decided by the owner from scored options, recorded as decision records, enforced by `godotkit arch` and tracked by reach metrics in receipts (2026-11-13).
+1. The suite targets any genre: test beds for a 3D action arena and an RTS, a baseline ratchet for existing projects, a migration phase and gameplay probes (2026-11-13).

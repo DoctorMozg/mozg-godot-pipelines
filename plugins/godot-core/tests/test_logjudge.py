@@ -21,6 +21,40 @@ ERROR: Failed to load script "res://main.gd" with error "Parse error".
    at: load (modules/gdscript/gdscript_resource_format.cpp:46)
 """
 
+# Real Godot 4.7.2 output from AloneGodot negative-path tests.
+PUSH_ERROR_LOG = """ERROR: Invalid health rules.
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] configure (res://scripts/health_pool.gd:39)
+Health: 3 checks, 0 failures.
+"""
+ENGINE_ERROR_LOG = (
+    'ERROR: Condition "(header & 0xFF) >= Variant::VARIANT_MAX" is true. '
+    "Returning: ERR_INVALID_DATA\n"
+    "   at: decode_variant (core/io/marshalls.cpp:195)\n"
+)
+
+
+class TestPushError:
+    def test_project_push_error_is_its_own_kind_and_fails_by_default(self) -> None:
+        verdict = LogJudge(SUMMARY).judge(PUSH_ERROR_LOG, exit_code=0, timed_out=False)
+        assert (verdict.reason, verdict.counts) == ("push_error", {"push_error": 1})
+
+    def test_tolerated_push_error_is_counted_but_passes(self) -> None:
+        judge = LogJudge(SUMMARY, tolerate=frozenset({"push_error"}))
+        verdict = judge.judge(PUSH_ERROR_LOG, exit_code=0, timed_out=False)
+        assert verdict.ok
+        assert verdict.counts == {"push_error": 1}
+
+    def test_engine_error_still_fails_when_push_error_is_tolerated(self) -> None:
+        judge = LogJudge(SUMMARY, tolerate=frozenset({"push_error"}))
+        verdict = judge.judge(ENGINE_ERROR_LOG + PUSH_ERROR_LOG, exit_code=0, timed_out=False)
+        assert verdict.reason == "engine_error"
+
+    def test_unknown_kind_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="unknown issue kinds"):
+            LogJudge(tolerate=frozenset({"warning"}))
+
 
 class TestFailures:
     def test_script_error_with_exit_zero_fails(self) -> None:

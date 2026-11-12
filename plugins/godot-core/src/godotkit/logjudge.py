@@ -20,7 +20,9 @@ _ISSUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("engine_error", re.compile(r"^ERROR:")),
 )
 # The most severe kind found in a run names its failure reason.
-_SEVERITY = ["crash", "parse_error", "script_error", "engine_error", "leak"]
+_SEVERITY = ["crash", "parse_error", "script_error", "engine_error", "push_error", "leak"]
+# An ERROR raised by the project's own push_error, not by the engine.
+_PUSH_ERROR_LOCATION = "push_error (core/variant/variant_utility.cpp"
 
 
 @dataclass(frozen=True)
@@ -41,17 +43,26 @@ class Verdict:
 
 
 class LogJudge:
-    """Turns raw output into a verdict; `summary` is a regex whose named groups are integers."""
+    """Turns raw output into a verdict; `summary` is a regex whose named groups are integers.
+
+    `tolerate` names issue kinds that are counted but do not fail the run.
+    """
 
     def __init__(
         self,
         summary: re.Pattern[str] | None = None,
         allow: Sequence[re.Pattern[str]] = (),
+        tolerate: frozenset[str] = frozenset(),
     ) -> None:
         if summary is not None and not summary.groupindex:
             raise ValueError("the summary pattern needs named groups, such as (?P<checks>\\d+)")
+        if not tolerate <= set(_SEVERITY):
+            raise ValueError(
+                f"unknown issue kinds to tolerate: {sorted(tolerate - set(_SEVERITY))}"
+            )
         self._summary = summary
         self._allow = tuple(allow)
+        self._tolerate = tolerate
 
     def judge(self, output: str, exit_code: int | None, timed_out: bool) -> Verdict:
         issues, warnings = self._scan(output.splitlines())
@@ -70,7 +81,10 @@ class LogJudge:
                 continue
             kind = next((k for k, pattern in _ISSUE_PATTERNS if pattern.search(line)), None)
             if kind is not None:
-                issues.append(LogIssue(kind, line.strip(), self._location(lines, index)))
+                location = self._location(lines, index)
+                if kind == "engine_error" and (location or "").startswith(_PUSH_ERROR_LOCATION):
+                    kind = "push_error"
+                issues.append(LogIssue(kind, line.strip(), location))
             elif line.startswith("WARNING:"):
                 warnings += 1
         return issues, warnings
@@ -100,7 +114,7 @@ class LogJudge:
     ) -> str:
         if timed_out:
             return "timeout"
-        kinds = {issue.kind for issue in issues}
+        kinds = {issue.kind for issue in issues} - self._tolerate
         if "crash" in kinds:
             return "crash"
         if exit_code not in (0, None):

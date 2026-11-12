@@ -1,6 +1,6 @@
 # mozg-godot — implementation plan
 
-Status: approved 2026-11-12 (phases A, C to G). The asset registry and localization sections were added the same day and are pending approval. Research behind every item is in `docs/research/01-16`.
+Status: approved 2026-11-12, including the asset registry and localization added the same day. Research behind every item is in `docs/research/01-16`.
 
 ## Goals (from the user)
 
@@ -113,7 +113,7 @@ Research: `docs/research/16-web-i18n.md`. The structured store is the source of 
 ## Game design (game-design)
 
 ```
-design/progression  economy  balance   (single source of truth; format: see decision 3)
+design/progression  economy  balance   (JSON, single source of truth)
 designkit validate | analyze | simulate | sync | render
   analyze : reachability, dead ends, cycles, critical path, depth per playstyle, pacing gaps, coverage matrix
   simulate: Monte-Carlo campaign duration (P10/50/90 vs target band), economy pools, hazards (seeded)
@@ -125,7 +125,7 @@ skills: gd-interview (numbered questions → decision log), gd-canon, gd-contrac
 
 ## Milestones
 
-Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Order: A → B → L → C → D to G.
+Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Order: A → B → C → L → D to G.
 
 ### Phase A — repo and godot-core
 
@@ -152,6 +152,15 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 | B4  | Viewers: sprite frames, audio (waveform, seam, A/B), 3D (model-viewer, three.js inspect), video, UI multi-res, region notes | one fixture per kind renders in headless Chrome with no console errors                                                        |
 | B5  | Retake hook + `assetkit pending`; skills asset-registry, review-hub; importer for AloneGodot's 36 manifests (dry run)       | hook injects a fixture retake; AloneGodot scratch worktree imports with a report of unmapped fields; evals pass               |
 
+### Phase C — game-design
+
+| #   | Milestone                                                                                                    | verify                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| C1  | Schemas + `designkit validate`, `designkit analyze`                                                          | AloneGodot progression fixture: dead end and unreachable node reported       |
+| C2  | `simulate` (duration, economy, hazards) + `render` into the hub (graph, pacing, duration, coverage, economy) | seeded runs reproducible; views render; per-node retake reaches the registry |
+| C3  | `sync` drift check + skills gd-interview, gd-canon, gd-contracts/handoff, gd-review judge                    | drift fixture catches stale number (oxygenPerDay case); evals pass           |
+| C4  | gd-research skill (web research on reference games/mechanics, cited) + gd-balance skill                      | evals pass; sample research report has a source per claim                    |
+
 ### Phase L — godot-l10n
 
 | #   | Milestone                                                                                                                            | verify                                                                                                               |
@@ -162,15 +171,6 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 | L4  | Translation: `batch export` (masked, glossary, style, TM, context) and `batch apply` (restore, parity, provenance); QA judge; skills | eval: a fixture batch translated and applied with placeholders intact; a hook blocks edits of `build/`               |
 | L5  | In Godot: `max_px`, font coverage, pseudo-loc layout and override runs; per-locale screenshots and string review in the hub          | overflow fixture caught at one resolution; a hardcoded label exposed by the override run; hub review sets `reviewed` |
 
-### Phase C — game-design
-
-| #   | Milestone                                                                                                    | verify                                                                       |
-| --- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| C1  | Schemas + `designkit validate`, `designkit analyze`                                                          | AloneGodot progression fixture: dead end and unreachable node reported       |
-| C2  | `simulate` (duration, economy, hazards) + `render` into the hub (graph, pacing, duration, coverage, economy) | seeded runs reproducible; views render; per-node retake reaches the registry |
-| C3  | `sync` drift check + skills gd-interview, gd-canon, gd-contracts/handoff, gd-review judge                    | drift fixture catches stale number (oxygenPerDay case); evals pass           |
-| C4  | gd-research skill (web research on reference games/mechanics, cited) + gd-balance skill                      | evals pass; sample research report has a source per claim                    |
-
 ### Phase D–G — outlines (detailed when reached)
 
 - **D godot-studio**: role map → subagents, ownership manifest + hook, delegation template, frozen-test lock, worktree lifecycle, risk-based depth on mz-dev-pipe.
@@ -178,9 +178,9 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 - **F godot-ui**: ui-brief, HTML prototype template, handoff template, tokens → Theme, multi-res capture into the hub; string keys through l10nkit.
 - **G godot-audio**: cues.yaml, synth/fal SFX, music loop points, loudness checks, bus lint, audition in the hub.
 
-## Decisions pending
+## Decisions (2026-11-12)
 
-1. `godot-assets` (registry + hub) replaces `godot-review`; hub decisions are events in git, and the localStorage fallback is dropped.
-1. New plugin `godot-l10n`; build order A → B → L → C → D to G.
-1. Store format: JSON for registry, i18n and design data, since kits are stdlib and agents write through the CLI. YAML would add PyYAML to every kit that reads it.
-1. Built `.po` files: committed and checked for freshness by the gate (a fresh clone runs in the editor without the kit), or gitignored and rebuilt on worktree setup, as the research suggests.
+1. `godot-assets` (registry + hub) replaces `godot-review`; hub decisions are events in git; no localStorage decisions.
+1. `godot-l10n` is its own plugin, built after game design: A → B → C → L → D to G.
+1. JSON for registry, i18n and design data; no YAML in kits.
+1. Built `.po` files are committed; the gate fails when they are stale.

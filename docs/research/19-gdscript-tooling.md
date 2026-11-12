@@ -4,13 +4,13 @@ Source: web research of 2026-11-13 (PyPI, GitHub repos, changelogs and issues, d
 
 ## Summary
 
-| Need | Choice for godotkit | Why |
-| --- | --- | --- |
-| Lint | gdlint (gdtoolkit 4.5.0) | Mature; AloneGodot already pins it in pre-commit |
-| Format | gdformat (gdtoolkit 4.5.0), GDQuest `gdscript-formatter` as the fast alternative | One formatter per project; the two disagree on some output |
-| Script errors | `godotkit check` (load every script) | Error-level warnings fail `load()` too ([17](17-gdscript-strict-typing.md)) |
-| Editor diagnostics | Godot LSP, one `didOpen` per file | No workspace-wide publish |
-| Tests | Custom summary-line harnesses, GdUnit4 6.2.x, GUT 9.7.x | Judged by log and report, never by exit code alone |
+| Need               | Choice for godotkit                                                              | Why                                                                         |
+| ------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Lint               | gdlint (gdtoolkit 4.5.0)                                                         | Mature; AloneGodot already pins it in pre-commit                            |
+| Format             | gdformat (gdtoolkit 4.5.0), GDQuest `gdscript-formatter` as the fast alternative | One formatter per project; the two disagree on some output                  |
+| Script errors      | `godotkit check` (load every script)                                             | Error-level warnings fail `load()` too ([17](17-gdscript-strict-typing.md)) |
+| Editor diagnostics | Godot LSP, one `didOpen` per file                                                | No workspace-wide publish                                                   |
+| Tests              | Custom summary-line harnesses, GdUnit4 6.2.x, GUT 9.7.x                          | Judged by log and report, never by exit code alone                          |
 
 ## gdtoolkit (gdlint, gdformat, gdradon)
 
@@ -44,13 +44,13 @@ Source: web research of 2026-11-13 (PyPI, GitHub repos, changelogs and issues, d
 
 ## Alternatives
 
-| Tool | Version (date) | Notes |
-| --- | --- | --- |
+| Tool                                                                        | Version (date)                       | Notes                                                                                                                        |
+| --------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | [GDQuest GDScript-formatter](https://github.com/GDQuest/GDScript-formatter) | 0.28.0 (2026-10-31), MIT, ~492 stars | Rust and tree-sitter; `--check`, `--stdout`, `.editorconfig`; `lint` subcommand with 17 rules; self-reported few ms per file |
-| [gdck](https://docs.rs/crate/gdck/latest) | 0.8.0 (2026-08-25) | Rust port of gdtoolkit; reads `gdlintrc`/`gdformatrc`; "complete but young" |
-| [gdstyle](https://github.com/atelico/gdstyle) | v0.7.0 | 57 rules (function length 50, nesting 4, branches 8, parameters 5); JSON output; hook builds with cargo |
-| [gdeye](https://docs.rs/crate/gdeye/latest) | 0.1.3 (2026-03-14) | Dead-function removal (`--unsafe`), experimental LSP |
-| Built-in formatter | not in 4.7 | PR [#97383](https://github.com/godotengine/godot/pull/97383) open, approved 2026-08-15 |
+| [gdck](https://docs.rs/crate/gdck/latest)                                   | 0.8.0 (2026-08-25)                   | Rust port of gdtoolkit; reads `gdlintrc`/`gdformatrc`; "complete but young"                                                  |
+| [gdstyle](https://github.com/atelico/gdstyle)                               | v0.7.0                               | 57 rules (function length 50, nesting 4, branches 8, parameters 5); JSON output; hook builds with cargo                      |
+| [gdeye](https://docs.rs/crate/gdeye/latest)                                 | 0.1.3 (2026-03-14)                   | Dead-function removal (`--unsafe`), experimental LSP                                                                         |
+| Built-in formatter                                                          | not in 4.7                           | PR [#97383](https://github.com/godotengine/godot/pull/97383) open, approved 2026-08-15                                       |
 
 All the Rust tools are below 1.0. Adding any of them is a dependency decision for the owner.
 
@@ -68,15 +68,15 @@ All the Rust tools are below 1.0. Adding any of them is a dependency decision fo
 
 ## Test frameworks
 
-| | GdUnit4 | GUT |
-| --- | --- | --- |
-| Repo | [godot-gdunit-labs/gdUnit4](https://github.com/godot-gdunit-labs/gdUnit4), MIT, ~1.3k stars | [bitwes/Gut](https://github.com/bitwes/Gut), MIT, ~2.8k stars |
-| For 4.7 | v6.2.x (4.5–4.7.1; v6.2.3 "01 Nov", year UNVERIFIED); master v7 targets 4.7 and 4.8 | 9.7.1 (9.7.0 added 4.7) |
-| CLI | `addons/gdUnit4/runtest.sh -a res://test`, which runs `GdUnitCmdTool.gd` with `-d --remote-debug tcp://127.0.0.1:0`, so a parse error cannot hang at `debug>` | `godot -s addons/gut/gut_cmdln.gd -d --path . -gdir=res://test -gexit` |
-| Report | `res://reports/report_N/results.xml` (JUnit); `-rd` sets the folder, `-rc` keeps 20 | `-gjunit_xml_file=<path>` |
-| Exit codes | 0 ok (also when no tests are found), 100 failures, 101 orphans only, 103 headless refused, 104 version, 105 script errors in discovery | 0 or 1 |
-| Headless | v6.2.3 needs `--ignoreHeadlessMode`; v7 only warns | `--headless` works but is undocumented |
-| Orphans | Per test with stack traces (v6.2.0) | Per test and at the end; `assert_no_new_orphans`, `autofree` |
+|            | GdUnit4                                                                                                                                                       | GUT                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Repo       | [godot-gdunit-labs/gdUnit4](https://github.com/godot-gdunit-labs/gdUnit4), MIT, ~1.3k stars                                                                   | [bitwes/Gut](https://github.com/bitwes/Gut), MIT, ~2.8k stars          |
+| For 4.7    | v6.2.x (4.5–4.7.1; v6.2.3 "01 Nov", year UNVERIFIED); master v7 targets 4.7 and 4.8                                                                           | 9.7.1 (9.7.0 added 4.7)                                                |
+| CLI        | `addons/gdUnit4/runtest.sh -a res://test`, which runs `GdUnitCmdTool.gd` with `-d --remote-debug tcp://127.0.0.1:0`, so a parse error cannot hang at `debug>` | `godot -s addons/gut/gut_cmdln.gd -d --path . -gdir=res://test -gexit` |
+| Report     | `res://reports/report_N/results.xml` (JUnit); `-rd` sets the folder, `-rc` keeps 20                                                                           | `-gjunit_xml_file=<path>`                                              |
+| Exit codes | 0 ok (also when no tests are found), 100 failures, 101 orphans only, 103 headless refused, 104 version, 105 script errors in discovery                        | 0 or 1                                                                 |
+| Headless   | v6.2.3 needs `--ignoreHeadlessMode`; v7 only warns                                                                                                            | `--headless` works but is undocumented                                 |
+| Orphans    | Per test with stack traces (v6.2.0)                                                                                                                           | Per test and at the end; `assert_no_new_orphans`, `autofree`           |
 
 Sources: [GdUnit4 CLI docs](https://godot-gdunit-labs.github.io/gdUnit4/latest/advanced_testing/cmd/), `GdUnitTestSessionRunner.gd` and `GdUnitTestCIRunner.gd` at v6.2.3, [GUT command line](https://gut.readthedocs.io/en/latest/Command-Line.html), [GUT memory](https://gut.readthedocs.io/en/latest/Memory-Management.html). WAT is Godot 3 only.
 

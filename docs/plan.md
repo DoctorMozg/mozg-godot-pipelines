@@ -1,13 +1,15 @@
 # mozg-godot — implementation plan
 
-Status: DRAFT for approval (2026-11-12). Research behind every item: `docs/research/01-14`.
+Status: approved 2026-11-12 (phases A, C to G). The asset registry and localization sections were added the same day and are pending approval. Research behind every item is in `docs/research/01-16`.
 
 ## Goals (from the user)
 
 1. A Claude Code marketplace for Godot 4 game development, shaped like `mozg-video-plugins`.
 1. **Fast feedback**: per-edit checks under 1 s, per-task checks under 10 s, full gate only before commit.
-1. **One review hub in the browser** for every resource — 2D, sprites, 3D, audio, UI screenshots, shaders (as clips), design graphs — where each item can be approved or **marked for redo** with a note, and the decision reaches the agent automatically.
+1. **One review hub in the browser** for every resource (2D, sprites, 3D, audio, UI screenshots, shaders as clips, design graphs, translated strings). Each item can be approved or **marked for redo** with a note, and the decision reaches the agent automatically.
 1. **Game-design tools**: progression graphs with analysis (reachability, chain length per playstyle, pacing, duration), balance simulation, and sourced web research on reference games and mechanics.
+1. **Asset storage**: every game resource is registered with metadata, versions, provenance, comments and notes.
+1. **Localization**: strings are stored with context and notes, translated, checked and built into what Godot loads.
 
 ## Assumptions
 
@@ -15,23 +17,24 @@ Status: DRAFT for approval (2026-11-12). Research behind every item: `docs/resea
 - Godot 4.7.2 at `/home/drmozg/Tools/Godot_v4.7.2-stable_linux.x86_64` is the test engine; support floor 4.4 (UID files) is checked by fixtures later, not promised now.
 - AloneGodot is a **read-only** test bed: kits run against a scratch worktree of it, never commit to it.
 - Browser libraries are vendored into the plugin (offline, pinned), not loaded from a CDN at runtime.
-- Disk is ext4: `cp --reflink=auto` falls back to a real copy of `.godot` (still avoids reimport). Disk is 95 % full — fixtures stay small, scratch worktrees are cleaned.
+- Disk is ext4: `cp --reflink=auto` falls back to a real copy of `.godot` (still avoids reimport). Disk is 95 % full: fixtures stay small, scratch worktrees are cleaned.
 
-## Structure (approved, plus one addition)
+## Structure
 
 ```
 plugins/
   godot-core/      godotkit   fast loop tiers, gates, receipts, hooks, init/verify/test/scene skills
-  godot-review/    reviewkit  NEW: browser review hub + decisions → agent   (every plugin writes into it)
+  godot-assets/    assetkit   asset registry (records, versions, events, provenance) + browser review hub
+  godot-l10n/      l10nkit    string store, translation pipeline, checks, PO build, pseudo-loc
   game-design/     designkit  design data, graph analysis, simulation, views, interview/canon/research skills
   godot-studio/               team orchestration on mz-dev-pipe
   godot-art/       artkit     2D + 3D assets via fal-media, import/VRAM audits
-  godot-ui/        uikit      brief → HTML prototype → Godot handoff, theme, multi-res capture, i18n
+  godot-ui/        uikit      brief → HTML prototype → Godot handoff, theme, multi-res capture
   godot-audio/     audiokit   cue sheet, synth/fal SFX, loudness, buses, listening
   mozg-godot-suite/           dependencies only
 ```
 
-**Why a separate `godot-review`**: art, audio, UI, design and 3D all need the same viewer, the same decision file and the same redo hook. One owner, one contract (`review-item`, `review-decisions`), every other plugin only writes items.
+`godot-assets` replaces the approved `godot-review`. The hub shows the registry, and a decision made in the hub is a registry event, so registry and review share one store and one contract. Art, audio, UI, design and l10n write records through the contracts in `contracts/`, never by importing another kit.
 
 ## Fast loop (godot-core)
 
@@ -49,82 +52,135 @@ Tier 2  gate   before commit (`godotkit gate` → receipt)
 
 Every command prints one JSON line; exit code of Godot is never trusted alone.
 
-## Review hub (godot-review)
+## Asset registry and review hub (godot-assets)
+
+Research: `docs/research/15-web-asset-registry.md`. Every write adds a new file, so parallel worktrees never conflict and no `merge=union` is needed (GitHub web merges ignore it).
 
 ```
-plugins write  review/items/<section>.json  (contract review-item: id, kind, group, versions[{n,file,sha256,thumb,meta}])
-reviewkit build  → review/index.html + manifest (thumbs cached by hash; audio LUFS; glb stats)
-reviewkit serve  → 127.0.0.1:random, token, Host/Origin checks, path sandbox
-browser: grid with status pills (pending/approved/redo/stale), filters in URL hash, keyboard A/R/J/K,
+<project>/registry/                       .gdignore: Godot never imports, loads or exports it
+  assets/<family>/<asset_id>/
+    asset.json                            id (slug-xxxx, never changes), kind, title, tags, owner, ship
+    versions/<ULID>.json                  immutable: files[{role,path,sha256,bytes,storage}], media,
+                                          provenance{origin,license SPDX,source_url,attribution,
+                                          digital_source_type IPTC,human_edited,c2pa}, generation{
+                                          provider,model,job_id,prompt,seed,params,inputs}
+    events/<ULID>.json                    immutable: note | decision approve/retake/reject | status |
+                                          promote{res_path,godot_uid}; reply_to threads notes
+  staging/<asset_id>/<version>.<ext>      candidates before promotion
+<project>/.cache/mozg/registry.sqlite     generated index, gitignored, rebuilt when records change
+```
+
+- Status is folded from events, never stored: draft → pending_review → approved | retake → final, plus rejected and deprecated. A new version starts pending; a decision on an older version goes stale.
+- Godot UID and `res://` path are recorded on promotion as a lookup key; `assetkit doctor` finds moved files by UID, then by sha256, and reports missing files and sha mismatches.
+- `assetkit ship-report` answers "which shipped assets are AI-generated" (Steam disclosure).
+- Rejected variants are pruned to a content-addressed store outside the repo, keeping sha256 and location in the version record. Git LFS is reported by `doctor`, not required.
+
+```
+assetkit hub build → static page + item bundle (thumbs cached by sha256; audio LUFS; glb stats)
+assetkit hub serve → 127.0.0.1:random, token, Host/Origin checks, path sandbox
+browser: grid with status pills (pending/approved/retake/stale), filters in URL hash, keyboard A/R/J/K,
          per-kind viewer: image + 120/240 px + before/after | sprite frames + onion skin |
          3D model-viewer (+three.js inspect) | audio waveform + loop seam + A/B | video/clip |
-         UI per resolution | graph (design) ; region notes on images
-POST /api/decisions → .review/decisions.json (atomic, keyed id@version + sha256) + decisions.log.jsonl
-hook (SessionStart + UserPromptSubmit): injects unconsumed redo items into the agent's context
-fallback without server: localStorage + "Download decisions" + "Copy list"
+         UI per resolution | graph (design) | string per locale with screenshot ; region notes, threads
+POST /api/events → the same writer the CLI uses → registry/assets/.../events/<ULID>.json (in git)
+hook (SessionStart + UserPromptSubmit): injects retake decisions not yet answered by a newer version
+without a server the page is read-only; no localStorage decisions
 ```
+
+## Localization (godot-l10n)
+
+Research: `docs/research/16-web-i18n.md`. The structured store is the source of truth; Godot files are built from it.
+
+```
+<project>/i18n/
+  src/<namespace>.json          .gdignore; source records sorted by key: source, context, note,
+                                max_chars, max_px, placeholders, markup, plural forms, screenshots,
+                                tags, dnt, dynamic key patterns
+  locales/<locale>/<ns>.json    .gdignore; text or plural forms, status new|machine|translated|reviewed,
+                                source_hash, by{kind,model,at}
+  events/<ULID>.json            .gdignore; notes and review decisions on KEY@locale (same event contract)
+  glossary.json  style/<locale>.md
+  build/<locale>.po             generated, deterministic: msgctxt, plurals, #. notes, #, fuzzy when stale
+```
+
+- Agents change strings only through `l10nkit add|edit|remove`; a hook blocks direct edits of `build/`.
+- Stale is computed (`source_hash` differs from the hash of source, context and plural forms), never stored; stale entries are built as fuzzy, so Godot falls back to the source text.
+- `reviewed` is set only from the hub by a person; the CLI has no command for it.
+- Translation: batches per namespace and locale with context, notes, limits, screenshot, glossary, style guide and translation-memory matches; placeholders and BBCode masked as tokens and restored; status `machine` with provenance; a fresh-context QA judge adds findings as events.
+- Checks: missing, orphan and duplicate keys (dynamic patterns declared), placeholder and BBCode parity per plural form, plural count per locale, `max_chars`, hardcoded strings in `.gd` and `.tscn` (Godot's extractor patterns, `# NO_TRANSLATE`), and in Godot: `max_px` with the theme font, font coverage, pseudo-loc layout overflow and the `override` run that exposes untranslated text.
+- Release gate: shipped locales have 0 missing, 0 stale, 0 check errors.
 
 ## Game design (game-design)
 
 ```
-design/progression.yaml  economy.yaml  balance.yaml   (single source of truth)
+design/progression  economy  balance   (single source of truth; format: see decision 3)
 designkit validate | analyze | simulate | sync | render
   analyze : reachability, dead ends, cycles, critical path, depth per playstyle, pacing gaps, coverage matrix
   simulate: Monte-Carlo campaign duration (P10/50/90 vs target band), economy pools, hazards (seeded)
-  sync    : drift between YAML and .tres / CSV / doc number blocks
-  render  : review-hub items of kind graph/chart (Cytoscape + ELK layout precomputed, charts) → per-node redo
+  sync    : drift between design data and .tres / CSV / doc number blocks
+  render  : hub items of kind graph/chart (Cytoscape + ELK layout precomputed, charts) → per-node redo
 skills: gd-interview (numbered questions → decision log), gd-canon, gd-contracts/handoff (OPEN rows block code),
         gd-balance, gd-review (judge), gd-research (web: reference games/mechanics, sourced, via pipeline-web-researcher)
 ```
 
 ## Milestones
 
-Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Later plugins get a detailed milestone breakdown when reached; outlines below.
+Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Order: A → B → L → C → D to G.
 
 ### Phase A — repo and godot-core
 
-| #   | Milestone                                                                                                                                                                            | verify                                                                                                                   |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| A0  | Scaffold: marketplace.json, CLAUDE.md, Makefile, pyproject, pre-commit, CI; port `tools/` (lint_skills, repo_rules, skill rules, commit-msg, sync_contracts) from mozg-video-plugins | `make check` green; `claude plugin validate --strict` passes on the empty marketplace                                    |
-| A1  | godotkit skeleton: launcher, `doctor`, Godot locator, log judge; fixture projects `ok`, `parse_error`, `exit0_trap`                                                                  | pytest with real Godot: `exit0_trap` returns `ok:false` while Godot exits 0                                              |
-| A2  | `import` + `worktree new`: warm `.godot` copy, `use_multiple_threads=false` option, uid/translation churn report                                                                     | on an AloneGodot scratch worktree: warm import measured faster than cold (numbers recorded); churn listed, not committed |
-| A3  | `check` parse gate + `boot` gate with injected temporary input bridge                                                                                                                | fixture reproducing AloneGodot's dead-input startup bug fails `boot` with `input_dead`; healthy fixture passes           |
-| A4  | `test`: adapters for custom summary-line harness and GdUnit4 JUnit, dependency graph, `--affected`, shards with isolated XDG                                                         | on AloneGodot: full run matches existing runner check counts; one changed script selects a strict subset in < 10 s       |
-| A5  | Tier 0: formatter/lint wrapper + LSP client (\`lsp start                                                                                                                             | diag                                                                                                                     |
-| A6  | `gate` + receipts (\`receipt write                                                                                                                                                   | verify\`)                                                                                                                |
-| A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt                                                                                     | hook unit tests; hook adds < 1 s per edit on AloneGodot                                                                  |
-| A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                                                                                  | lint_skills clean; ≥ 3 eval cases per skill pass                                                                         |
-| A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                                                                            | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                   |
+| #   | Milestone                                                                                                                    | verify                                                                                                                   |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| A0  | Scaffold: marketplace.json, CLAUDE.md, Makefile, pyproject, pre-commit, CI; port `tools/` from mozg-video-plugins            | done `ea8ce6c`                                                                                                           |
+| A1  | godotkit: `doctor`, Godot locator, log judge, isolated `run`                                                                 | done `16621f7`: real Godot exits 0 on script and parse errors, `run` reports `ok:false`                                  |
+| A2  | `import` + `worktree new`: warm `.godot` copy, `use_multiple_threads=false` option, uid/translation churn report             | on an AloneGodot scratch worktree: warm import measured faster than cold (numbers recorded); churn listed, not committed |
+| A3  | `check` parse gate + `boot` gate with injected temporary input bridge                                                        | fixture reproducing AloneGodot's dead-input startup bug fails `boot` with `input_dead`; healthy fixture passes           |
+| A4  | `test`: adapters for custom summary-line harness and GdUnit4 JUnit, dependency graph, `--affected`, shards with isolated XDG | on AloneGodot: full run matches existing runner check counts; one changed script selects a strict subset in < 10 s       |
+| A5  | Tier 0: formatter/lint wrapper, LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint                         | diagnostics for a broken fixture in < 1 s with a warm LSP                                                                |
+| A6  | `gate` + receipts (`receipt write`, `receipt verify`)                                                                        | gate on fixtures writes a receipt; an edit after the receipt makes verify fail                                           |
+| A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt                             | hook unit tests; hook adds < 1 s per edit on AloneGodot                                                                  |
+| A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                          | lint_skills clean; ≥ 3 eval cases per skill pass                                                                         |
+| A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                    | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                   |
 
-### Phase B — godot-review
+### Phase B — godot-assets
 
-| #   | Milestone                                                                                                                   | verify                                                                                                                     |
-| --- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Contracts `review-item`, `review-decisions`; `reviewkit build` (2D images) + `serve` with security                          | pytest: token/Host/Origin/path-traversal rejected; headless Chrome approve/redo writes decisions.json; stale on sha change |
-| B2  | Viewers: sprite frames, audio (waveform, seam, A/B), 3D (model-viewer, three.js inspect), video, UI multi-res, region notes | one fixture per kind renders in headless Chrome with no console errors                                                     |
-| B3  | Redo hook + \`reviewkit pending                                                                                             | consume`+ skill`review-hub\`; adapters for AloneGodot's existing manifests                                                 |
+| #   | Milestone                                                                                                                   | verify                                                                                                                        |
+| --- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Contracts `asset`, `asset-version`, `item-event`; assetkit `new`, `version add`, `note`, `decide`, `status`, sqlite index   | two git worktrees add versions and events to one asset and merge with no conflict; status fold covers every transition        |
+| B2  | `promote` (UID read after headless import), `doctor` (moved, missing, sha mismatch), `ship-report`, prune to blob store     | fixture project: moved file found by UID, edited file flagged, AI-generated shipped asset listed                              |
+| B3  | `hub build` (2D images) + `hub serve` with security; decisions written as events                                            | pytest: token/Host/Origin/path traversal rejected; headless Chrome approve/retake writes an event; new version makes it stale |
+| B4  | Viewers: sprite frames, audio (waveform, seam, A/B), 3D (model-viewer, three.js inspect), video, UI multi-res, region notes | one fixture per kind renders in headless Chrome with no console errors                                                        |
+| B5  | Retake hook + `assetkit pending`; skills asset-registry, review-hub; importer for AloneGodot's 36 manifests (dry run)       | hook injects a fixture retake; AloneGodot scratch worktree imports with a report of unmapped fields; evals pass               |
+
+### Phase L — godot-l10n
+
+| #   | Milestone                                                                                                                            | verify                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| L1  | Contracts `string`, `string-translation`; l10nkit `add`, `edit`, `remove`, `list`, `status` (stale computed); import of Godot CSV    | AloneGodot `i18n/game.csv` (259 keys) imports and exports back to an identical CSV                                   |
+| L2  | `build`: PO per locale (msgctxt, plurals, fuzzy when stale), optional 4.6+ CSV                                                       | live_godot: `tr`, `tr_n` and context resolve from the built PO; a stale entry falls back to the source text          |
+| L3  | `check`: keys, dynamic patterns, placeholder and BBCode parity, plural count, `max_chars`, hardcoded strings in `.gd` and `.tscn`    | one fixture per rule fails; AloneGodot report produced without false positives on its declared dynamic keys          |
+| L4  | Translation: `batch export` (masked, glossary, style, TM, context) and `batch apply` (restore, parity, provenance); QA judge; skills | eval: a fixture batch translated and applied with placeholders intact; a hook blocks edits of `build/`               |
+| L5  | In Godot: `max_px`, font coverage, pseudo-loc layout and override runs; per-locale screenshots and string review in the hub          | overflow fixture caught at one resolution; a hardcoded label exposed by the override run; hub review sets `reviewed` |
 
 ### Phase C — game-design
 
-| #   | Milestone                                                                                                           | verify                                                                       |
-| --- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| C1  | Schemas + \`designkit validate                                                                                      | analyze\`                                                                    |
-| C2  | `simulate` (duration, economy, hazards) + `render` into the review hub (graph, pacing, duration, coverage, economy) | seeded runs reproducible; views render; per-node redo reaches decisions.json |
-| C3  | `sync` drift check + skills gd-interview, gd-canon, gd-contracts/handoff, gd-review judge                           | drift fixture catches stale number (oxygenPerDay case); evals pass           |
-| C4  | gd-research skill (web research on reference games/mechanics, cited) + gd-balance skill                             | evals pass; sample research report has a source per claim                    |
+| #   | Milestone                                                                                                    | verify                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| C1  | Schemas + `designkit validate`, `designkit analyze`                                                          | AloneGodot progression fixture: dead end and unreachable node reported       |
+| C2  | `simulate` (duration, economy, hazards) + `render` into the hub (graph, pacing, duration, coverage, economy) | seeded runs reproducible; views render; per-node retake reaches the registry |
+| C3  | `sync` drift check + skills gd-interview, gd-canon, gd-contracts/handoff, gd-review judge                    | drift fixture catches stale number (oxygenPerDay case); evals pass           |
+| C4  | gd-research skill (web research on reference games/mechanics, cited) + gd-balance skill                      | evals pass; sample research report has a source per claim                    |
 
 ### Phase D–G — outlines (detailed when reached)
 
 - **D godot-studio**: role map → subagents, ownership manifest + hook, delegation template, frozen-test lock, worktree lifecycle, risk-based depth on mz-dev-pipe.
-- **E godot-art**: art-bible, asset-brief with dependents, art-batch via fal-media (2D and 3D: Trellis/Hunyuan GLB with decimation), import/mipmap/VRAM audit, review-hub items, readability + style judges.
-- **F godot-ui**: ui-brief, HTML prototype template, handoff template, tokens → Theme, multi-res capture into hub, i18n checks.
-- **G godot-audio**: cues.yaml, synth/fal SFX, music loop points, loudness checks, bus lint, audition in hub.
+- **E godot-art**: art-bible, asset-brief with dependents, art-batch via fal-media (2D and 3D: Trellis/Hunyuan GLB with decimation) writing registry versions with generation provenance, import/mipmap/VRAM audit, readability + style judges.
+- **F godot-ui**: ui-brief, HTML prototype template, handoff template, tokens → Theme, multi-res capture into the hub; string keys through l10nkit.
+- **G godot-audio**: cues.yaml, synth/fal SFX, music loop points, loudness checks, bus lint, audition in the hub.
 
-## Decisions needed now
+## Decisions pending
 
-1. **Approve adding `godot-review`** as its own plugin (above).
-1. **Approve dependencies** (vendored, pinned; licences permissive unless noted):
-   - Browser: Cytoscape.js + cytoscape-elk/elkjs (graphs), Apache ECharts (charts), @google/model-viewer + three.js (3D), wavesurfer.js 8 (audio), Annotorious 3 (region notes), img-comparison-slider 8.
-   - External tools, detected not required: GDQuest gdscript-formatter (Tier 0 lint/format; gdtoolkit as fallback), Xvfb (`apt install xvfb`) for display-less renders — until then native runs use the X11 display.
-   - In user projects only when chosen: GdUnit4 addon.
-1. **Approve the plan**; after that, phases run milestone by milestone without stopping, pausing only for hard-to-reverse or outward-facing steps.
+1. `godot-assets` (registry + hub) replaces `godot-review`; hub decisions are events in git, and the localStorage fallback is dropped.
+1. New plugin `godot-l10n`; build order A → B → L → C → D to G.
+1. Store format: JSON for registry, i18n and design data, since kits are stdlib and agents write through the CLI. YAML would add PyYAML to every kit that reads it.
+1. Built `.po` files: committed and checked for freshness by the gate (a fresh clone runs in the editor without the kit), or gitignored and rebuilt on worktree setup, as the research suggests.

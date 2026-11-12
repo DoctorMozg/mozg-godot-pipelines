@@ -71,6 +71,23 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
 - gdlint and gdformat run when installed. `doctor` reports them, and nothing requires them.
 - The checkable rules of research 18 ship as a skill reference (`gdscript-rules.md`), which code-writing skills load.
 
+### Shader standard
+
+Research: `docs/research/20-shader-writing.md`, `21-shader-verification.md`.
+
+- Compile gate with no GPU: `--headless` runs Godot's shading-language front end on every `.gdshader` it loads, so `godotkit check` loads each shader and material and fails on `SHADER ERROR`, `Shader compilation failed` or `not supported in Dummy renderer`. Headless errors carry no file name, so the probe loads one shader per marked log section. UNTESTED on 4.7.2.
+- Backend gate, optional: Forward+/Mobile under Xvfb with lavapipe and Compatibility with llvmpipe catch SPIR-V and driver errors. Renderer fallback is disabled and the active driver is asserted from the log. `doctor` reports Xvfb and the Mesa drivers; nothing requires them. UNTESTED: Xvfb is not installed on the development machine.
+- `godotkit lint` shader rules from research 20:
+  - no 3.x names (`SCREEN_TEXTURE`, `DEPTH_TEXTURE`, `hint_color`, `hint_albedo`, `.shader`);
+  - colour uniforms and albedo samplers carry `source_color`; every sampler has explicit `filter_*` and `repeat_*`;
+  - Forward+-only features sit behind `#if CURRENT_RENDERER`;
+  - `ALPHA` written only with a reason; `DEPTH` written on every path;
+  - shaders live in `.gdshader` files, not embedded in scenes;
+  - no per-spawn `material.duplicate()` in scripts; `instance uniform` instead.
+- Review: shaders reach the hub as Movie Maker clips (`--write-movie`, fixed fps) per target renderer; goldens are keyed by renderer, driver and adapter.
+- Cost: GPU timings from llvmpipe/lavapipe are not shader cost; timing gates run only on real hardware, while draw calls and pipeline-compilation counters are gated anywhere.
+- The checkable rules of research 20 ship as a skill reference (`shader-rules.md`).
+
 ## Asset registry and review hub (godot-assets)
 
 Research: `docs/research/15-web-asset-registry.md`. Every write adds a new file, so parallel worktrees never conflict and no `merge=union` is needed (GitHub web merges ignore it).
@@ -215,6 +232,7 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 | A4  | `test`: custom summary-line harness, `godotkit.json` entries, dependency graph, `--since`/`--changed`, parallel jobs with isolated XDG                                                         | done: 43,341 checks match AloneGodot's runners; selection 0.33 s, but `smoke.gd` reaches everything and takes 35–58 s, so affected runs take 41 s or more |
 | A4b | GdUnit4 adapter (`results.xml`, `--ignoreHeadlessMode`, empty report fails) and GUT adapter (`-gjunit_xml_file`)                                                                               | done: real GdUnit4 6.2.3 and GUT 9.7.1 judge pass, fail and parse-error suites right; GUT exits 0 on a parse error                                        |
 | A5  | Tier 0: formatter/lint wrapper, `strict`, `lint` rules, `arch` (layers from `architecture.json` on the dependency graph), LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint | diagnostics for a broken fixture in < 1 s with a warm LSP; an Error-level warning fails `check` on real Godot; a forbidden layer edge fails `arch`        |
+| A5s | Shader gate: headless load of every `.gdshader`/material with marked log sections; shader `lint` rules; `doctor` reports Xvfb and Mesa drivers                                                 | a fixture with an unknown identifier fails `check` on real Godot with the shader path named; a `SCREEN_TEXTURE` fixture fails `lint`                      |
 | A6  | `gate` + receipts (`receipt write`, `receipt verify`); receipts carry reach metrics against the base commit; duration-balanced shards; post-merge rebuild of generated files                   | gate on fixtures writes a receipt; an edit after the receipt makes verify fail; a change adding a cross-layer edge shows a reach increase                 |
 | A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt, single-writer guard (`project.godot`, main scene, theme → request file)                      | hook unit tests; hook adds < 1 s per edit on AloneGodot; a lane edit of `project.godot` is refused with the request path                                  |
 | A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                                                                                            | lint_skills clean; ≥ 3 eval cases per skill pass                                                                                                          |

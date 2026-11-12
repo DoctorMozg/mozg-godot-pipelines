@@ -47,6 +47,7 @@ func _inspect(scene: Node) -> Dictionary:
 	if controls.is_empty():
 		return report
 	for control: Control in controls:
+		@warning_ignore("return_value_discarded")
 		control.gui_input.connect(_on_gui_input)
 	var target: Control = _topmost_in(scene, controls)
 	var point: Vector2 = target.get_global_rect().get_center()

@@ -22,6 +22,7 @@ from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
 from godotkit.runner import GodotRunner, RunRequest
+from godotkit.strict import StrictProfile
 from godotkit.testing import (
     EntryCatalog,
     EntryResult,
@@ -85,6 +86,12 @@ def _parser() -> argparse.ArgumentParser:
     test.add_argument("--native", action="store_true", help="also run entries marked native")
     test.add_argument("--list", action="store_true", help="print the selection, run nothing")
     test.add_argument("--log-dir", type=Path, help="write the log of every failed entry here")
+
+    strict = commands.add_parser("strict", help="compare GDScript warning levels with the profile")
+    strict.add_argument("--project", type=Path, default=Path.cwd())
+    strict.add_argument(
+        "--write", action="store_true", help="raise the deviating levels in project.godot"
+    )
 
     worktree = commands.add_parser("worktree", help="scratch git worktrees with a warm cache")
     actions = worktree.add_subparsers(dest="action", required=True)
@@ -296,6 +303,26 @@ def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
     }
 
 
+def _strict(args: argparse.Namespace) -> int:
+    try:
+        profile = StrictProfile(args.project.resolve())
+        written = profile.write() if args.write else ()
+        remaining = profile.deviations()
+    except ValueError as error:
+        _emit({"cmd": "strict", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    _emit(
+        {
+            "cmd": "strict",
+            "ok": not remaining,
+            "reason": "below_profile" if remaining else "ok",
+            "deviations": [asdict(deviation) for deviation in remaining],
+            "written": [asdict(deviation) for deviation in written],
+        }
+    )
+    return EXIT_FAILED if remaining else EXIT_OK
+
+
 def _worktree(args: argparse.Namespace) -> int:
     manager = WorktreeManager()
     path = args.path.resolve()
@@ -342,6 +369,8 @@ def main(argv: Sequence[str]) -> int:
         return EXIT_OK if report["ok"] else EXIT_SETUP
     if args.command == "worktree":
         return _worktree(args)
+    if args.command == "strict":
+        return _strict(args)
     try:
         binary = locator.locate()
     except GodotNotFound as error:

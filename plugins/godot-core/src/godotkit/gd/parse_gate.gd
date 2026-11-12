@@ -21,6 +21,7 @@ func _collect(dir_path: String, out: PackedStringArray) -> void:
 		return
 	for file: String in DirAccess.get_files_at(dir_path):
 		if file.get_extension() == "gd":
+			@warning_ignore("return_value_discarded")
 			out.append(dir_path.path_join(file))
 	for sub: String in DirAccess.get_directories_at(dir_path):
 		if not sub.begins_with("."):

@@ -1,0 +1,25 @@
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+.mz/
+# Folders of one machine, loaded by Claude Code beside CLAUDE.md.
+CLAUDE.local.md
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+.env
+.env.*
+
+# `claude plugin eval` writes reports and traces next to the cases.
+**/evals/results/

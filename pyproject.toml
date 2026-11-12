@@ -1,0 +1,45 @@
+[project]
+name = "mozg-godot-plugins-tooling"
+version = "0.1.0"
+description = "Shared tooling and tests for the mozg-godot plugin suite"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "jsonschema>=4.23,<5",
+  "mypy>=1.17,<2",
+  "pre-commit>=3.6,<5",
+  "pytest>=8.4,<10",
+  "pytest-xdist>=3.8,<4",
+  "pyyaml>=6,<7",
+  "ruff>=0.12,<0.16",
+]
+
+[tool.pytest.ini_options]
+addopts = "--disable-plugin-autoload -p xdist -ra --strict-config --strict-markers --import-mode=importlib -m 'not live_claude and not live_godot'"
+pythonpath = ["tools", "tests"]
+# Each suite runs in its own process (see the Makefile), so a bare pytest runs the repo tests.
+testpaths = ["tests"]
+markers = [
+  "live_claude: runs the real claude CLI and costs cents; excluded from make check",
+  "live_godot: runs a real Godot binary; selected by make test-godot",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+select = ["ANN", "B", "E", "F", "I", "PT", "RUF", "SIM", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+explicit_package_bases = true
+mypy_path = ["$MYPY_CONFIG_FILE_DIR/tools", "$MYPY_CONFIG_FILE_DIR/tests"]
+
+[[tool.mypy.overrides]]
+module = ["jsonschema", "jsonschema.*"]
+ignore_missing_imports = true

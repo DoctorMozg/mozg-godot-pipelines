@@ -1,0 +1,25 @@
+{
+  "name": "mozg-godot",
+  "owner": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for Godot 4 game development: fast verified feedback loop, review hub, game design analysis, art, UI and audio pipelines",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "godot-core",
+      "source": "./plugins/godot-core",
+      "description": "Fast, log-judged Godot checks for agents: import, parse, boot, tests, receipts and edit hooks",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "gdscript",
+        "testing",
+        "headless"
+      ]
+    }
+  ]
+}

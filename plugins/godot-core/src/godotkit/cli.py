@@ -15,12 +15,20 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
 
+from godotkit.depgraph import DependencyGraph
 from godotkit.doctor import Doctor
 from godotkit.gates import BootGate, ParseGate
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
 from godotkit.runner import GodotRunner, RunRequest
+from godotkit.testing import (
+    EntryCatalog,
+    EntryResult,
+    SuiteRunner,
+    changed_since,
+    select_affected,
+)
 from godotkit.worktree import GitError, WorktreeManager
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -64,6 +72,19 @@ def _parser() -> argparse.ArgumentParser:
     boot = commands.add_parser("boot", help="boot gate: the main scene starts and takes a click")
     boot.add_argument("--project", type=Path, default=Path.cwd())
     boot.add_argument("--timeout", type=float, default=120.0)
+
+    test = commands.add_parser("test", help="run the test entries, all or those a change affects")
+    test.add_argument("--project", type=Path, default=Path.cwd())
+    test.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
+    test.add_argument("--timeout", type=float, default=600.0, help="seconds per entry")
+    affected = test.add_mutually_exclusive_group()
+    affected.add_argument("--since", help="git ref: run only entries the changes since it reach")
+    affected.add_argument(
+        "--changed", action="append", help="project-relative path; repeat for several"
+    )
+    test.add_argument("--native", action="store_true", help="also run entries marked native")
+    test.add_argument("--list", action="store_true", help="print the selection, run nothing")
+    test.add_argument("--log-dir", type=Path, help="write the log of every failed entry here")
 
     worktree = commands.add_parser("worktree", help="scratch git worktrees with a warm cache")
     actions = worktree.add_subparsers(dest="action", required=True)
@@ -188,6 +209,89 @@ def _boot(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if outcome.ok else EXIT_FAILED
 
 
+def _test(args: argparse.Namespace, runner: GodotRunner) -> int:
+    project = args.project.resolve()
+    try:
+        entries = EntryCatalog(project).entries()
+        changed = changed_since(project, args.since) if args.since else args.changed
+        selected = entries
+        if changed is not None:
+            selected = select_affected(entries, DependencyGraph.scan(project), changed)
+        if args.list:
+            results: tuple[EntryResult, ...] = ()
+        else:
+            results = SuiteRunner(runner, args.jobs, args.timeout).run(
+                project, selected, args.native
+            )
+    except (ValueError, GitError) as error:
+        _emit({"cmd": "test", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    ran = [result for result in results if result.verdict is not None]
+    failed = [result for result in ran if result.verdict is not None and not result.verdict.ok]
+    if failed:
+        reason = "test_failures"
+    elif not entries:
+        reason = "no_tests"
+    else:
+        reason = "ok"
+    _emit(
+        {
+            "cmd": "test",
+            "ok": reason == "ok",
+            "reason": reason,
+            "selection": {
+                "entries": len(entries),
+                "selected": [entry.name for entry in selected] if args.list else len(selected),
+                "changed": sorted(changed) if changed is not None else None,
+            },
+            "summary": _test_summary(results),
+            "failed": [_failure(result, args.log_dir) for result in failed],
+            "results": [
+                {
+                    "entry": result.entry.name,
+                    "reason": result.verdict.reason if result.verdict else "skipped",
+                    "skipped": result.skipped,
+                    "checks": (result.verdict.summary or {}).get("checks")
+                    if result.verdict
+                    else None,
+                    "duration_s": round(result.duration_s, 3),
+                }
+                for result in results
+            ],
+        }
+    )
+    return EXIT_OK if reason == "ok" else EXIT_FAILED
+
+
+def _test_summary(results: Sequence[EntryResult]) -> dict[str, int]:
+    summaries = [result.verdict.summary or {} for result in results if result.verdict]
+    return {
+        "ran": len(summaries),
+        "skipped": sum(1 for result in results if result.skipped),
+        "failed": sum(1 for result in results if result.verdict and not result.verdict.ok),
+        "checks": sum(summary.get("checks", 0) for summary in summaries),
+        "failures": sum(summary.get("failures", 0) for summary in summaries),
+    }
+
+
+def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
+    verdict, run = result.verdict, result.run
+    if verdict is None or run is None:
+        raise ValueError(f"{result.entry.name} did not run, so it cannot have failed")
+    log_path = None
+    if log_dir is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / (re.sub(r"[^\w.-]+", "_", result.entry.name) + ".log")
+        log_path.write_text(run.output, encoding="utf-8")
+    return {
+        "entry": result.entry.name,
+        "log": str(log_path) if log_path else None,
+        "reason": verdict.reason,
+        "summary": verdict.summary,
+        "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
+    }
+
+
 def _worktree(args: argparse.Namespace) -> int:
     manager = WorktreeManager()
     path = args.path.resolve()
@@ -240,5 +344,5 @@ def main(argv: Sequence[str]) -> int:
         _emit({"cmd": args.command, "ok": False, "reason": "no_godot", "detail": str(error)})
         return EXIT_SETUP
     runner = GodotRunner(binary)
-    handlers = {"import": _import, "check": _check, "boot": _boot, "run": _run}
+    handlers = {"import": _import, "check": _check, "boot": _boot, "run": _run, "test": _test}
     return handlers[args.command](args, runner)

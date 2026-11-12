@@ -30,3 +30,21 @@ Source: `godotkit check` and `godotkit boot` on scratch worktrees of AloneGodot 
 - AloneGodot's own suite of 433 tests was green at `d1d7760~1`; the bug was found by hand at F5.
 - `push_input` reports the event as handled even when the scene cannot process, so the probe counts `gui_input` signals instead.
 - The probe pushes events in viewport-local coordinates; window coordinates miss under stretch modes and gave a false `input_dead` at `4fe4785`.
+
+## Test runner (A4, 2026-11-13)
+
+Source: `godotkit test` on a scratch worktree of AloneGodot at `4fe4785` with a warm cache, compared with AloneGodot's own runners (`run_save_tests.sh`, `run_sound_tests.sh`, `run_campaign_tests.sh`, and the `smoke` and `card_resources` hooks) on the same worktree. The worktree was removed after the runs. The `godotkit.json` used is an untracked scratch file mirroring those runners: sound arguments, the `--board-layout` and `--timeline-view` variants, the root-startup scene, 9 native entries, `allow_push_error`, and one engine-error pattern for the corrupt-save test.
+
+| Run                                          | Wall time | Result                                                                     |
+| -------------------------------------------- | --------- | -------------------------------------------------------------------------- |
+| AloneGodot runners, serial                   | 178 s     | 42 summary lines, 43,341 checks (includes 33 `--check-only` passes)        |
+| `test --jobs 4`, all headless entries        | 103 s     | 42 entries, 43,341 checks, 0 failures; per-entry counts match exactly      |
+| `test --since HEAD --list`, one script edit  | 0.33 s    | strict subsets: 3 of 51 entries (a leaf script), 20 of 51 (`save_file.gd`) |
+| `test --since HEAD --jobs 4`, leaf script    | 41 s      | 3 entries                                                                  |
+| `test --since HEAD --jobs 4`, `save_file.gd` | 73 s      | 13 run, 7 native skipped                                                   |
+
+- The graph scan takes 0.3 s for 4,159 files.
+- `smoke.gd` reaches every file: one of its suites loads `"res://" + str(row["image_path"])`, so the graph cannot narrow it. It also takes 35–58 s, which puts a floor under every affected run. A change selecting a strict subset in under 10 s is therefore not met on AloneGodot: selection meets it, running does not.
+- The slowest entries are `transmitter_hint_test.gd` (67 s) and `smoke.gd` (58 s) under 4 jobs.
+- Of 144 `ERROR:` lines in the full run, 143 come from AloneGodot's own `push_error` in negative-path tests (location `push_error (core/variant/variant_utility.cpp)`). The other one is engine-raised (`decode_variant`, a deliberately corrupt save). AloneGodot's runners pass on all of them because they look only for `SCRIPT ERROR` and leaks.
+- `run_root_startup_test.sh` calls `rg`, which is not installed on this machine, so its error and leak scans silently do nothing.

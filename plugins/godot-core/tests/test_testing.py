@@ -7,12 +7,14 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from godotkit import cli
 from godotkit.locate import GodotBinary
 from godotkit.runner import GodotRunner
-from godotkit.testing import CONFIG_FILE, EntryCatalog, SuiteEntry, SuiteRunner
+from godotkit.testing import CONFIG_FILE, EntryCatalog, SuiteEntry, SuiteRunner, changed_since
 from godotkit_rig import (
     GIT_ENV,
     HEALTHY_SCRIPT,
+    CliRunner,
     FakeGodotFactory,
     ProjectFactory,
 )
@@ -155,6 +157,51 @@ class TestRuns:
         )
         homes = {_line(result.run.output, "XDG_DATA_HOME=") for result in results if result.run}
         assert len(homes) == 2
+
+
+class TestSelection:
+    def test_changes_since_a_ref_select_reaching_entries(
+        self, suite: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
+    ) -> None:
+        (suite / "model.gd").write_text("extends RefCounted\nvar x := 1\n")
+        (suite / "notes.md").write_text("new\n")
+        (suite / "icon.png.import").write_text("[remap]\n")
+        assert changed_since(suite, "HEAD") == {"model.gd", "notes.md"}
+        code, payload = run_cli(
+            ["test", "--project", str(suite), "--since", "HEAD", "--list"], fake_godot()
+        )
+        assert code == cli.EXIT_OK
+        assert payload["selection"] == {
+            "entries": 2,
+            "selected": ["tests/a_test.gd"],
+            "changed": ["model.gd", "notes.md"],
+        }
+
+    def test_failed_entry_fails_the_command_and_keeps_its_log(
+        self, suite: Path, tmp_path: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
+    ) -> None:
+        logs = tmp_path / "logs"
+        code, payload = run_cli(
+            ["test", "--project", str(suite), "--log-dir", str(logs)], fake_godot(shell=ANSWERS)
+        )
+        assert code == cli.EXIT_FAILED
+        failed = payload["failed"]
+        assert isinstance(failed, list)
+        assert "checks=2 failures=1" in Path(failed[0]["log"]).read_text()
+        assert [path.name for path in logs.iterdir()] == ["tests_b_test.gd.log"]
+        assert payload["summary"] == {
+            "ran": 2,
+            "skipped": 0,
+            "failed": 1,
+            "checks": 5,
+            "failures": 1,
+        }
+
+    def test_unknown_ref_is_refused(
+        self, suite: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
+    ) -> None:
+        code, payload = run_cli(["test", "--project", str(suite), "--since", "nope"], fake_godot())
+        assert (code, payload["reason"]) == (cli.EXIT_REFUSED, "refused")
 
 
 def _line(output: str, prefix: str) -> str:

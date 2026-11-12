@@ -52,6 +52,25 @@ Tier 2  gate   before commit (`godotkit gate` → receipt)
 
 Every command prints one JSON line; exit code of Godot is never trusted alone.
 
+### GDScript standard
+
+Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architecture.md`, `19-gdscript-tooling.md`.
+
+- Strict profile:
+  - `untyped_declaration`, the four `unsafe_*` warnings, `missing_await`, the `unused_*` and `shadowed_*` warnings, `integer_division` and `narrowing_conversion` at Error.
+  - `return_value_discarded` at Warn.
+  - `directory_rules` excludes `res://addons`.
+- Enforcement: in a debug or editor build an Error-level warning fails `load()`, so `godotkit check` enforces the profile with no extra tool. A live test proves it in A5.
+- `godotkit strict` reports the project's levels against the profile, and with `--write` sets them; that changes `project.godot`, so a skill asks the owner first.
+- `godotkit lint` checks the architecture rules Godot does not:
+  - no `get_parent()` and no `..` node paths;
+  - no string `connect("…")` or `emit_signal("…")`;
+  - no `free()` on a Node without a comment;
+  - `create_timer` in gameplay passes `process_always = false`;
+  - the gdlint member order.
+- gdlint and gdformat run when installed. `doctor` reports them, and nothing requires them.
+- The checkable rules of research 18 ship as a skill reference (`gdscript-rules.md`), which code-writing skills load.
+
 ## Asset registry and review hub (godot-assets)
 
 Research: `docs/research/15-web-asset-registry.md`. Every write adds a new file, so parallel worktrees never conflict and no `merge=union` is needed (GitHub web merges ignore it).
@@ -129,18 +148,19 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 
 ### Phase A — repo and godot-core
 
-| #   | Milestone                                                                                                                    | verify                                                                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| A0  | Scaffold: marketplace.json, CLAUDE.md, Makefile, pyproject, pre-commit, CI; port `tools/` from mozg-video-plugins            | done `ea8ce6c`                                                                                                            |
-| A1  | godotkit: `doctor`, Godot locator, log judge, isolated `run`                                                                 | done `16621f7`: real Godot exits 0 on script and parse errors, `run` reports `ok:false`                                   |
-| A2  | `import` + `worktree new`: warm `.godot` copy, `use_multiple_threads=false` option, uid/translation churn report             | done: warm import 7.1 s against 32.8 s cold, 2.4 GB hardlinked; see `docs/measurements.md`                                |
-| A3  | `check` parse gate + `boot` gate with injected temporary input bridge                                                        | done: AloneGodot at `d1d7760~1` fails `boot` with `input_dead` in 3 s, `d1d7760` passes; parse gate 342 scripts in 12.8 s |
-| A4  | `test`: adapters for custom summary-line harness and GdUnit4 JUnit, dependency graph, `--affected`, shards with isolated XDG | on AloneGodot: full run matches existing runner check counts; one changed script selects a strict subset in < 10 s        |
-| A5  | Tier 0: formatter/lint wrapper, LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint                         | diagnostics for a broken fixture in < 1 s with a warm LSP                                                                 |
-| A6  | `gate` + receipts (`receipt write`, `receipt verify`)                                                                        | gate on fixtures writes a receipt; an edit after the receipt makes verify fail                                            |
-| A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt                             | hook unit tests; hook adds < 1 s per edit on AloneGodot                                                                   |
-| A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                          | lint_skills clean; ≥ 3 eval cases per skill pass                                                                          |
-| A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                    | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                    |
+| #   | Milestone                                                                                                                              | verify                                                                                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A0  | Scaffold: marketplace.json, CLAUDE.md, Makefile, pyproject, pre-commit, CI; port `tools/` from mozg-video-plugins                      | done `ea8ce6c`                                                                                                                                            |
+| A1  | godotkit: `doctor`, Godot locator, log judge, isolated `run`                                                                           | done `16621f7`: real Godot exits 0 on script and parse errors, `run` reports `ok:false`                                                                   |
+| A2  | `import` + `worktree new`: warm `.godot` copy, `use_multiple_threads=false` option, uid/translation churn report                       | done: warm import 7.1 s against 32.8 s cold, 2.4 GB hardlinked; see `docs/measurements.md`                                                                |
+| A3  | `check` parse gate + `boot` gate with injected temporary input bridge                                                                  | done: AloneGodot at `d1d7760~1` fails `boot` with `input_dead` in 3 s, `d1d7760` passes; parse gate 342 scripts in 12.8 s                                 |
+| A4  | `test`: custom summary-line harness, `godotkit.json` entries, dependency graph, `--since`/`--changed`, parallel jobs with isolated XDG | done: 43,341 checks match AloneGodot's runners; selection 0.33 s, but `smoke.gd` reaches everything and takes 35–58 s, so affected runs take 41 s or more |
+| A4b | GdUnit4 adapter (`results.xml`, `--ignoreHeadlessMode`, empty report fails) and GUT adapter (`-gjunit_xml_file`)                       | a real GdUnit4 6.2.x and GUT 9.7.x fixture install: pass, fail and parse-error suites judged right                                                        |
+| A5  | Tier 0: formatter/lint wrapper, `strict`, `lint` rules, LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint           | diagnostics for a broken fixture in < 1 s with a warm LSP; an Error-level warning fails `check` on real Godot                                             |
+| A6  | `gate` + receipts (`receipt write`, `receipt verify`)                                                                                  | gate on fixtures writes a receipt; an edit after the receipt makes verify fail                                                                            |
+| A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt                                       | hook unit tests; hook adds < 1 s per edit on AloneGodot                                                                                                   |
+| A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                                    | lint_skills clean; ≥ 3 eval cases per skill pass                                                                                                          |
+| A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                              | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                                                    |
 
 ### Phase B — godot-assets
 

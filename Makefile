@@ -50,7 +50,8 @@ test/%:
 test-godot:
 	@for suite in $(SUITES); do \
 	  [ -n "$$(find $$suite -name 'test_*.py' -print -quit)" ] || continue; \
-	  pytest -q -m live_godot -o cache_dir=.pytest_cache/godot_$$(echo $$suite | tr / _) $$suite || exit 1; \
+	  pytest -q -m live_godot -o cache_dir=.pytest_cache/godot_$$(echo $$suite | tr / _) $$suite; \
+	  status=$$?; [ $$status -eq 0 ] || [ $$status -eq 5 ] || exit 1; \
 	done
 
 validate: validate/. $(PLUGINS:%=validate/%)

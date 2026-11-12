@@ -1,6 +1,6 @@
 # Research library
 
-Research behind `docs/plan.md`. Documents 01–16 shaped the suite's structure. Documents 17–34 are a Godot 4.7 practice library: each ends in checkable rules and a list of checks a kit could run, and feeds a lint rule, a gate probe or a skill reference.
+Research behind `docs/plan.md`. Documents 01–16 shaped the suite's structure. Documents 17–37 are a Godot 4.7 practice library: each ends in checkable rules and a list of checks a kit could run, and feeds a lint rule, a gate probe or a skill reference.
 
 Status markers used throughout: UNVERIFIED means no primary source confirmed the claim; UNTESTED means it has not been run on Godot 4.7.2. A claim moves into a shipped skill or check only after it is tested, or it ships with its marker.
 
@@ -47,6 +47,9 @@ Status markers used throughout: UNVERIFIED means no primary source confirmed the
 | 32  | Game feel, onboarding, accessibility, playtesting    | game-design: playtest and telemetry checks; godot-ui: accessibility settings           |
 | 33  | Dialogue, quests and cutscenes                       | godot-l10n: line ids, untranslated lines; game-design: dialogue graph lint             |
 | 34  | Level design, worlds and cameras                     | game-design: level metrics; godot-core: scene lint, reachability probe                 |
+| 35  | LLM and VLM agents that play games                   | godot-core `play`: observation, action and clock choices, budgets                      |
+| 36  | Runtime bridge for LLM-driven play                   | godot-core `play`: lockstep TCP bridge, catalogue, replay, determinism probe           |
+| 37  | LLM playtesting: scenarios, oracles, findings        | godot-core `play`: scenario and finding schemas; godot-assets: findings in the hub     |
 
 ## Findings that change plans
 
@@ -57,3 +60,5 @@ Status markers used throughout: UNVERIFIED means no primary source confirmed the
 - 25: new 3D projects default to Jolt from 4.6, older ones keep GodotPhysics; checks read the setting, never assume it.
 - 21: `--headless` compiles shaders through the front end, so a GPU-free shader gate is possible; backend errors need a renderer.
 - 33: `AnimationPlayer.seek()` skips method keys, so a cutscene skip needs an explicit end-state function.
+- 35–37: an LLM plays well only with structured state, a clock that waits for it and semantic actions; real-time 3D and RTS micro are out of reach, so there the LLM writes and judges scripted bots. A finding counts as a bug only with game-side evidence or a replay.
+- 36: `TCPServer.listen()` binds every interface by default; the play bridge makes the game a client of a loopback-only Python listener.

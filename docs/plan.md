@@ -89,6 +89,25 @@ Research: `docs/research/20-shader-writing.md`, `21-shader-verification.md`.
 - Cost: GPU timings from llvmpipe/lavapipe are not shader cost; timing gates run only on real hardware, while draw calls and pipeline-compilation counters are gated anywhere.
 - The checkable rules of research 20 ship as a skill reference (`shader-rules.md`).
 
+### LLM playtesting (`godotkit play`)
+
+Research: `docs/research/35-llm-game-agents.md`, `36-godot-play-bridge.md`, `37-llm-playtest-method.md`.
+
+```
+godotkit play  (Python, listens on 127.0.0.1:0, token)
+   └─ spawns Godot --fixed-fps 60 on a scratch worktree with an injected bridge autoload (client)
+        hello → welcome(seed) → obs ⇄ step{acts, frames:N} ... → end → MOZG_PLAY_SUMMARY line
+LLM loop: JSON snapshot (≤ 6k tokens, valid actions listed) → one semantic action → harness checks success
+outputs: actions.jsonl (replay script), findings.json (fingerprinted), hub items, cost per run
+```
+
+- Lockstep: the bridge blocks the main loop between steps under `--fixed-fps`, so thinking time never becomes game time. It never writes `SceneTree.paused` and starts only with `editor_runtime` plus its user arguments.
+- Observation: Control properties (rect, text, `accessibility_name`, focus) and nodes that opt in through group `playtest_observe`. A screenshot is an explicit `look` under Xvfb; headless has none.
+- Action: input actions through `Input.parse_input_event` with held frames, clicks on Control rects, and semantic actions the game declares through group `playtest_actor`. The bridge calls only the three catalogue methods: no `Expression`, no arbitrary `call`.
+- Modes by genre: `llm_stepped` for UI, turn-based and paused strategy; `scripted_bot` for real-time 3D and RTS micro, where the LLM writes a bot, runs it at full speed and reads the log.
+- Oracles in order of trust: engine error, broken invariant, unmet success predicate, stuck detector, time anomaly, LLM observation. A `bug` needs evidence and a replay of the action log without the LLM; LLM remarks on clarity or difficulty are `ux_hypothesis` items for a human playtest.
+- Budgets: steps, tokens, wall time and game time are required in every scenario. The cost estimate in research 35 is derived; the first pilot run measures it.
+
 ## Asset registry and review hub (godot-assets)
 
 Research: `docs/research/15-web-asset-registry.md`. Every write adds a new file, so parallel worktrees never conflict and no `merge=union` is needed (GitHub web merges ignore it).
@@ -296,18 +315,21 @@ Rehearsed on a scratch worktree of AloneGodot; applying it to AloneGodot itself 
 
 Each probe runs headless where possible, prints one summary line and is judged by `godotkit` like the other gates. Research: 23, 24, 25, 28, 34.
 
-| #   | Milestone                                                                          | verify                                                                         |
-| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| P1  | Determinism: fixed-tick replay of recorded inputs gives the same state hash        | arena and RTS replays match; a seeded random leak fixture fails                |
-| P2  | Scale: units at N = 100, 500, 2,000 report frame time, draw calls, navigation time | RTS budget table in the receipt; a fixture without MultiMesh breaks the budget |
-| P3  | Feel: input-to-response frames, camera clipping, stuck detection                   | arena fixture with a one-frame input delay is reported                         |
+| #   | Milestone                                                                                                             | verify                                                                                                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | Determinism: fixed-tick replay of recorded inputs gives the same state hash                                           | arena and RTS replays match; a seeded random leak fixture fails                                                                           |
+| P2  | Scale: units at N = 100, 500, 2,000 report frame time, draw calls, navigation time                                    | RTS budget table in the receipt; a fixture without MultiMesh breaks the budget                                                            |
+| P3  | Feel: input-to-response frames, camera clipping, stuck detection                                                      | arena fixture with a one-frame input delay is reported                                                                                    |
+| P4  | `play` bridge: lockstep NDJSON over loopback TCP, catalogue groups, input with held frames, replay of `actions.jsonl` | bridge self-test fixture: a held action stays pressed N frames, a click on a Button emits `pressed`; a replay reaches the same state hash |
+| P5  | Scenario and finding schemas, oracles, stuck detector, claim checker, cost accounting; findings into the hub          | scenario lint rejects a goal without a success predicate; a planted invariant break becomes a confirmed `bug`; duplicates merge           |
+| P6  | Skills `godot-playtest` (llm_stepped) and `godot-bot` (scripted_bot); pilot on AloneGodot UI, arena and RTS test beds | pilot runs end with summary lines; measured cost per scenario replaces the estimate; evals pass                                           |
 
 ### Phase D–G — outlines (detailed when reached)
 
 - **D godot-studio**: role map → subagents, ownership manifest + hook, delegation template (base commit, owned files, checks, return contract), request files for single-writer files and the merge queue that applies them, frozen-test lock, worktree lifecycle, risk-based review depth on mz-dev-pipe, decision-record template + options-and-scores step + architecture reviewer agent (see Development process).
 - **E godot-art**: art-bible, asset-brief with dependents, art-batch via fal-media (2D and 3D: Trellis/Hunyuan GLB with decimation) writing registry versions with generation provenance, import/mipmap/VRAM audit, readability + style judges.
 - **F godot-ui**: ui-brief, HTML prototype template, handoff template, tokens → Theme, multi-res capture into the hub; string keys through l10nkit.
-- **G godot-audio**: cues.yaml, synth/fal SFX, music loop points, loudness checks, bus lint, audition in the hub.
+- **G godot-audio**: cues.json, synth/fal SFX, music loop points, loudness checks, bus lint, audition in the hub.
 
 ## Decisions (2026-11-12)
 

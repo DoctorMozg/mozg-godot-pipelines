@@ -2,21 +2,27 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
 import subprocess
+import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 
 import pytest
 from godotkit import cli
 from godotkit.locate import GodotBinary, GodotLocator, GodotNotFound
 from godotkit_rig import (
+    FRAMEWORK_ARCHIVES,
     GIT_ENV,
     HEALTHY_SCRIPT,
     KNOWN_GODOT,
     MAIN_SCENE,
     PROJECT_GODOT,
+    AddonInstaller,
     CliRunner,
     FakeGodotFactory,
     ProjectFactory,
@@ -94,3 +100,34 @@ def git_project(make_project: ProjectFactory) -> Path:
     for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "fixture"]):
         subprocess.run(["git", "-C", str(project), *args], check=True, env=GIT_ENV)
     return project
+
+
+@pytest.fixture
+def install_addon() -> AddonInstaller:
+    """Copies a pinned GdUnit4 or GUT release into a project, downloading it once into a cache."""
+    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "mozg-godot"
+
+    def install(project: Path, name: str) -> None:
+        url, sha256, prefix = FRAMEWORK_ARCHIVES[name]
+        archive = cache / f"{name}-{sha256[:12]}.zip"
+        if not archive.is_file():
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                with urllib.request.urlopen(url, timeout=60) as response:
+                    archive.write_bytes(response.read())
+            except urllib.error.URLError as error:
+                pytest.skip(f"cannot download {name} from {url}: {error}")
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if digest != sha256:
+            archive.unlink()
+            pytest.fail(f"{url} has sha256 {digest}, pinned {sha256}")
+        with zipfile.ZipFile(archive) as bundle:
+            for member in bundle.namelist():
+                if not member.startswith(prefix) or member.endswith("/") or ".." in member:
+                    continue
+                target = project / "addons" / prefix.rstrip("/").rsplit("/", 1)[1]
+                target = target / member.removeprefix(prefix)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(bundle.read(member))
+
+    return install

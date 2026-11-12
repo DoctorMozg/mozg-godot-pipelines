@@ -92,3 +92,19 @@ def write_png(path: Path, rgb: tuple[int, int, int], size: int = 8) -> None:
         + chunk(b"IDAT", zlib.compress(row * size))
         + chunk(b"IEND", b"")
     )
+
+
+# Pinned framework releases for live tests; tag archives fetched on demand and never committed.
+FRAMEWORK_ARCHIVES = {
+    "gdunit4": (
+        "https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/tags/v6.2.3.zip",
+        "8fb1a298af110be6d73067af66132bf036049deb6d5929d4a16756e18d2228bb",
+        "gdUnit4-6.2.3/addons/gdUnit4/",
+    ),
+    "gut": (
+        "https://github.com/bitwes/Gut/archive/refs/tags/v9.7.1.zip",
+        "14969aa46adc84aa08cdd21b9f6d1a64addd92ae60b36f02d0521ed305aa4086",
+        "Gut-9.7.1/addons/gut/",
+    ),
+}
+AddonInstaller = Callable[[Path, str], None]

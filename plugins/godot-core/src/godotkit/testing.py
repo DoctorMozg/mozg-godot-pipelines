@@ -1,16 +1,18 @@
-"""Test entries of a custom summary-line harness: discovery, selection by change, parallel runs."""
+"""Test entries (summary-line harness, GdUnit4, GUT): discovery, selection, parallel runs."""
 
 from __future__ import annotations
 
 import json
 import logging
 import re
+import tempfile
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from godotkit.depgraph import SIDECAR_SUFFIXES, DependencyGraph, normalize_changed
+from godotkit.frameworks import FRAMEWORKS, Framework, read_junit
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest, RunResult
 from godotkit.worktree import git
@@ -18,7 +20,7 @@ from godotkit.worktree import git
 log = logging.getLogger(__name__)
 
 CONFIG_FILE = "godotkit.json"
-DEFAULT_ROOTS = ("tests",)
+DEFAULT_ROOTS = ("test", "tests")
 _ENTRY_SCRIPT = re.compile(r"^extends\s+(?:SceneTree|MainLoop)\b", re.M)
 # Summary lines seen in hand-written harnesses; the first that matches a log judges it.
 DEFAULT_SUMMARIES = (
@@ -33,7 +35,7 @@ SCENE_SUFFIXES = (".tscn", ".scn")
 
 @dataclass(frozen=True)
 class SuiteEntry:
-    """A SceneTree script run with --script, or a scene run as the main scene."""
+    """A SceneTree script run with --script, a scene run as the main scene, or a framework suite."""
 
     path: str
     args: tuple[str, ...] = ()
@@ -41,6 +43,7 @@ class SuiteEntry:
     summary: str | None = None
     allow: tuple[str, ...] = ()
     allow_push_error: bool = False
+    framework: str | None = None
 
     @property
     def name(self) -> str:
@@ -83,7 +86,11 @@ class EntryCatalog:
         )
         configured = [self._entry(raw, shared) for raw in config.get("entries", [])]
         listed = {entry.path for entry in configured}
-        found = [replace(shared, path=path) for path in self._discover(roots) if path not in listed]
+        found = [
+            replace(shared, path=path, framework=framework)
+            for path, framework in self._discover(roots)
+            if path not in listed
+        ]
         return tuple(sorted([*found, *configured], key=lambda entry: entry.name))
 
     def _config(self) -> dict[str, list[object]]:
@@ -120,14 +127,20 @@ class EntryCatalog:
             _flag(raw, "allow_push_error", shared.allow_push_error),
         )
 
-    def _discover(self, roots: Iterable[object]) -> list[str]:
-        scripts: list[str] = []
+    def _discover(self, roots: Iterable[object]) -> list[tuple[str, str | None]]:
+        frameworks = [f for f in FRAMEWORKS.values() if f.installed(self._project)]
+        found: list[tuple[str, str | None]] = []
         for root in roots:
             folder = self._project / str(root)
             for path in sorted(folder.rglob("*.gd")) if folder.is_dir() else ():
-                if _ENTRY_SCRIPT.search(path.read_text(encoding="utf-8", errors="replace")):
-                    scripts.append(path.relative_to(self._project).as_posix())
-        return scripts
+                source = path.read_text(encoding="utf-8", errors="replace")
+                relative = path.relative_to(self._project).as_posix()
+                if _ENTRY_SCRIPT.search(source):
+                    found.append((relative, None))
+                suite = next((f.name for f in frameworks if f.is_suite(source)), None)
+                if suite is not None:
+                    found.append((relative, suite))
+        return found
 
 
 def changed_since(project: Path, ref: str) -> frozenset[str]:
@@ -164,10 +177,20 @@ class SuiteRunner:
     def _one(self, project: Path, entry: SuiteEntry, native: bool) -> EntryResult:
         if entry.native and not native:
             return EntryResult(entry, None, None, skipped="native")
+        if entry.framework is not None:
+            return self._suite(project, entry, FRAMEWORKS[entry.framework])
         request = RunRequest(project, entry.godot_args(), self._timeout_s, not entry.native)
         result = self._runner.run(request)
         verdict = _judge(entry, result.output, result.exit_code, result.timed_out)
         log.info("%s: %s in %.1f s", entry.name, verdict.reason, result.duration_s)
+        return EntryResult(entry, result, verdict)
+
+    def _suite(self, project: Path, entry: SuiteEntry, framework: Framework) -> EntryResult:
+        with tempfile.TemporaryDirectory(prefix="godotkit-report-") as scratch:
+            args = framework.args(entry.path, Path(scratch))
+            result = self._runner.run(RunRequest(project, args, self._timeout_s))
+            verdict = _judge_report(entry, framework, result, framework.report(Path(scratch)))
+        log.info("%s (%s): %s", entry.name, framework.name, verdict.reason)
         return EntryResult(entry, result, verdict)
 
 
@@ -180,6 +203,34 @@ def _judge(entry: SuiteEntry, output: str, exit_code: int | None, timed_out: boo
     allow = [re.compile(pattern) for pattern in entry.allow]
     tolerate = frozenset({"push_error"}) if entry.allow_push_error else frozenset()
     return LogJudge(summary, allow, tolerate).judge(output, exit_code, timed_out)
+
+
+def _judge_report(
+    entry: SuiteEntry, framework: Framework, result: RunResult, report: Path
+) -> Verdict:
+    # Framework exit codes encode test failures, and GUT exits 0 on a parse error: the log and
+    # the report decide instead.
+    allow = [re.compile(pattern) for pattern in entry.allow]
+    tolerate = framework.owns | ({"push_error"} if entry.allow_push_error else set())
+    verdict = LogJudge(None, allow, frozenset(tolerate)).judge(
+        result.output, None, result.timed_out
+    )
+    try:
+        summary = read_junit(report)
+    except ValueError as error:
+        log.warning("%s: %s", entry.name, error)
+        return replace(verdict, ok=False, reason="bad_report")
+    if not verdict.ok:
+        return replace(verdict, summary=summary)
+    if summary is None:
+        reason = "missing_report"
+    elif summary["checks"] == 0:
+        reason = "zero_checks"
+    elif summary["failures"] > 0:
+        reason = "test_failures"
+    else:
+        reason = "ok"
+    return replace(verdict, ok=reason == "ok", reason=reason, summary=summary)
 
 
 def _strings(raw: object, what: str) -> tuple[str, ...]:

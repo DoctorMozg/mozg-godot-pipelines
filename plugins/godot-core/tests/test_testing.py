@@ -197,6 +197,15 @@ class TestSelection:
             "failures": 1,
         }
 
+    def test_imports_first_without_a_class_cache(
+        self, suite: Path, tmp_path: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
+    ) -> None:
+        calls = tmp_path / "calls"
+        godot = fake_godot("1 checks, 0 failures\n", shell=f'echo "$4" >> {calls}')
+        code, payload = run_cli(["test", "--project", str(suite), "--jobs", "1"], godot)
+        assert (code, payload["imported_first"]) == (cli.EXIT_OK, True)
+        assert calls.read_text().split() == ["--import", "--script", "--script"]
+
     def test_unknown_ref_is_refused(
         self, suite: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
     ) -> None:

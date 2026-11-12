@@ -48,3 +48,18 @@ Source: `godotkit test` on a scratch worktree of AloneGodot at `4fe4785` with a 
 - The slowest entries are `transmitter_hint_test.gd` (67 s) and `smoke.gd` (58 s) under 4 jobs.
 - Of 144 `ERROR:` lines in the full run, 143 come from AloneGodot's own `push_error` in negative-path tests (location `push_error (core/variant/variant_utility.cpp)`). The other one is engine-raised (`decode_variant`, a deliberately corrupt save). AloneGodot's runners pass on all of them because they look only for `SCRIPT ERROR` and leaks.
 - `run_root_startup_test.sh` calls `rg`, which is not installed on this machine, so its error and leak scans silently do nothing.
+
+## Test frameworks (A4b, 2026-11-13)
+
+Source: GdUnit4 v6.2.3 and GUT 9.7.1 tag archives (SHA-256 pinned in `plugins/godot-core/tests/godotkit_rig.py`) on throwaway fixture projects with Godot 4.7.2, headless, stdin closed. The live test `test_real_framework_suites_are_judged` repeats the pass, fail and parse-error cases on every `make test-godot`.
+
+| Case                                                      | GdUnit4 v6.2.3                                                    | GUT 9.7.1                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------- |
+| One passing and one failing test                          | exit 100; `results.xml` under `-rd`, `tests="2" failures="1"`     | exit 1; `-gjunit_xml_file`, `tests="2" failures="1"` |
+| Suite with a parse error                                  | exit 105, no report                                               | exit 0, report `tests="0" failures="0"`              |
+| Folder with no tests                                      | exit 0, no report ("No test cases found")                         | exit 0, report `tests="0"`                           |
+| Unexpected `push_error` in a test                         | test passes; only the log shows it                                | test fails                                           |
+| `-d --remote-debug tcp://127.0.0.1:0` (from `runtest.sh`) | prints two engine `ERROR:` lines (port 0 is invalid) on every run | not used                                             |
+
+- The GUT parse-error row is why exit codes are never trusted: a broken suite exits 0.
+- godotkit runs GdUnit4 without `-d`. Without it a parse error still exits cleanly, and the runs carry no spurious port errors.

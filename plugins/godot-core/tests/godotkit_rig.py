@@ -34,6 +34,30 @@ HEALTHY_SCRIPT = 'extends Node\n\nfunc _ready() -> void:\n\tprint("main ready")\
 NULL_CALL_SCRIPT = (
     'extends Node\n\nfunc _ready() -> void:\n\tvar thing: Object = null\n\tthing.call("missing")\n'
 )
+CONTROL_SCENE = """[gd_scene format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1"]
+
+[node name="Main" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1")
+
+[node name="Card" type="Button" parent="."]
+offset_right = 200.0
+offset_bottom = 200.0
+"""
+CONTROL_SCRIPT = "extends Control\n"
+# AloneGodot's F5 bug in miniature: adding to the busy root fails and setup disables the scene.
+BUSY_PARENT_SCRIPT = (
+    "extends Control\n\nfunc _ready() -> void:\n\tvar helper := Node.new()\n"
+    "\tget_tree().root.add_child(helper)\n\tif helper.get_parent() == null:\n"
+    "\t\thelper.free()\n\t\tprocess_mode = Node.PROCESS_MODE_DISABLED\n"
+)
+SILENT_DISABLE_SCRIPT = (
+    "extends Control\n\nfunc _ready() -> void:\n\tprocess_mode = Node.PROCESS_MODE_DISABLED\n"
+)
 PARSE_ERROR_SCRIPT = 'extends Node\n\nfunc _ready() -> void\n\tprint("never")\n'
 
 

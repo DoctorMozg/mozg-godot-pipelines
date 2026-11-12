@@ -145,25 +145,80 @@ skills: gd-interview (numbered questions → decision log), gd-canon, gd-contrac
         gd-balance, gd-review (judge), gd-research (web: reference games/mechanics, sourced, via pipeline-web-researcher)
 ```
 
+## Development process (godot-studio)
+
+Research: `docs/research/07-orchestration-dx.md` (how Codex built AloneGodot). One orchestrator session plans, hands out lanes and merges; each lane is a subagent in its own warm worktree with a set of files it owns. Review in the hub never blocks a lane.
+
+```
+design (designkit) ──► tasks with acceptance checks ◄── retake hook (hub redo events)
+                              │
+        orchestrator: lanes by file ownership; brief = base commit, owned files, checks, "do not push"
+              │                    │                         │
+        code lane              code lane                asset lanes (fal, synth, UI)
+        worktree new (warm)    worktree new (warm)      → registry versions (append-only)
+        edit → Tier 0          edit → Tier 0
+        test --since → gate    test --since → gate
+        → receipt              → receipt
+              └──────── merge queue (one at a time) ─────────┘
+          merge → rebuild generated files → gate on the merged result → worktree remove
+```
+
+### Parallelism rules
+
+1. Data that cannot conflict:
+   - Registry versions and events are append-only ULID files.
+   - Locale strings are one JSON file per locale and namespace.
+   - Design data is one JSON file per entity.
+1. Generated files are rebuilt, never merged by hand. After a merge, `.po` files are regenerated and the gate checks freshness; `.import`/`.uid` churn is flagged by the gate.
+1. Single-writer files: `project.godot` (autoloads, input map, settings), the main scene and the theme.
+   - A lane writes a request file under `.mozg/requests/`.
+   - The orchestrator applies requests in the merge queue.
+   - The ownership hook blocks direct edits.
+1. Scenes are cut along ownership. Large scenes are split into instanced sub-scenes with one owner each, because node and resource ids in `.tscn` files do not merge.
+1. Review never blocks. A lane registers a version and moves on; a redo returns as a new task through the retake hook.
+1. Machine budget:
+   - Code lanes are CPU-bound: about 4 lanes × `--jobs 4` on 16 cores.
+   - Asset lanes wait on the network and can run wider.
+   - Slow tests are spread across shards by measured duration (A6).
+1. Review depth follows risk: mechanical changes get the gate only; a new system, autoload or layer change gets the architecture reviewer.
+
+### Architecture decisions
+
+1. Decided once, by the owner.
+   - A new system gets 2–3 options scored on four questions:
+     - Can it be tested headless?
+     - Which files would it make single-writer?
+     - What does it mean for save/load and pause?
+     - Does it fit `18-gdscript-architecture.md`?
+   - Close calls get a throwaway prototype measured with `boot` and `test`.
+   - The owner picks. The choice is recorded in `docs/decisions/NNN-<slug>.md` in the game repo, with "revisit when" triggers.
+   - A lane that needs to break a decision stops and asks.
+1. Rules become checks:
+   - `architecture.json` declares layers (path globs), allowed layer edges, `max_autoloads`, `max_file_lines` and `no_cycles`.
+   - `godotkit arch` checks them on the A4 dependency graph, together with `godotkit lint` and the strict warning profile.
+1. Coupling is measured. Gate receipts record reach per test (median, p90, max, entries reaching every file) and the change against the base commit. AloneGodot baseline: median about 60 files, ordinary maximum about 300, `smoke.gd` reaches all 4,159.
+1. Fresh-eyes review. Risky changes get an architecture reviewer subagent that has the decision records and rules but not the author's reasoning.
+1. Limits: whether an architecture serves the game shows only at runtime. The boot gate, playtests and hub review cover that; the process keeps decisions cheap to revisit rather than claiming them right up front.
+
 ## Milestones
 
 Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), ends with `make check` green and one commit. Order: A → B → C → L → D to G.
 
 ### Phase A — repo and godot-core
 
-| #   | Milestone                                                                                                                              | verify                                                                                                                                                    |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A0  | Scaffold: marketplace.json, CLAUDE.md, Makefile, pyproject, pre-commit, CI; port `tools/` from mozg-video-plugins                      | done `ea8ce6c`                                                                                                                                            |
-| A1  | godotkit: `doctor`, Godot locator, log judge, isolated `run`                                                                           | done `16621f7`: real Godot exits 0 on script and parse errors, `run` reports `ok:false`                                                                   |
-| A2  | `import` + `worktree new`: warm `.godot` copy, `use_multiple_threads=false` option, uid/translation churn report                       | done: warm import 7.1 s against 32.8 s cold, 2.4 GB hardlinked; see `docs/measurements.md`                                                                |
-| A3  | `check` parse gate + `boot` gate with injected temporary input bridge                                                                  | done: AloneGodot at `d1d7760~1` fails `boot` with `input_dead` in 3 s, `d1d7760` passes; parse gate 342 scripts in 12.8 s                                 |
-| A4  | `test`: custom summary-line harness, `godotkit.json` entries, dependency graph, `--since`/`--changed`, parallel jobs with isolated XDG | done: 43,341 checks match AloneGodot's runners; selection 0.33 s, but `smoke.gd` reaches everything and takes 35–58 s, so affected runs take 41 s or more |
-| A4b | GdUnit4 adapter (`results.xml`, `--ignoreHeadlessMode`, empty report fails) and GUT adapter (`-gjunit_xml_file`)                       | done: real GdUnit4 6.2.3 and GUT 9.7.1 judge pass, fail and parse-error suites right; GUT exits 0 on a parse error                                        |
-| A5  | Tier 0: formatter/lint wrapper, `strict`, `lint` rules, LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint           | diagnostics for a broken fixture in < 1 s with a warm LSP; an Error-level warning fails `check` on real Godot                                             |
-| A6  | `gate` + receipts (`receipt write`, `receipt verify`)                                                                                  | gate on fixtures writes a receipt; an edit after the receipt makes verify fail                                                                            |
-| A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt                                       | hook unit tests; hook adds < 1 s per edit on AloneGodot                                                                                                   |
-| A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                                    | lint_skills clean; ≥ 3 eval cases per skill pass                                                                                                          |
-| A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                              | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                                                    |
+| #   | Milestone                                                                                                                                                                                      | verify                                                                                                                                                    |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A0  | Scaffold: marketplace.json, CLAUDE.md, Makefile, pyproject, pre-commit, CI; port `tools/` from mozg-video-plugins                                                                              | done `ea8ce6c`                                                                                                                                            |
+| A1  | godotkit: `doctor`, Godot locator, log judge, isolated `run`                                                                                                                                   | done `16621f7`: real Godot exits 0 on script and parse errors, `run` reports `ok:false`                                                                   |
+| A2  | `import` + `worktree new`: warm `.godot` copy, `use_multiple_threads=false` option, uid/translation churn report                                                                               | done: warm import 7.1 s against 32.8 s cold, 2.4 GB hardlinked; see `docs/measurements.md`                                                                |
+| A3  | `check` parse gate + `boot` gate with injected temporary input bridge                                                                                                                          | done: AloneGodot at `d1d7760~1` fails `boot` with `input_dead` in 3 s, `d1d7760` passes; parse gate 342 scripts in 12.8 s                                 |
+| A4  | `test`: custom summary-line harness, `godotkit.json` entries, dependency graph, `--since`/`--changed`, parallel jobs with isolated XDG                                                         | done: 43,341 checks match AloneGodot's runners; selection 0.33 s, but `smoke.gd` reaches everything and takes 35–58 s, so affected runs take 41 s or more |
+| A4b | GdUnit4 adapter (`results.xml`, `--ignoreHeadlessMode`, empty report fails) and GUT adapter (`-gjunit_xml_file`)                                                                               | done: real GdUnit4 6.2.3 and GUT 9.7.1 judge pass, fail and parse-error suites right; GUT exits 0 on a parse error                                        |
+| A5  | Tier 0: formatter/lint wrapper, `strict`, `lint` rules, `arch` (layers from `architecture.json` on the dependency graph), LSP client (`lsp start`, `lsp diag`), `.tscn`/`.tres` reference lint | diagnostics for a broken fixture in < 1 s with a warm LSP; an Error-level warning fails `check` on real Godot; a forbidden layer edge fails `arch`        |
+| A6  | `gate` + receipts (`receipt write`, `receipt verify`); receipts carry reach metrics against the base commit; duration-balanced shards; post-merge rebuild of generated files                   | gate on fixtures writes a receipt; an edit after the receipt makes verify fail; a change adding a cross-layer edge shows a reach increase                 |
+| A7  | Hooks: PostToolUse Tier 0 on .gd/.tscn/.tres, 280-line warning, SKIP guard, commit-needs-receipt, single-writer guard (`project.godot`, main scene, theme → request file)                      | hook unit tests; hook adds < 1 s per edit on AloneGodot; a lane edit of `project.godot` is refused with the request path                                  |
+| A8  | Skills: godot-init, godot-verify, godot-test, godot-scene (+ evals)                                                                                                                            | lint_skills clean; ≥ 3 eval cases per skill pass                                                                                                          |
+| A9  | `native` + `shot`: real renderer run, multi-resolution capture in one process, UI node/rect snapshot JSON                                                                                      | fixture captured at 3 resolutions from one process; snapshot lists controls with rects                                                                    |
 
 ### Phase B — godot-assets
 
@@ -196,7 +251,7 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 
 ### Phase D–G — outlines (detailed when reached)
 
-- **D godot-studio**: role map → subagents, ownership manifest + hook, delegation template, frozen-test lock, worktree lifecycle, risk-based depth on mz-dev-pipe.
+- **D godot-studio**: role map → subagents, ownership manifest + hook, delegation template (base commit, owned files, checks, return contract), request files for single-writer files and the merge queue that applies them, frozen-test lock, worktree lifecycle, risk-based review depth on mz-dev-pipe, decision-record template + options-and-scores step + architecture reviewer agent (see Development process).
 - **E godot-art**: art-bible, asset-brief with dependents, art-batch via fal-media (2D and 3D: Trellis/Hunyuan GLB with decimation) writing registry versions with generation provenance, import/mipmap/VRAM audit, readability + style judges.
 - **F godot-ui**: ui-brief, HTML prototype template, handoff template, tokens → Theme, multi-res capture into the hub; string keys through l10nkit.
 - **G godot-audio**: cues.yaml, synth/fal SFX, music loop points, loudness checks, bus lint, audition in the hub.
@@ -207,3 +262,5 @@ Each milestone ≤ 10 files / 400 changed lines (mechanical ports excepted), end
 1. `godot-l10n` is its own plugin, built after game design: A → B → C → L → D to G.
 1. JSON for registry, i18n and design data; no YAML in kits.
 1. Built `.po` files are committed; the gate fails when they are stale.
+1. Development runs as an orchestrator with file-owned lanes in warm worktrees and a one-at-a-time merge queue; `project.godot`, the main scene and the theme are single-writer (2026-11-13).
+1. Architecture is decided by the owner from scored options, recorded as decision records, enforced by `godotkit arch` and tracked by reach metrics in receipts (2026-11-13).

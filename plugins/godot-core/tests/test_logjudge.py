@@ -34,11 +34,18 @@ class TestFailures:
         assert verdict.reason == "parse_error"
         assert verdict.counts == {"parse_error": 1, "engine_error": 1}
 
-    def test_leak_at_exit_fails(self) -> None:
-        log = "WARNING: ObjectDB instances leaked at exit (run with --verbose for details).\n"
-        # A leak warning is still a leak: it starts with WARNING but names leaked instances.
-        verdict = LogJudge().judge(log.replace("WARNING: ", ""), exit_code=0, timed_out=False)
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).",
+            "WARNING: 3 ObjectDB instances were leaked at exit (run with `--verbose` for details).",
+            "ERROR: 2 resources still in use at exit (run with --verbose for details).",
+        ],
+    )
+    def test_leak_at_exit_fails_even_as_a_warning(self, line: str) -> None:
+        verdict = LogJudge().judge(line + "\n", exit_code=0, timed_out=False)
         assert verdict.reason == "leak"
+        assert verdict.warnings == 0
 
     def test_timeout_outranks_everything(self) -> None:
         verdict = LogJudge().judge(NULL_CALL_LOG, exit_code=None, timed_out=True)

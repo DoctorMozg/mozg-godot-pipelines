@@ -7,15 +7,20 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 _LOCATION_RE = re.compile(r"^\s+at:\s+(.*)$")
-# Ordered by severity: the first kind found in a run names its failure reason.
+# First match names a line's kind, so the specific leak text wins over the generic ERROR prefix.
 _ISSUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("crash", re.compile(r"Program crashed with signal|^handle_crash:")),
     ("parse_error", re.compile(r"Parse Error")),
     ("script_error", re.compile(r"^SCRIPT ERROR:")),
+    # Godot 4.7: "WARNING: 1 ObjectDB instance was leaked at exit"; still a failure, not noise.
+    (
+        "leak",
+        re.compile(r"ObjectDB instances? (?:was|were) leaked|resources? still in use at exit"),
+    ),
     ("engine_error", re.compile(r"^ERROR:")),
-    ("leak", re.compile(r"ObjectDB instances leaked|resources still in use at exit|^Leaked ")),
 )
-_SEVERITY = [kind for kind, _ in _ISSUE_PATTERNS]
+# The most severe kind found in a run names its failure reason.
+_SEVERITY = ["crash", "parse_error", "script_error", "engine_error", "leak"]
 
 
 @dataclass(frozen=True)
@@ -61,14 +66,13 @@ class LogJudge:
         issues: list[LogIssue] = []
         warnings = 0
         for index, line in enumerate(lines):
-            if line.startswith("WARNING:"):
-                warnings += 1
-                continue
             if any(pattern.search(line) for pattern in self._allow):
                 continue
             kind = next((k for k, pattern in _ISSUE_PATTERNS if pattern.search(line)), None)
             if kind is not None:
                 issues.append(LogIssue(kind, line.strip(), self._location(lines, index)))
+            elif line.startswith("WARNING:"):
+                warnings += 1
         return issues, warnings
 
     @staticmethod

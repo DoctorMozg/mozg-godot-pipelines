@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import os
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
 from godotkit import cli
 from godotkit.locate import GodotBinary, GodotLocator, GodotNotFound
 from godotkit_rig import (
+    GIT_ENV,
+    HEALTHY_SCRIPT,
     KNOWN_GODOT,
     MAIN_SCENE,
     PROJECT_GODOT,
@@ -37,9 +40,11 @@ def make_project(tmp_path: Path) -> ProjectFactory:
 
 @pytest.fixture
 def fake_godot(tmp_path: Path) -> FakeGodotFactory:
-    """A shell script standing in for Godot: prints the given text, then exits with the code."""
+    """A shell script standing in for Godot: prints the text, runs `shell` ($3 is the project)."""
 
-    def build(output: str = "", exit_code: int = 0, sleep_s: float = 0.0) -> GodotBinary:
+    def build(
+        output: str = "", exit_code: int = 0, sleep_s: float = 0.0, shell: str = ""
+    ) -> GodotBinary:
         script = tmp_path / "fake-godot"
         body = output.replace("'", "'\\''")
         script.write_text(
@@ -49,6 +54,7 @@ def fake_godot(tmp_path: Path) -> FakeGodotFactory:
             'echo "XDG_DATA_HOME=$XDG_DATA_HOME"\n'
             f"sleep {sleep_s}\n"
             f"printf '%s' '{body}'\n"
+            f"{shell}\n"
             f"exit {exit_code}\n"
         )
         script.chmod(script.stat().st_mode | stat.S_IXUSR)
@@ -78,3 +84,13 @@ def run_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str])
         return code, json.loads(capsys.readouterr().out.strip().splitlines()[-1])
 
     return run
+
+
+@pytest.fixture
+def git_project(make_project: ProjectFactory) -> Path:
+    """A healthy project committed to its own git repository."""
+    project = make_project(HEALTHY_SCRIPT)
+    (project / ".gitignore").write_text(".godot/\n")
+    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "fixture"]):
+        subprocess.run(["git", "-C", str(project), *args], check=True, env=GIT_ENV)
+    return project

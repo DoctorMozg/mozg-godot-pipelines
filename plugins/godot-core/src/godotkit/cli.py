@@ -16,9 +16,11 @@ from dataclasses import asdict
 from pathlib import Path
 
 from godotkit.doctor import Doctor
+from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
 from godotkit.runner import GodotRunner, RunRequest
+from godotkit.worktree import GitError, WorktreeManager
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 MAX_ISSUES_SHOWN = 20
@@ -46,6 +48,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--summary", help="regex with named integer groups the log must contain")
     run.add_argument("--log", type=Path, help="write the full Godot output to this file")
+
+    imp = commands.add_parser("import", help="headless import, judged, with a churn report")
+    imp.add_argument("--project", type=Path, default=Path.cwd())
+    imp.add_argument("--timeout", type=float, default=600.0)
+    imp.add_argument(
+        "--single-thread", action="store_true", help="import with use_multiple_threads=false"
+    )
+
+    worktree = commands.add_parser("worktree", help="scratch git worktrees with a warm cache")
+    actions = worktree.add_subparsers(dest="action", required=True)
+    new = actions.add_parser("new", help="add a detached worktree and warm its .godot")
+    new.add_argument("path", type=Path)
+    new.add_argument("--project", type=Path, default=Path.cwd(), help="project to branch from")
+    new.add_argument("--ref", default="HEAD")
+    new.add_argument("--warm-from", type=Path, help=".godot folder to warm from")
+    remove = actions.add_parser("remove", help="remove a worktree and its cache")
+    remove.add_argument("path", type=Path)
     return parser
 
 
@@ -93,6 +112,62 @@ def _run(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if verdict.ok else EXIT_FAILED
 
 
+def _import(args: argparse.Namespace, runner: GodotRunner) -> int:
+    request = ImportRequest(args.project.resolve(), args.timeout, args.single_thread)
+    try:
+        report = ProjectImporter(runner).run(request)
+    except ValueError as error:
+        _emit({"cmd": "import", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    verdict = report.verdict
+    _emit(
+        {
+            "cmd": "import",
+            "ok": verdict.ok,
+            "reason": verdict.reason,
+            "godot_exit": report.result.exit_code,
+            "duration_s": round(report.result.duration_s, 3),
+            "cold": report.cold,
+            "churn": report.churn,
+            "counts": verdict.counts,
+            "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
+        }
+    )
+    return EXIT_OK if verdict.ok else EXIT_FAILED
+
+
+def _worktree(args: argparse.Namespace) -> int:
+    manager = WorktreeManager()
+    path = args.path.resolve()
+    try:
+        if args.action == "remove":
+            manager.remove(path)
+            _emit({"cmd": "worktree remove", "ok": True, "path": str(path)})
+            return EXIT_OK
+        warm = args.warm_from.resolve() if args.warm_from else None
+        report = manager.create(args.project.resolve(), path, args.ref, warm)
+    except (ValueError, GitError) as error:
+        _emit(
+            {
+                "cmd": f"worktree {args.action}",
+                "ok": False,
+                "reason": "refused",
+                "detail": str(error),
+            }
+        )
+        return EXIT_REFUSED
+    _emit(
+        {
+            "cmd": "worktree new",
+            "ok": True,
+            "path": str(report.path),
+            "ref": report.ref,
+            "cache": asdict(report.cache) if report.cache else None,
+        }
+    )
+    return EXIT_OK
+
+
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -105,9 +180,12 @@ def main(argv: Sequence[str]) -> int:
         report = Doctor(os.environ, locator).report()
         _emit(report)
         return EXIT_OK if report["ok"] else EXIT_SETUP
+    if args.command == "worktree":
+        return _worktree(args)
     try:
         binary = locator.locate()
     except GodotNotFound as error:
         _emit({"cmd": args.command, "ok": False, "reason": "no_godot", "detail": str(error)})
         return EXIT_SETUP
-    return _run(args, GodotRunner(binary))
+    runner = GodotRunner(binary)
+    return _import(args, runner) if args.command == "import" else _run(args, runner)

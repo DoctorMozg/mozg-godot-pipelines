@@ -1,4 +1,4 @@
-"""Parse gate (every script loads) and boot gate (the real main scene takes a click)."""
+"""Parse gate (scripts load, shaders compile) and boot gate (the main scene takes a click)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,19 @@ PARSE_SUMMARY = re.compile(
     r"^GODOTKIT_PARSE (?P<checks>\d+) scripts (?P<failures>\d+) failed$", re.M
 )
 PARSE_FAIL = re.compile(r"^GODOTKIT_PARSE_FAIL (?P<path>\S+)$", re.M)
+SHADER_COUNT = re.compile(r"^GODOTKIT_SHADERS (?P<files>\d+) files$", re.M)
+SHADER_SECTION = re.compile(
+    r"^GODOTKIT_SHADER_BEGIN (?P<path>.+?)$(?P<body>.*?)^GODOTKIT_SHADER_END (?P=path)$",
+    re.M | re.S,
+)
+# 4.7.2 prints "at: (null) (:2)", or "(res://x.gdshaderinc:2)" for an error inside an include.
+SHADER_ERROR = re.compile(
+    r"^SHADER ERROR: (?P<message>.*)$(?:\n^\s+at: \(null\) \((?P<file>[^\n]*):(?P<line>\d+)\)$)?",
+    re.M,
+)
+SHADER_FAILED = re.compile(
+    r"^.*(?:Shader compilation failed|not supported in Dummy renderer).*$", re.M
+)
 BOOT_LINE = re.compile(r"^GODOTKIT_BOOT (?P<json>\{.*\})$", re.M)
 CLASS_CACHE = Path(".godot") / "global_script_class_cache.cfg"
 
@@ -35,10 +48,22 @@ class BootReport(TypedDict):
 
 
 @dataclass(frozen=True)
+class ShaderFailure:
+    """`loaded` is the file the gate loaded; `path` holds the error and may be an include."""
+
+    loaded: str
+    path: str
+    line: int | None
+    message: str
+
+
+@dataclass(frozen=True)
 class ParseOutcome:
     result: RunResult
     verdict: Verdict
     failed_scripts: tuple[str, ...]
+    shaders_checked: int | None
+    failed_shaders: tuple[ShaderFailure, ...]
     imported_first: bool
 
 
@@ -70,7 +95,15 @@ class ParseGate:
         result = self._runner.run(RunRequest(project, ("-s", script), timeout_s))
         verdict = LogJudge(PARSE_SUMMARY).judge(result.output, result.exit_code, result.timed_out)
         failed = tuple(match["path"] for match in PARSE_FAIL.finditer(result.output))
-        return ParseOutcome(result, verdict, failed, imported_first)
+        count = SHADER_COUNT.search(result.output)
+        return ParseOutcome(
+            result,
+            verdict,
+            failed,
+            int(count["files"]) if count else None,
+            shader_failures(result.output),
+            imported_first,
+        )
 
 
 class BootGate:
@@ -93,6 +126,27 @@ class BootGate:
         report = _read_report(result.output)
         state = _input_state(report)
         return BootOutcome(result, verdict, _boot_reason(verdict, report, state), state, report)
+
+
+def shader_failures(output: str) -> tuple[ShaderFailure, ...]:
+    failures: list[ShaderFailure] = []
+    for section in SHADER_SECTION.finditer(output):
+        loaded, body = section["path"], section["body"]
+        errors = [
+            ShaderFailure(
+                loaded,
+                match["file"] or loaded,
+                int(match["line"]) if match["line"] else None,
+                match["message"].strip(),
+            )
+            for match in SHADER_ERROR.finditer(body)
+        ]
+        if not errors:
+            other = SHADER_FAILED.search(body)
+            if other is not None:
+                errors = [ShaderFailure(loaded, loaded, None, other.group(0).strip())]
+        failures += errors
+    return tuple(failures)
 
 
 def _read_report(output: str) -> BootReport | None:

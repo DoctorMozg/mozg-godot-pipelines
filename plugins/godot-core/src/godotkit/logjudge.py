@@ -12,6 +12,7 @@ _ISSUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("crash", re.compile(r"Program crashed with signal|^handle_crash:")),
     ("parse_error", re.compile(r"Parse Error")),
     ("script_error", re.compile(r"^SCRIPT ERROR:")),
+    ("shader_error", re.compile(r"^SHADER ERROR:")),
     # Godot 4.7: "WARNING: 1 ObjectDB instance was leaked at exit"; still a failure, not noise.
     (
         "leak",
@@ -20,7 +21,15 @@ _ISSUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("engine_error", re.compile(r"^ERROR:")),
 )
 # The most severe kind found in a run names its failure reason.
-_SEVERITY = ["crash", "parse_error", "script_error", "engine_error", "push_error", "leak"]
+_SEVERITY = [
+    "crash",
+    "parse_error",
+    "script_error",
+    "shader_error",
+    "engine_error",
+    "push_error",
+    "leak",
+]
 # An ERROR raised by the project's own push_error, not by the engine.
 _PUSH_ERROR_LOCATION = "push_error (core/variant/variant_utility.cpp"
 

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from godotkit.gates import CLASS_CACHE, BootGate, ParseGate
+from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, ShaderFailure, shader_failures
 from godotkit.importer import OVERRIDE_FILE
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK
@@ -32,6 +32,37 @@ LIVE_PROBE = {
     "clicked": True,
     "target": "Card",
 }
+
+# Shaped like real 4.7.2 headless output: the error names no file unless it sits in an include.
+SHADER_LOG = """GODOTKIT_SHADER_BEGIN res://ok.gdshader
+GODOTKIT_SHADER_END res://ok.gdshader
+GODOTKIT_SHADER_BEGIN res://bad.gdshader
+E   2-> void fragment() { COLOR = nope; }
+SHADER ERROR: Unknown identifier in expression: 'nope'.
+          at: (null) (:2)
+ERROR: Shader compilation failed.
+   at: shader_set_code (servers/rendering/dummy/storage/material_storage.cpp:192)
+GODOTKIT_SHADER_END res://bad.gdshader
+GODOTKIT_SHADER_BEGIN res://fx/uses inc.gdshader
+SHADER ERROR: Unknown identifier in expression: 'gone'.
+          at: (null) (res://fx/inc.gdshaderinc:3)
+GODOTKIT_SHADER_END res://fx/uses inc.gdshader
+GODOTKIT_SHADER_BEGIN res://odd.tres
+ERROR: Shader type fancy not supported in Dummy renderer.
+GODOTKIT_SHADER_END res://odd.tres
+GODOTKIT_SHADERS 4 files
+GODOTKIT_PARSE 1 scripts 0 failed
+"""
+BAD_SHADER = "shader_type canvas_item;\nvoid fragment() { COLOR = nope_color; }\n"
+GOOD_SHADER = (
+    "shader_type canvas_item;\nuniform vec4 tint : source_color;\n"
+    "void fragment() { COLOR = tint; }\n"
+)
+MATERIAL = (
+    '[gd_resource type="ShaderMaterial" load_steps=2 format=3]\n\n'
+    '[ext_resource type="Shader" path="res://fx/good.gdshader" id="1"]\n\n'
+    '[resource]\nshader = ExtResource("1")\n'
+)
 
 
 def _probe_line(**changes: object) -> str:
@@ -129,6 +160,43 @@ class TestParseGate:
         assert calls.read_text().split() == ["--import", "-s"]
 
 
+class TestShaderSections:
+    def test_errors_are_named_by_section_and_include(self) -> None:
+        assert shader_failures(SHADER_LOG) == (
+            ShaderFailure(
+                "res://bad.gdshader",
+                "res://bad.gdshader",
+                2,
+                "Unknown identifier in expression: 'nope'.",
+            ),
+            ShaderFailure(
+                "res://fx/uses inc.gdshader",
+                "res://fx/inc.gdshaderinc",
+                3,
+                "Unknown identifier in expression: 'gone'.",
+            ),
+            ShaderFailure(
+                "res://odd.tres",
+                "res://odd.tres",
+                None,
+                "ERROR: Shader type fancy not supported in Dummy renderer.",
+            ),
+        )
+
+    def test_check_fails_on_a_shader_error(
+        self, fake_godot: FakeGodotFactory, project: Path, run_cli: CliRunner
+    ) -> None:
+        code, payload = run_cli(["check", "--project", str(project)], fake_godot(SHADER_LOG))
+        assert (code, payload["reason"], payload["shaders"]) == (EXIT_FAILED, "shader_error", 4)
+        failed = payload["failed_shaders"]
+        assert isinstance(failed, list)
+        assert [item["path"] for item in failed] == [
+            "res://bad.gdshader",
+            "res://fx/inc.gdshaderinc",
+            "res://odd.tres",
+        ]
+
+
 class TestGateCli:
     def test_boot_prints_input_state(
         self, fake_godot: FakeGodotFactory, project: Path, run_cli: CliRunner
@@ -182,6 +250,27 @@ class TestRealGates:
     def test_parse_gate_passes_a_healthy_project(
         self, real_godot: GodotBinary, make_project: ProjectFactory
     ) -> None:
-        outcome = ParseGate(GodotRunner(real_godot)).run(make_project(HEALTHY_SCRIPT), 120)
-        assert outcome.verdict.ok
+        project = make_project(HEALTHY_SCRIPT)
+        (project / "fx").mkdir()
+        (project / "fx" / "good.gdshader").write_text(GOOD_SHADER)
+        (project / "fx" / "tint.tres").write_text(MATERIAL)
+        outcome = ParseGate(GodotRunner(real_godot)).run(project, 120)
+        assert outcome.verdict.ok, outcome.verdict.issues
         assert outcome.verdict.summary == {"checks": 1, "failures": 0}
+        assert outcome.shaders_checked == 2
+
+    def test_shader_gate_names_the_broken_shader(
+        self, real_godot: GodotBinary, make_project: ProjectFactory
+    ) -> None:
+        project = make_project(HEALTHY_SCRIPT)
+        (project / "bad.gdshader").write_text(BAD_SHADER)
+        outcome = ParseGate(GodotRunner(real_godot)).run(project, 120)
+        assert outcome.verdict.reason == "shader_error"
+        assert outcome.failed_shaders == (
+            ShaderFailure(
+                "res://bad.gdshader",
+                "res://bad.gdshader",
+                2,
+                "Unknown identifier in expression: 'nope_color'.",
+            ),
+        )

@@ -45,7 +45,9 @@ def _parser() -> argparse.ArgumentParser:
         "--single-thread", action="store_true", help="import with use_multiple_threads=false"
     )
 
-    check = commands.add_parser("check", help="parse gate: every script under res:// loads")
+    check = commands.add_parser(
+        "check", help="parse gate: every script loads and every shader compiles"
+    )
     check.add_argument("--project", type=Path, default=Path.cwd())
     check.add_argument("--timeout", type=float, default=300.0)
 

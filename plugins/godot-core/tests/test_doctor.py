@@ -60,3 +60,14 @@ class TestDoctor:
         assert report["godot"] == {"path": str(binary.path), "version": "4.7.2.stable.fake"}
         assert report["display"] == ":0"
         assert report["notes"] == []
+
+    def test_software_drivers_are_found_or_noted(self) -> None:
+        def find(pattern: str) -> list[str]:
+            return ["/usr/share/vulkan/icd.d/lvp_icd.json"] if "lvp_icd" in pattern else []
+
+        report = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path, find=find).report()
+        assert report["software_drivers"] == {
+            "lavapipe": "/usr/share/vulkan/icd.d/lvp_icd.json",
+            "llvmpipe": None,
+        }
+        assert any(note.startswith("llvmpipe missing") for note in report["notes"])

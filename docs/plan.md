@@ -94,8 +94,13 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
 
 Research: `docs/research/20-shader-writing.md`, `21-shader-verification.md`.
 
-- Compile gate with no GPU: `--headless` runs Godot's shading-language front end on every `.gdshader` it loads, so `godotkit check` loads each shader and material and fails on `SHADER ERROR`, `Shader compilation failed` or `not supported in Dummy renderer`. Headless errors carry no file name, so the probe loads one shader per marked log section. UNTESTED on 4.7.2.
-- Backend gate, optional: Forward+/Mobile under Xvfb with lavapipe and Compatibility with llvmpipe catch SPIR-V and driver errors. Renderer fallback is disabled and the active driver is asserted from the log. `doctor` reports Xvfb and the Mesa drivers; nothing requires them. UNTESTED: Xvfb is not installed on the development machine.
+- Compile gate with no GPU: `--headless` runs Godot's shading-language front end, so `godotkit check` compiles every `.gdshader` and every `.tres` Shader, ShaderMaterial or VisualShader before loading scripts, and fails on `SHADER ERROR` (issue kind `shader_error`). Proven on 4.7.2 (2026-11-13):
+  - a shader compiles on first use, not on load, so the gate asks each one for its uniform list;
+  - headless errors name no file (`at: (null) (:2)`), so each load sits in a marked log section; an error in an include names it (`(res://x.gdshaderinc:2)`);
+  - `failed_shaders` lists the loaded file, the file holding the error, line and message;
+  - `not supported in Dummy renderer` concerns shader types and nodes such as VoxelGI, not shader code; inside a section it still fails the file;
+  - AloneGodot: 342 scripts and 1 shader in 5.8 s, no finding; a planted unknown identifier is reported at its line.
+- Backend gate, optional: Forward+/Mobile under Xvfb with lavapipe and Compatibility with llvmpipe catch SPIR-V and driver errors. Renderer fallback is disabled and the active driver is asserted from the log. `doctor` reports `xvfb-run` and the lavapipe ICD and llvmpipe library under `software_drivers`; nothing requires them. UNTESTED: Xvfb is not installed on the development machine.
 - `godotkit lint` shader rules from research 20:
   - no 3.x names (`SCREEN_TEXTURE`, `DEPTH_TEXTURE`, `hint_color`, `hint_albedo`, `.shader`);
   - colour uniforms and albedo samplers carry `source_color`; every sampler has explicit `filter_*` and `repeat_*`;

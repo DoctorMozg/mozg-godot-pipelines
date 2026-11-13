@@ -117,6 +117,8 @@ def check(args: argparse.Namespace, runner: GodotRunner) -> int:
             "imported_first": outcome.imported_first,
             "summary": verdict.summary,
             "failed_scripts": outcome.failed_scripts,
+            "shaders": outcome.shaders_checked,
+            "failed_shaders": [asdict(failure) for failure in outcome.failed_shaders],
             "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
         }
     )

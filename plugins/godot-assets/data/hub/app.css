@@ -134,3 +134,8 @@ body {
 .versions li { display: flex; gap: 6px; align-items: center; padding: 2px 0; }
 .versions li.current { font-weight: 600; }
 .note { color: var(--muted); font-size: 12px; margin: 2px 0; }
+
+.viewer { margin: 8px 0; }
+.viewer video.picture { margin: 0 auto; width: 100%; }
+.controls, .tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.tabs button[aria-pressed="true"] { border-color: var(--focus); font-weight: 600; }

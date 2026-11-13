@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import secrets
+import shutil
+import subprocess
 import threading
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from assetkit.contracts import Json
 from assetkit.hub import PAGE_DIR, build_static
 from assetkit.hubserver import HubConfig, HubServer
-from assetkit.registry import Registry
+from assetkit.registry import AssetSpec, Registry, VersionSpec
 from assetkit.review import Review
-from assetkit_rig import Lane, png, tiny_png
+from assetkit_rig import HUMAN, Lane, png, tiny_png
 from chrome_rig import Chrome, find_chrome
 
 pytestmark = pytest.mark.live_browser
@@ -122,3 +125,92 @@ def test_wrong_token_leaves_the_page_offline(chrome: Chrome, hub: HubServer) -> 
     page = chrome.open(hub.url.split("#")[0] + "#token=wrong")
     chrome.wait_for(page, "document.getElementById('connection').dataset.state === 'offline'")
     assert chrome.evaluate(page, "document.querySelectorAll('.card').length") == 0
+
+
+def _asset(
+    registry: Registry, kind: str, files: dict[str, tuple[str, bytes]], media: dict[str, Json]
+) -> str:
+    """One asset of `kind` whose single version holds `files` (role -> name, content)."""
+    asset = str(registry.new_asset(AssetSpec("fx", kind, kind.title()))["id"])
+    folder = registry.root / "staging" / asset
+    folder.mkdir(parents=True)
+    paths = []
+    for role, (name, content) in files.items():
+        (folder / name).write_bytes(content)
+        paths.append((role, folder / name))
+    registry.add_version(asset, VersionSpec(tuple(paths), dict(HUMAN), "tester", media=media))
+    return asset
+
+
+def _in(asset: str, inner: str = "") -> str:
+    return f"document.querySelector('[data-asset=\"{asset}\"] {inner}')"
+
+
+class TestViewers:
+    def test_sprite_sheet_steps_through_its_frames(
+        self, chrome: Chrome, hub: HubServer, registry: Registry
+    ) -> None:
+        sheet = _asset(
+            registry, "sprite_frames", {"main": ("run.png", png(64, 16))}, {"hframes": 4}
+        )
+        page = chrome.open(hub.url)
+        canvas = _in(sheet, "canvas")
+        chrome.wait_for(page, f"{canvas}?.dataset.frame === '0'")
+        assert chrome.evaluate(page, f"[{canvas}.dataset.frames, {canvas}.width]") == ["4", 16]
+        chrome.evaluate(page, f"{_in(sheet, '[data-control=next]')}.click()")
+        chrome.evaluate(page, f"{_in(sheet, '[data-control=onion]')}.click()")
+        assert chrome.evaluate(page, f"{canvas}.dataset.frame") == "1"
+        assert chrome.errors == []
+
+    def test_frame_files_play_in_role_order(
+        self, chrome: Chrome, hub: HubServer, registry: Registry
+    ) -> None:
+        frames = {f"frame{i}": (f"f{i}.png", png(8 + i, 8)) for i in (10, 2, 1)}
+        asset = _asset(registry, "sprite_frames", frames, {"fps": 30})
+        page = chrome.open(hub.url)
+        canvas = _in(asset, "canvas")
+        chrome.wait_for(page, f"{canvas}?.dataset.frame === '0'")
+        # frame1, frame2, frame10: numeric order, so the first frame is 9 px wide.
+        assert chrome.evaluate(page, f"[{canvas}.dataset.frames, {canvas}.width]") == ["3", 9]
+        chrome.evaluate(page, f"{_in(asset, '[data-control=play]')}.click()")
+        chrome.wait_for(page, f"{canvas}.dataset.frame !== '0'")
+
+    def test_ui_shows_one_resolution_per_tab(
+        self, chrome: Chrome, hub: HubServer, registry: Registry
+    ) -> None:
+        shots = {"1280x720": ("hd.png", png(128, 72)), "640x360": ("sd.png", png(64, 36))}
+        asset = _asset(registry, "ui", shots, {})
+        page = chrome.open(hub.url)
+        chrome.wait_for(page, f"{_in(asset, 'img')}?.naturalWidth === 128")
+        small = _in(asset, '[data-role="640x360"]')
+        chrome.evaluate(page, f"{small}.click()")
+        chrome.wait_for(page, f"{_in(asset, 'img')}?.naturalWidth === 64")
+        assert chrome.evaluate(page, f"{_in(asset, '.stage')}.dataset.file") == "640x360"
+        assert chrome.errors == []
+
+    def test_video_seeks_and_marks_a_time_note(
+        self, chrome: Chrome, hub: HubServer, registry: Registry, tmp_path: Path
+    ) -> None:
+        clip = tmp_path / "clip.webm"
+        made = subprocess.run(
+            ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=32x32:d=2:r=10",
+             "-c:v", "libvpx", "-b:v", "20k", str(clip)],
+            capture_output=True, check=False,
+        ) if shutil.which("ffmpeg") else None  # fmt: skip
+        if made is None or made.returncode != 0:
+            pytest.skip("ffmpeg with libvpx is needed to make the clip")
+        asset = _asset(registry, "video", {"main": ("clip.webm", clip.read_bytes())}, {})
+        page = chrome.open(hub.url)
+        player = _in(asset, "video")
+        chrome.wait_for(page, f"{player}?.readyState >= 1")
+        # Seeking works only when the server answers Range requests.
+        chrome.wait_for(page, f"{player}.seekable.length > 0 && {player}.seekable.end(0) > 1")
+        chrome.evaluate(page, f"{player}.currentTime = 1.5")
+        chrome.wait_for(page, f"!{player}.seeking && {player}.currentTime === 1.5")
+        chrome.evaluate(page, f"{_in(asset, '[data-control=mark]')}.click()")
+        chrome.evaluate(page, f"{_in(asset, '[data-note]')}.value = 'flash here'")
+        chrome.evaluate(page, f"{_in(asset, '[data-action=note]')}.click()")
+        chrome.wait_for(page, f"{_in(asset, '[data-control=seek]')} !== null")
+        [note] = registry.asset_records(asset).events
+        assert note["region"] == {"selector": "t=1.50", "file": "main"}
+        assert chrome.errors == []

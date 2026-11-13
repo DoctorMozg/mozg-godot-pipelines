@@ -72,6 +72,18 @@ def test_refusals_name_the_reason(
     assert message in payload["detail"]
 
 
+def test_version_records_media_measurements(run_cli: CliRunner, asset: str) -> None:
+    add = ("version", "add", asset, "--file", "art/hero.png", "--origin", "human")
+    code, payload = run_cli(
+        *add, "--media", "hframes=4", "--media", "fps=12.5", "--media", "loop=pingpong"
+    )
+    assert (code, payload["version"]["media"]) == (
+        0,
+        {"hframes": 4, "fps": 12.5, "loop": "pingpong"},
+    )
+    assert run_cli(*add, "--media", "hframes")[1]["reason"] == "refused"
+
+
 def test_note_with_a_region(run_cli: CliRunner, asset: str) -> None:
     version = _version(run_cli, asset)
     note = ("note", asset, "--body", "seam", "--version", version, "--region", "t=0.5,0.75")

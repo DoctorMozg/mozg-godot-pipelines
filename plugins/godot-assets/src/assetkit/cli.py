@@ -76,6 +76,9 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("provider", "model", "prompt", "job-id"):
         add.add_argument(f"--{name}", help="generation detail" if name != "prompt" else None)
     add.add_argument("--seed", type=int)
+    add.add_argument(
+        "--media", action="append", default=[], help="KEY=VALUE, such as hframes=4 or fps=12"
+    )
 
     note = commands.add_parser("note", parents=[shared], help="add a note to an asset")
     note.add_argument("asset")
@@ -169,7 +172,8 @@ class Commands:
             if getattr(args, name) is not None
         }
         files = tuple(_role_and_path(pair) for pair in args.file)
-        spec = VersionSpec(files, provenance, self._author, generation or None, args.parent)
+        media = dict(_media_pair(pair) for pair in args.media)
+        spec = VersionSpec(files, provenance, self._author, generation or None, args.parent, media)
         return {"version": self._registry.add_version(args.asset, spec)}
 
     def note(self, args: argparse.Namespace) -> dict[str, Json]:
@@ -309,6 +313,18 @@ def main(argv: Sequence[str]) -> int:
 def _emit(payload: dict[str, Json], code: int) -> int:
     sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
     return code
+
+
+def _media_pair(pair: str) -> tuple[str, Json]:
+    key, sep, raw = pair.partition("=")
+    if not sep or not key:
+        raise Refused(f"--media takes KEY=VALUE, got {pair!r}")
+    for number in (int, float):
+        try:
+            return key, number(raw)
+        except ValueError:
+            continue
+    return key, raw
 
 
 def _role_and_path(pair: str) -> tuple[str, Path]:

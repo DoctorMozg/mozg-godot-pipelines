@@ -202,7 +202,33 @@ class HubHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.NOT_FOUND, "registered file is gone")
             return
         content_type = mimetypes.guess_type(relative)[0] or "application/octet-stream"
-        self._send(HTTPStatus.OK, path.read_bytes(), content_type, FILE_POLICY)
+        size = path.stat().st_size
+        # Browsers seek in audio and video with Range requests; without them a clip cannot seek.
+        span = _byte_range(self.headers.get("Range"), size)
+        if span is None:
+            self._error(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE, f"range outside {size} bytes")
+            return
+        start, end = span
+        partial = (start, end) != (0, size - 1) and size > 0
+        self.send_response(HTTPStatus.PARTIAL_CONTENT if partial else HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(end - start + 1 if size else 0))
+        self.send_header("Accept-Ranges", "bytes")
+        if partial:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", FILE_POLICY)
+        self.end_headers()
+        with path.open("rb") as source:
+            source.seek(start)
+            remaining = end - start + 1 if size else 0
+            while remaining > 0:
+                chunk = source.read(min(remaining, 1 << 16))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                remaining -= len(chunk)
 
     def _stream(self) -> None:
         self.send_response(HTTPStatus.OK)
@@ -253,6 +279,23 @@ class HubHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: object) -> None:
         log.debug("hub: " + format, *args)
+
+
+def _byte_range(header: str | None, size: int) -> tuple[int, int] | None:
+    """The inclusive span a Range header asks for: the whole file without one, None past the end."""
+    whole = (0, max(size - 1, 0))
+    if not header or not header.startswith("bytes=") or "," in header:
+        return whole
+    first, _, last = header.removeprefix("bytes=").partition("-")
+    try:
+        if not first:
+            # "bytes=-N" asks for the last N bytes.
+            return (max(size - int(last), 0), size - 1) if size else None
+        start = int(first)
+        end = min(int(last), size - 1) if last else size - 1
+    except ValueError:
+        return whole
+    return (start, end) if start <= end and start < size else None
 
 
 def _text(body: dict[str, Json], key: str) -> str:

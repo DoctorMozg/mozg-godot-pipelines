@@ -191,3 +191,35 @@ class TestServing:
         version = lane.version(b"one")
         assert next_items()["items"][0]["current_version"] == version
         connection.close()
+
+
+class TestRanges:
+    @pytest.fixture
+    def path(self, lane: Lane) -> str:
+        lane.version(b"0123456789")
+        staged = next((lane.registry.root / "staging").rglob("*.png"))
+        return f"/files/{staged.relative_to(lane.registry.project).as_posix()}?token={TOKEN}"
+
+    @pytest.mark.parametrize(
+        ("header", "status", "body", "content_range"),
+        [
+            ("bytes=2-4", 206, b"234", "bytes 2-4/10"),
+            ("bytes=7-", 206, b"789", "bytes 7-9/10"),
+            ("bytes=-2", 206, b"89", "bytes 8-9/10"),
+            ("bytes=0-99", 200, b"0123456789", None),
+            ("bytes=10-", 416, None, None),
+        ],
+    )
+    def test_range_requests(
+        self,
+        client: Client,
+        path: str,
+        header: str,
+        status: int,
+        body: bytes | None,
+        content_range: str | None,
+    ) -> None:
+        got, headers, payload = client.call("GET", path, headers={"Range": header})
+        assert (got, headers.get("Content-Range")) == (status, content_range)
+        if body is not None:
+            assert (payload, headers["Accept-Ranges"]) == (body, "bytes")

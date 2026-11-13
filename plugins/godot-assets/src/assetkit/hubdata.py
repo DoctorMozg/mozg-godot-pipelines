@@ -11,6 +11,13 @@ from assetkit.prune import pruned_versions
 from assetkit.registry import AssetRecords, Registry
 from assetkit.status import fold
 
+# Python's table lacks these on some systems; the page picks a viewer by media type.
+for _type, _suffix in (
+    ("model/gltf-binary", ".glb"), ("model/gltf+json", ".gltf"), ("audio/ogg", ".ogg"),
+    ("audio/wav", ".wav"), ("video/webm", ".webm"), ("image/webp", ".webp"),
+):  # fmt: skip
+    mimetypes.add_type(_type, _suffix)
+
 
 class HubData:
     def __init__(self, registry: Registry) -> None:
@@ -85,6 +92,7 @@ def _version(
             else None
         ),
         "files": [_file(entry, _moved_out(entry, version, pruned)) for entry in version["files"]],
+        "media": version.get("media", {}),
         "decision": decisions[-1] if decisions else None,
         "pruned": version["id"] in pruned,
     }

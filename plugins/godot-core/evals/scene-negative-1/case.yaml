@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: scene-negative-1
+description: "Near-miss: a test that loads a scene belongs to godot-test."
+tags: [godot-scene, negative]
+runs: 3
+execution:
+  prompt: >-
+    Write a Godot test that loads scenes/door.tscn and checks that the Door node has a CollisionShape2D child.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-scene"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-test"'

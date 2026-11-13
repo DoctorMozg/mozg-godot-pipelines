@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: scene-positive-2
+description: "Held-out phrasing: wire a signal in the scene file."
+tags: [godot-scene, positive]
+runs: 3
+execution:
+  prompt: >-
+    In my Godot game, hook the Start button in the main menu scene up to _on_start_pressed by editing the scene file, not the script.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-scene"'

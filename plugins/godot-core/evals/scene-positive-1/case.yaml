@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: scene-positive-1
+description: "Literal: add a node with a sub resource to a .tscn."
+tags: [godot-scene, positive]
+runs: 3
+execution:
+  prompt: >-
+    Add a CollisionShape2D with a 32x32 rectangle shape under the Door node in scenes/door.tscn.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-scene"'

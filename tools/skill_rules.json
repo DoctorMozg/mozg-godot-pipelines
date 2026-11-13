@@ -9,7 +9,9 @@
       "<seconds>": "a duration in seconds",
       "<reason>": "the reason field of a godotkit JSON line",
       "<reach change>": "max files reached now and its change against the base commit",
-      "<pattern>": "a regular expression"
+      "<pattern>": "a regular expression",
+      "<count>": "a finding count from the survey",
+      "<file contents>": "the full text of a file to write"
     }
   }
 }

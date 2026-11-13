@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: init-positive-2
+description: "Held-out phrasing: adopt gates on an inherited codebase."
+tags: [godot-init, positive]
+runs: 3
+execution:
+  prompt: >-
+    We inherited a large Godot 4 codebase. Get automated quality gates working on it without failing on all the old code.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-init"'

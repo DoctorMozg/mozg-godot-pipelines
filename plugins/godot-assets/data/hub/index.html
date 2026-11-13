@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Asset review</title>
+    <link rel="stylesheet" href="app.css">
+  </head>
+  <body>
+    <header class="bar">
+      <h1>Asset review</h1>
+      <label>Status
+        <select id="filter">
+          <option value="">all</option>
+          <option>pending_review</option>
+          <option>retake</option>
+          <option>approved</option>
+          <option>final</option>
+          <option>rejected</option>
+          <option>deprecated</option>
+          <option>draft</option>
+        </select>
+      </label>
+      <span id="connection" class="connection" data-state="connecting">connecting</span>
+    </header>
+    <p id="message" class="message" role="status" hidden></p>
+    <main id="grid" class="grid" aria-live="polite"></main>
+    <script src="items.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

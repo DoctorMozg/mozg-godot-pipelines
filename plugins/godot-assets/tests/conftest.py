@@ -43,8 +43,8 @@ def run_cli(project: Path, capsys: pytest.CaptureFixture[str]) -> CliRunner:
 
     def run(*args: str) -> CliResult:
         command = [args[0], *args[1:]]
-        # Options follow the subcommand; "version add" takes them after "add".
-        at = 2 if args[0] == "version" else 1
+        # Options follow the subcommand; "version add" and "hub build" take them after the action.
+        at = 2 if args[0] in ("version", "hub") else 1
         command[at:at] = ["--project", str(project), "--author", "tester"]
         code = cli.main(command)
         # Any: the JSON line the command printed.

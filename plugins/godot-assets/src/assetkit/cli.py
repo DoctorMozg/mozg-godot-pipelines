@@ -20,6 +20,7 @@ from pathlib import Path
 from assetkit.contracts import ContractError, Json
 from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
+from assetkit.hub import build_static
 from assetkit.index import RegistryIndex
 from assetkit.promote import Promoter, PromoteRequest
 from assetkit.prune import STORE_ENV, BlobStore, Pruner, default_store
@@ -112,6 +113,11 @@ def _parser() -> argparse.ArgumentParser:
         "ship-report", parents=[shared], help="shipped assets and which are AI-generated"
     )
     ship.add_argument("--ai-only", action="store_true", help="list only AI-generated assets")
+
+    hub = commands.add_parser("hub", help="the browser review hub")
+    hub_actions = hub.add_subparsers(dest="action", required=True)
+    build = hub_actions.add_parser("build", parents=[shared], help="write a read-only static page")
+    build.add_argument("--out", type=Path, help="folder; default .cache/mozg/hub")
 
     status = commands.add_parser("status", parents=[shared], help="folded status from the index")
     status.add_argument("asset", nargs="?")
@@ -228,6 +234,10 @@ class Commands:
     def _pruner(self, args: argparse.Namespace) -> Pruner:
         return Pruner(self._registry, BlobStore(args.store or default_store(os.environ)))
 
+    def hub(self, args: argparse.Namespace) -> dict[str, Json]:
+        page = build_static(self._registry, args.out)
+        return {"page": str(page)}
+
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:
             raise Refused("--set needs an asset")
@@ -241,7 +251,7 @@ def main(argv: Sequence[str]) -> int:
         format="assetkit: %(message)s",
         stream=sys.stderr,
     )
-    name = "version add" if args.command == "version" else args.command
+    name = f"{args.command} {args.action}" if args.command in ("version", "hub") else args.command
     try:
         project = args.project.resolve()
         if not (project / "project.godot").is_file():

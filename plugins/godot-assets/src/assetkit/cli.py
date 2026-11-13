@@ -1,22 +1,25 @@
 """assetkit command line: every command prints one JSON line on stdout.
 
-Exit codes: 0 ok, 2 setup problem (unreadable contract), 3 refused input.
+Exit codes: 0 ok, 2 setup problem (no Godot, unreadable contract), 3 refused input.
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import logging
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import closing
 from pathlib import Path
 
 from assetkit.contracts import ContractError, Json
+from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
 from assetkit.index import RegistryIndex
+from assetkit.promote import Promoter, PromoteRequest
 from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
 from assetkit.status import DECISIONS, fold, next_status
 
@@ -78,6 +81,15 @@ def _parser() -> argparse.ArgumentParser:
     decide.add_argument("decision", choices=list(DECISIONS))
     decide.add_argument("--version", help="must be the current version; default: it")
     decide.add_argument("--body", help="the reason, shown to whoever makes the retake")
+
+    promote = commands.add_parser(
+        "promote", parents=[shared], help="place the approved version in the Godot tree"
+    )
+    promote.add_argument("asset")
+    promote.add_argument("--to", required=True, help="res:// path of the promoted file")
+    promote.add_argument("--role", default="main", help="which file of the version")
+    promote.add_argument("--no-import", action="store_true", help="skip Godot; the UID stays null")
+    promote.add_argument("--timeout", type=float, default=600.0, help="seconds for the import")
 
     status = commands.add_parser("status", parents=[shared], help="folded status from the index")
     status.add_argument("asset", nargs="?")
@@ -174,6 +186,15 @@ class Commands:
             payload["event"] = written
         return payload
 
+    def promote(self, args: argparse.Namespace) -> dict[str, Json]:
+        importer: Callable[[Path], ImportRun] | None = None
+        if not args.no_import:
+            binary = find_godot(os.environ)
+            importer = functools.partial(run_import, binary, timeout_s=args.timeout)
+        request = PromoteRequest(args.asset, args.to, self._author, args.role)
+        promotion = Promoter(self._registry, importer).promote(request)
+        return {"event": promotion.event, "other_import_errors": list(promotion.other_errors)}
+
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:
             raise Refused("--set needs an asset")
@@ -201,6 +222,10 @@ def main(argv: Sequence[str]) -> int:
             raise Refused(f"not a Godot project (no project.godot): {project}")
         commands = Commands(Registry(project), args.author or _default_author(project))
         payload = getattr(commands, args.command)(args)
+    except GodotMissing as error:
+        return _emit(
+            {"cmd": name, "ok": False, "reason": "no_godot", "detail": str(error)}, EXIT_SETUP
+        )
     except ContractError as error:
         return _emit(
             {"cmd": name, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP

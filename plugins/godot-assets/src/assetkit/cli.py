@@ -23,6 +23,7 @@ from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
 from assetkit.index import RegistryIndex
 from assetkit.promote import Promoter, PromoteRequest
 from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
+from assetkit.shipreport import ship_report
 from assetkit.status import DECISIONS, fold, next_status
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -96,6 +97,11 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "doctor", parents=[shared], help="find moved, missing and edited recorded files"
     )
+
+    ship = commands.add_parser(
+        "ship-report", parents=[shared], help="shipped assets and which are AI-generated"
+    )
+    ship.add_argument("--ai-only", action="store_true", help="list only AI-generated assets")
 
     status = commands.add_parser("status", parents=[shared], help="folded status from the index")
     status.add_argument("asset", nargs="?")
@@ -210,6 +216,16 @@ class Commands:
             "git_lfs": shutil.which("git-lfs") is not None,
         }
 
+    def ship_report(self, args: argparse.Namespace) -> dict[str, Json]:
+        shipped = ship_report(self._registry)
+        ai = [entry for entry in shipped if entry.ai_reason is not None]
+        listed = ai if args.ai_only else shipped
+        return {
+            "shipped": len(shipped),
+            "ai_generated": len(ai),
+            "assets": [entry.as_json() for entry in listed],
+        }
+
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:
             raise Refused("--set needs an asset")
@@ -236,7 +252,7 @@ def main(argv: Sequence[str]) -> int:
         if not (project / "project.godot").is_file():
             raise Refused(f"not a Godot project (no project.godot): {project}")
         commands = Commands(Registry(project), args.author or _default_author(project))
-        payload = getattr(commands, args.command)(args)
+        payload = getattr(commands, args.command.replace("-", "_"))(args)
     except GodotMissing as error:
         return _emit(
             {"cmd": name, "ok": False, "reason": "no_godot", "detail": str(error)}, EXIT_SETUP

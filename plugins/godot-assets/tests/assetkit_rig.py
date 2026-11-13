@@ -50,15 +50,23 @@ def fake_import(project: Path) -> ImportRun:
 class Lane:
     """One asset with versions staged under the registry, reviewed through the registry."""
 
-    def __init__(self, registry: Registry) -> None:
+    def __init__(self, registry: Registry, title: str = "Play", ship: bool = False) -> None:
         self.registry = registry
-        self.asset = str(registry.new_asset(AssetSpec("ui", "image", "Play"))["id"])
+        spec = AssetSpec("ui", "image", title, ship=ship)
+        self.asset = str(registry.new_asset(spec)["id"])
 
-    def version(self, content: bytes) -> str:
+    def version(
+        self,
+        content: bytes,
+        provenance: dict[str, Json] | None = None,
+        generation: dict[str, Json] | None = None,
+        parent: str | None = None,
+    ) -> str:
         staged = self.registry.root / "staging" / self.asset / f"{len(content)}.png"
         staged.parent.mkdir(parents=True, exist_ok=True)
         staged.write_bytes(content)
-        spec = VersionSpec((("main", staged),), dict(HUMAN), "tester")
+        origin = dict(provenance or HUMAN)
+        spec = VersionSpec((("main", staged),), origin, "tester", generation, parent)
         return str(self.registry.add_version(self.asset, spec)["id"])
 
     def approve(self, version: str) -> None:

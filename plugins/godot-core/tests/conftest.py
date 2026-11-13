@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import urllib.error
@@ -94,8 +95,17 @@ def run_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str])
 
 @pytest.fixture
 def no_gdtoolkit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Installed gdlint or gdformat would add findings; test_external covers them."""
-    monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+    """Installed gdlint or gdformat would add findings; test_external covers them.
+
+    PATH keeps only bash (the fake Godot) and git, so everything else stays hidden."""
+    tools = tmp_path / "path-without-gdtoolkit"
+    tools.mkdir()
+    for name in ("bash", "git"):
+        found = shutil.which(name)
+        if found is None:
+            pytest.skip(f"{name} is not installed")
+        (tools / name).symlink_to(found)
+    monkeypatch.setenv("PATH", str(tools))
 
 
 @pytest.fixture

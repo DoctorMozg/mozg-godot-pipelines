@@ -7,10 +7,11 @@ import logging
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TypedDict
 
+from godotkit.baseline import Baseline
 from godotkit.importer import OVERRIDE_FILE, ImportRequest, ProjectImporter
 from godotkit.lint import Finding
 from godotkit.logjudge import LogJudge, Verdict
@@ -39,6 +40,10 @@ SHADER_FAILED = re.compile(
 )
 BOOT_LINE = re.compile(r"^GODOTKIT_BOOT (?P<json>\{.*\})$", re.M)
 CLASS_CACHE = Path(".godot") / "global_script_class_cache.cfg"
+# Parse gate failures pinned to a file; a crash or timeout is never baselined.
+FILE_REASONS = frozenset(
+    {"parse_error", "script_error", "shader_error", "engine_error", "test_failures"}
+)
 
 
 class BootReport(TypedDict):
@@ -80,6 +85,27 @@ class ParseOutcome:
             for failure in self.failed_shaders
         ]
         return found
+
+
+@dataclass(frozen=True)
+class ParseJudgement:
+    """`baseline` holds what was tolerated and what grew, when a baseline was applied."""
+
+    ok: bool
+    reason: str
+    baseline: dict[str, object] | None
+
+
+def judge_parse(outcome: ParseOutcome, known: Baseline | None, gate: str) -> ParseJudgement:
+    verdict = outcome.verdict
+    if known is None or verdict.ok:
+        return ParseJudgement(verdict.ok, verdict.reason, None)
+    findings = outcome.findings()
+    judgement = known.judge(gate, findings)
+    baselined = verdict.reason in FILE_REASONS and bool(findings) and not judgement.new
+    grown = [asdict(item) for item in judgement.growth]
+    report: dict[str, object] = {"tolerated": judgement.tolerated, "grown": grown}
+    return ParseJudgement(baselined, "baselined" if baselined else verdict.reason, report)
 
 
 @dataclass(frozen=True)

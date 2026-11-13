@@ -9,9 +9,8 @@ from pathlib import Path
 from godotkit.arch import CONFIG_FILE
 from godotkit.baseline import BASELINE_FILE, Baseline
 from godotkit.cmd_files import LINT_SUFFIXES, TOOL_ERRORS, arch_findings, lint_findings
-from godotkit.cmd_godot import FILE_REASONS
 from godotkit.external import ExternalLinters
-from godotkit.gates import ParseGate, StrictGate
+from godotkit.gates import FILE_REASONS, ParseGate, StrictGate
 from godotkit.lint import Finding, project_sources
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_REFUSED, EXIT_SETUP, emit

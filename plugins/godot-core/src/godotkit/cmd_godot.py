@@ -10,7 +10,7 @@ from pathlib import Path
 
 from godotkit.baseline import Baseline
 from godotkit.depgraph import DependencyGraph
-from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, StrictGate
+from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
@@ -103,11 +103,6 @@ def import_(args: argparse.Namespace, runner: GodotRunner) -> int:
 
 
 # Failures a parse gate can pin to a file; anything else (crash, timeout) is never baselined.
-FILE_REASONS = frozenset(
-    {"parse_error", "script_error", "shader_error", "engine_error", "test_failures"}
-)
-
-
 def check(args: argparse.Namespace, runner: GodotRunner) -> int:
     project = args.project.resolve()
     gate = "strict" if args.strict else "check"
@@ -119,16 +114,9 @@ def check(args: argparse.Namespace, runner: GodotRunner) -> int:
         emit({"cmd": "check", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
     verdict = outcome.verdict
-    ok, reason = verdict.ok, verdict.reason
-    extra: dict[str, object] = {}
-    findings = outcome.findings()
-    if known is not None and not ok:
-        judgement = known.judge(gate, findings)
-        attributed = verdict.reason in FILE_REASONS and bool(findings)
-        baselined = attributed and not judgement.new
-        ok, reason = (True, "baselined") if baselined else (False, reason)
-        grown = [asdict(item) for item in judgement.growth]
-        extra = {"baseline": {"tolerated": judgement.tolerated, "grown": grown}}
+    judged = judge_parse(outcome, known, gate)
+    ok, reason = judged.ok, judged.reason
+    extra = {} if judged.baseline is None else {"baseline": judged.baseline}
     emit(
         {
             "cmd": "check",

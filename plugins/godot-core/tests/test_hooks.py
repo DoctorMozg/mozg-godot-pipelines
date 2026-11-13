@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -17,7 +16,7 @@ from godotkit.lsp import LspServer
 from godotkit.receipts import Receipt, ReceiptStore, Step, now, tree_hash
 from godotkit_rig import GIT_ENV, ProjectFactory
 
-SRC = Path(__file__).resolve().parents[1] / "src"
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 PARENT_CALL = "extends Node\n\n\nfunc _ready() -> void:\n\tget_parent().hide()\n"
 
 
@@ -123,15 +122,20 @@ class TestCommitGuard:
             assert pre_bash(_bash(git_project, command)) is None
 
 
-def test_cli_blocks_with_exit_2_and_the_reason_on_stderr(git_project: Path) -> None:
+def test_registered_command_blocks_with_exit_2_and_the_reason_on_stderr(
+    git_project: Path,
+) -> None:
+    # The command as hooks.json registers it, through the launcher, with a stray PYTHONPATH.
+    hooks = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"]
+    group = next(group for group in hooks["PreToolUse"] if group["matcher"] == "Bash")
     (git_project / "main.gd").write_text(PARENT_CALL)
     event = {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}
     completed = subprocess.run(
-        [sys.executable, "-m", "godotkit", "hook", "pre-bash"],
+        ["sh", "-c", group["hooks"][0]["command"]],
         input=json.dumps({**event, "cwd": str(git_project)}),
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": str(SRC)},
+        env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT), "PYTHONPATH": "/nonexistent"},
         check=False,
     )
     assert (completed.returncode, completed.stdout) == (2, "")

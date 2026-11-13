@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/src\" python3 -m godotkit hook pre-edit",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/godotkit\" hook pre-edit",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/src\" python3 -m godotkit hook pre-bash",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/godotkit\" hook pre-bash",
             "timeout": 30
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PYTHONPATH=\"${CLAUDE_PLUGIN_ROOT}/src\" python3 -m godotkit hook post-edit",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/godotkit\" hook post-edit",
             "timeout": 10
           }
         ]

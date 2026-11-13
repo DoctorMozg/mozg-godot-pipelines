@@ -17,6 +17,7 @@ from collections.abc import Callable, Sequence
 from contextlib import closing
 from pathlib import Path
 
+from assetkit import hooks
 from assetkit.contracts import ContractError, Json
 from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
@@ -123,6 +124,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     serve.add_argument("--foreground", action="store_true", help="serve from this process")
     hub_actions.add_parser("stop", parents=[shared], help="stop this project's hub")
+
+    hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
+    hook.add_argument("event", choices=sorted(hooks.HANDLERS))
 
     status = commands.add_parser("status", parents=[shared], help="folded status from the index")
     status.add_argument("asset", nargs="?")
@@ -264,6 +268,8 @@ def main(argv: Sequence[str]) -> int:
         format="assetkit: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "hook":
+        return hooks.run(args.event, sys.stdin.read())
     name = f"{args.command} {args.action}" if args.command in ("version", "hub") else args.command
     try:
         project = args.project.resolve()

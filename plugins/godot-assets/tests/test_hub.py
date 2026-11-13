@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from assetkit.hub import PAGE_DIR, PAGE_FILES
+from assetkit import hooks
+from assetkit.hub import PAGE_DIR, PAGE_FILES, HubControl, HubInfo
 from assetkit_rig import CliRunner, Lane
 
 LAUNCHER = Path(__file__).resolve().parents[1] / "bin" / "assetkit"
@@ -77,3 +78,20 @@ class TestLifecycle:
         (project / ".cache" / "mozg" / "hub.json").write_text(json.dumps(dead))
         started = kit("hub", "serve")
         assert (started["reused"], started["pid"] != dead["pid"]) == (False, True)
+
+
+class TestSessionStartHook:
+    def test_names_the_running_hub_of_the_project(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        info = HubInfo(1, 2, "x" * 43, "http://127.0.0.1:2/#token=x", str(project))
+        monkeypatch.setattr(HubControl, "running", lambda self: info)
+        raw = json.dumps({"cwd": str(project / "art")})
+        assert hooks.session_start(raw) == f"Asset review hub for {project} is running: {info.url}"
+
+    @pytest.mark.parametrize("raw", ["not json", "[]", '{"cwd": "/"}'])
+    def test_stays_silent_without_a_hub_or_input(self, raw: str) -> None:
+        assert hooks.session_start(raw) is None
+
+    def test_no_running_hub_prints_nothing(self, project: Path) -> None:
+        assert hooks.session_start(json.dumps({"cwd": str(project)})) is None

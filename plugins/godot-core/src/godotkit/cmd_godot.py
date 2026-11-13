@@ -1,4 +1,4 @@
-"""Commands that start Godot: run, import, check, boot and test."""
+"""Commands that start Godot: run, import, check, boot, test and shot."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from godotkit.output import (
     emit,
 )
 from godotkit.runner import GodotRunner, RunRequest
+from godotkit.shot import ShotRequest, ShotTaker, parse_sizes
 from godotkit.testing import (
     EntryCatalog,
     EntryResult,
@@ -228,6 +229,42 @@ def test(args: argparse.Namespace, runner: GodotRunner) -> int:
         }
     )
     return EXIT_OK if reason == "ok" else EXIT_FAILED
+
+
+def shot(args: argparse.Namespace, runner: GodotRunner) -> int:
+    try:
+        display = native_display(not args.layout_only)
+    except NoDisplay as error:
+        detail = f"{error}; --layout-only captures rects headless"
+        emit({"cmd": "shot", "ok": False, "reason": "no_display", "detail": detail})
+        return EXIT_SETUP
+    try:
+        request = ShotRequest(
+            args.project.resolve(),
+            args.out,
+            parse_sizes(args.sizes),
+            args.scene,
+            args.frames,
+            args.timeout,
+            display,
+        )
+        outcome = ShotTaker(runner).run(request)
+    except ValueError as error:
+        emit({"cmd": "shot", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    emit(
+        {
+            "cmd": "shot",
+            "ok": outcome.ok,
+            "reason": outcome.reason,
+            "info": outcome.info,
+            "captures": list(outcome.captures),
+            "duration_s": round(outcome.result.duration_s, 3),
+            "counts": outcome.verdict.counts,
+            "issues": [asdict(issue) for issue in outcome.verdict.issues[:MAX_ISSUES_SHOWN]],
+        }
+    )
+    return EXIT_OK if outcome.ok else EXIT_FAILED
 
 
 def _test_summary(results: Sequence[EntryResult]) -> dict[str, int]:

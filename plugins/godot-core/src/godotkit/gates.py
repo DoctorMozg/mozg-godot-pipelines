@@ -154,7 +154,7 @@ class StrictGate:
         self._parse = ParseGate(runner, importer)
 
     def run(self, project: Path, timeout_s: float) -> ParseOutcome:
-        with _override(project, profile_override(), "strict gate"):
+        with probe_override(project, profile_override(), "strict gate"):
             return self._parse.run(project, timeout_s)
 
 
@@ -166,7 +166,7 @@ class BootGate:
 
     def run(self, project: Path, timeout_s: float) -> BootOutcome:
         probe = GD_DIR / "boot_probe.gd"
-        with _override(project, f'[autoload]\n\nGodotkitProbe="*{probe}"\n', "boot probe"):
+        with probe_override(project, f'[autoload]\n\nGodotkitProbe="*{probe}"\n', "boot probe"):
             result = self._runner.run(RunRequest(project, (), timeout_s))
         verdict = LogJudge().judge(result.output, result.exit_code, result.timed_out)
         report = _read_report(result.output)
@@ -175,7 +175,7 @@ class BootGate:
 
 
 @contextmanager
-def _override(project: Path, text: str, purpose: str) -> Iterator[None]:
+def probe_override(project: Path, text: str, purpose: str) -> Iterator[None]:
     override = project / OVERRIDE_FILE
     if override.exists():
         raise ValueError(f"{override} exists; refusing to replace it for the {purpose}")

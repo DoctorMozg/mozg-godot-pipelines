@@ -78,6 +78,19 @@ def _parser() -> argparse.ArgumentParser:
     boot.add_argument("--project", type=Path, default=Path.cwd())
     boot.add_argument("--timeout", type=float, default=120.0)
 
+    shot = commands.add_parser(
+        "shot", help="control rects and PNGs of a scene at several window sizes, one process"
+    )
+    shot.add_argument("--project", type=Path, default=Path.cwd())
+    shot.add_argument("--scene", help="res:// path of the scene; default: the main scene")
+    shot.add_argument("--sizes", default="1280x720,1920x1080,2560x1080,1024x768")
+    shot.add_argument("--out", type=Path, required=True, help="folder for <W>x<H>.json and .png")
+    shot.add_argument("--frames", type=int, default=3, help="frames to settle after each resize")
+    shot.add_argument(
+        "--layout-only", action="store_true", help="headless: rects only, no PNG, no display"
+    )
+    shot.add_argument("--timeout", type=float, default=120.0)
+
     test = commands.add_parser("test", help="run the test entries, all or those a change affects")
     test.add_argument("--project", type=Path, default=Path.cwd())
     test.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
@@ -180,6 +193,7 @@ def main(argv: Sequence[str]) -> int:
         "boot": cmd_godot.boot,
         "run": cmd_godot.run,
         "test": cmd_godot.test,
+        "shot": cmd_godot.shot,
         "gate": cmd_gate.gate,
     }
     return handlers[args.command](args, runner)

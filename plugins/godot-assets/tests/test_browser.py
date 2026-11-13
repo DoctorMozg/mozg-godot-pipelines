@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import io
+import math
 import secrets
 import shutil
+import struct
 import subprocess
 import threading
+import wave
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -214,3 +218,54 @@ class TestViewers:
         [note] = registry.asset_records(asset).events
         assert note["region"] == {"selector": "t=1.50", "file": "main"}
         assert chrome.errors == []
+
+
+def _wav(samples: list[float], rate: int = 8000) -> bytes:
+    """16-bit mono WAV from samples in -1..1, made with the stdlib."""
+    out = io.BytesIO()
+    with wave.open(out, "wb") as writer:
+        writer.setnchannels(1)
+        writer.setsampwidth(2)
+        writer.setframerate(rate)
+        writer.writeframes(b"".join(struct.pack("<h", round(s * 32767)) for s in samples))
+    return out.getvalue()
+
+
+class TestAudio:
+    def test_waveform_seam_and_ab(self, chrome: Chrome, hub: HubServer, registry: Registry) -> None:
+        # 220 whole cycles loop cleanly; a ramp jumps from +0.5 back to -0.5 at the seam.
+        sine = [0.5 * math.sin(2 * math.pi * 440 * i / 8000) for i in range(4000)]
+        ramp = [-0.5 + i / 4000 for i in range(4000)]
+        asset = _asset(registry, "audio", {"main": ("ramp.wav", _wav(ramp))}, {})
+        staged = registry.root / "staging" / asset / "loop.wav"
+        staged.write_bytes(_wav(sine))
+        registry.add_version(asset, VersionSpec((("main", staged),), dict(HUMAN), "tester"))
+        page = chrome.open(hub.url)
+        wave_canvas = _in(asset, "canvas.wave")
+        chrome.wait_for(page, f"{wave_canvas}?.dataset.seam !== undefined")
+        values = chrome.evaluate(
+            page, f"['seam', 'duration', 'peak'].map(k => Number({wave_canvas}.dataset[k]))"
+        )
+        assert isinstance(values, list)
+        seam, duration, peak = values
+        assert (seam < 0.1, duration, round(peak, 1)) == (True, 0.5, 0.5)
+        player = _in(asset, "audio")
+        chrome.evaluate(page, f"{_in(asset, '[data-control=ab]')}.click()")
+        assert chrome.evaluate(page, f"{player}.dataset.side") == "B"
+        chrome.wait_for(page, f"{player}.src.includes('ramp.wav') && {player}.readyState >= 1")
+        assert chrome.errors == []
+
+    def test_a_ramp_reports_a_click_at_the_seam(
+        self, chrome: Chrome, hub: HubServer, registry: Registry
+    ) -> None:
+        ramp = [-0.5 + i / 4000 for i in range(4000)]
+        asset = _asset(registry, "audio", {"main": ("ramp.wav", _wav(ramp))}, {})
+        page = chrome.open(hub.url)
+        stats = _in(asset, "[data-stats]")
+        shown = chrome.wait_for(
+            page, f"{stats}?.textContent.includes('seam') && {stats}.textContent"
+        )
+        assert isinstance(shown, str)
+        assert "likely click" in shown
+        # A single version has nothing to compare with.
+        assert chrome.evaluate(page, f"{_in(asset, '[data-control=ab]')} === null") is True

@@ -273,7 +273,83 @@ window.HubViewers = (() => {
     return el("div", { class: "viewer" }, player, timeline(item, version, ctx, file, player));
   }
 
-  const byKind = { ui, sprite_frames: spriteFrames, video };
+  function waveform(canvas, samples) {
+    const pen = canvas.getContext("2d");
+    const { width, height } = canvas;
+    const per = Math.max(1, Math.floor(samples.length / width));
+    pen.clearRect(0, 0, width, height);
+    pen.fillStyle = getComputedStyle(canvas).color;
+    for (let x = 0; x < width; x += 1) {
+      let low = 1;
+      let high = -1;
+      for (let i = x * per; i < Math.min(samples.length, (x + 1) * per); i += 1) {
+        low = Math.min(low, samples[i]);
+        high = Math.max(high, samples[i]);
+      }
+      if (low > high) continue;
+      pen.fillRect(x, ((1 - high) / 2) * height, 1, Math.max(1, ((high - low) / 2) * height));
+    }
+  }
+
+  // The jump between the last and the first sample: what a loop seam sounds like as a click.
+  function seamJump(samples) {
+    return samples.length ? Math.abs(samples[samples.length - 1] - samples[0]) : 0;
+  }
+
+  function audio(item, version, ctx) {
+    const file = firstOf(version, "audio/");
+    const url = file && ctx.fileUrl(file);
+    if (!url) return placeholder(version, "no playable audio");
+    const index = item.versions.findIndex((v) => v.id === version.id);
+    const previous = item.versions[index + 1];
+    const other = previous && firstOf(previous, "audio/");
+    const otherUrl = other && ctx.fileUrl(other);
+
+    const player = el("audio", { src: url, controls: true, preload: "auto", "data-side": "A" });
+    const canvas = el("canvas", { class: "wave", width: 600, height: 80 });
+    const stats = el("span", { class: "meta", "data-stats": "1" }, "decoding");
+    const ab = button("A/B with the previous version", "ab", () => {
+      const at = player.currentTime;
+      const toB = player.dataset.side === "A";
+      player.src = toB ? otherUrl : url;
+      player.dataset.side = toB ? "B" : "A";
+      ab.textContent = toB ? "B: previous version (back to A)" : "A/B with the previous version";
+      player.addEventListener("loadedmetadata", () => {
+        player.currentTime = Math.min(at, player.duration || at);
+      }, { once: true });
+    });
+    const seam = button("Play seam", "seam", () => {
+      player.loop = true;
+      player.currentTime = Math.max(0, (player.duration || 1) - 1);
+      player.play().catch(() => stats.append(" (press play to hear it)"));
+    });
+
+    fetch(url)
+      .then((response) => response.arrayBuffer())
+      // Decoding needs no running audio context, so no user gesture is required.
+      .then((bytes) => new OfflineAudioContext(1, 1, 44100).decodeAudioData(bytes))
+      .then((buffer) => {
+        const samples = buffer.getChannelData(0);
+        const peak = samples.reduce((top, s) => Math.max(top, Math.abs(s)), 0);
+        const jump = seamJump(samples);
+        waveform(canvas, samples);
+        Object.assign(canvas.dataset, {
+          duration: buffer.duration.toFixed(3), peak: peak.toFixed(3), seam: jump.toFixed(3),
+        });
+        const dbfs = peak > 0 ? (20 * Math.log10(peak)).toFixed(1) : "-inf";
+        stats.textContent = `${buffer.duration.toFixed(2)} s, peak ${dbfs} dBFS, ` +
+          `loop seam jump ${jump.toFixed(3)}${jump > 0.1 ? " (likely click)" : ""}`;
+      })
+      .catch((error) => {
+        stats.textContent = `cannot decode: ${error.message}`;
+      });
+
+    const controls = el("div", { class: "controls" }, seam, otherUrl ? ab : null, stats);
+    return el("div", { class: "viewer" }, canvas, player, controls,
+      timeline(item, version, ctx, file, player));
+  }
+
+  const byKind = { ui, sprite_frames: spriteFrames, video, audio };
 
   function view(item, version, ctx) {
     if (!version) return placeholder(null, "");

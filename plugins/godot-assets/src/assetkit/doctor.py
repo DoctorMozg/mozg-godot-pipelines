@@ -13,6 +13,7 @@ from pathlib import Path
 
 from assetkit.contracts import Json
 from assetkit.godot import uid_index
+from assetkit.prune import pruned_versions
 from assetkit.registry import AssetRecords, Registry
 
 log = logging.getLogger(__name__)
@@ -121,10 +122,12 @@ class Doctor:
 def _expectations(records: AssetRecords) -> list[Expected]:
     asset = str(records.asset["id"])
     versions = {str(v["id"]): v for v in records.versions}
+    pruned = pruned_versions(records)
     expected: list[Expected] = []
     for version in records.versions:
         for entry in version["files"]:
-            if entry["storage"] == "external":
+            moved_out = entry["storage"] == "staging" and version["id"] in pruned
+            if entry["storage"] == "external" or moved_out:
                 continue
             sha = frozenset({str(entry["sha256"])})
             expected.append(Expected(asset, str(entry["path"]), sha, frozenset({entry["bytes"]})))

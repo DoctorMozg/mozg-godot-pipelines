@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:mozg-godot:contract:item-event",
   "title": "item-event",
-  "description": "One immutable note, review decision, status change or promotion about a registry item, at .../events/<id>.json. Status is folded from these, never stored.",
+  "description": "One immutable note, review decision, status change, promotion or prune about a registry item, at .../events/<id>.json. Status is folded from these, never stored.",
   "type": "object",
   "required": [
     "schema",
@@ -41,7 +41,8 @@
         "note",
         "decision",
         "status",
-        "promote"
+        "promote",
+        "prune"
       ]
     },
     "decision": {
@@ -150,6 +151,20 @@
       "then": {
         "required": [
           "promote",
+          "version_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "prune"
+          }
+        }
+      },
+      "then": {
+        "required": [
           "version_id"
         ]
       }

@@ -22,6 +22,7 @@ from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
 from assetkit.index import RegistryIndex
 from assetkit.promote import Promoter, PromoteRequest
+from assetkit.prune import STORE_ENV, BlobStore, Pruner, default_store
 from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
 from assetkit.shipreport import ship_report
 from assetkit.status import DECISIONS, fold, next_status
@@ -94,9 +95,17 @@ def _parser() -> argparse.ArgumentParser:
     promote.add_argument("--no-import", action="store_true", help="skip Godot; the UID stays null")
     promote.add_argument("--timeout", type=float, default=600.0, help="seconds for the import")
 
-    commands.add_parser(
-        "doctor", parents=[shared], help="find moved, missing and edited recorded files"
+    store = argparse.ArgumentParser(add_help=False)
+    store.add_argument(
+        "--store", type=Path, help=f"blob store; default ${STORE_ENV}, else XDG data home"
     )
+    commands.add_parser(
+        "doctor", parents=[shared, store], help="find moved, missing and edited recorded files"
+    )
+    prune = commands.add_parser(
+        "prune", parents=[shared, store], help="move retaken and rejected files to the store"
+    )
+    prune.add_argument("--apply", action="store_true", help="move them; default: list only")
 
     ship = commands.add_parser(
         "ship-report", parents=[shared], help="shipped assets and which are AI-generated"
@@ -209,9 +218,12 @@ class Commands:
 
     def doctor(self, args: argparse.Namespace) -> dict[str, Json]:
         findings = Doctor(self._registry).examine()
+        pruned, in_store = self._pruner(args).stored()
         return {
             "ok": not findings,
             "findings": [finding.as_json() for finding in findings],
+            # Another machine's store is not a fault, so these only count.
+            "pruned": {"files": pruned, "in_store": in_store},
             # Large binaries suit Git LFS; it is reported, never required.
             "git_lfs": shutil.which("git-lfs") is not None,
         }
@@ -225,6 +237,19 @@ class Commands:
             "ai_generated": len(ai),
             "assets": [entry.as_json() for entry in listed],
         }
+
+    def prune(self, args: argparse.Namespace) -> dict[str, Json]:
+        pruner = self._pruner(args)
+        candidates = pruner.candidates()
+        events = [pruner.apply(c, self._author) for c in candidates] if args.apply else []
+        return {
+            "applied": args.apply,
+            "candidates": [c.as_json() for c in candidates],
+            "events": events,
+        }
+
+    def _pruner(self, args: argparse.Namespace) -> Pruner:
+        return Pruner(self._registry, BlobStore(args.store or default_store(os.environ)))
 
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:

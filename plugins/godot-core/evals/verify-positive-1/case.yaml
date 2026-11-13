@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: verify-positive-1
+description: "Literal: check a Godot change before commit."
+tags: [godot-verify, positive]
+runs: 3
+execution:
+  prompt: >-
+    I changed the jump height in player.gd of my Godot project. Check that the project still parses, boots and passes its tests before I commit.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-verify"'

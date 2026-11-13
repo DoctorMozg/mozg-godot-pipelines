@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: test-negative-1
+description: "Near-miss: adding a node to a scene belongs to godot-scene."
+tags: [godot-test, negative]
+runs: 3
+execution:
+  prompt: >-
+    Add a Label node named Score under the HUD node in scenes/hud.tscn of my Godot project.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-test"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-scene"'

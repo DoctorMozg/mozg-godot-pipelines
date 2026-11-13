@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: test-positive-1
+description: "Literal: test first, then fix."
+tags: [godot-test, positive]
+runs: 3
+execution:
+  prompt: >-
+    Write a Godot test showing that Inventory.add accepts an empty item name, which is the bug, run it to see it fail, then fix the code.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-test"'

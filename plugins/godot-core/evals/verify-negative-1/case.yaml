@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: verify-negative-1
+description: "Near-miss: writing a new test belongs to godot-test."
+tags: [godot-verify, negative]
+runs: 3
+execution:
+  prompt: >-
+    Write a unit test for the Inventory class in my Godot project that checks add() refuses an empty item name.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-verify"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-test"'

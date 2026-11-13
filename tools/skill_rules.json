@@ -1,5 +1,15 @@
 {
   "godot-core": {
-    "placeholders": {}
+    "placeholders": {
+      "<path>": "a file path",
+      "<hash>": "the tree hash a receipt names",
+      "<verdict>": "ok, or failed with the failed steps",
+      "<step>": "a gate step: import, check, strict, lint, arch, boot or test",
+      "<status>": "pass, fail or not_applicable",
+      "<seconds>": "a duration in seconds",
+      "<reason>": "the reason field of a godotkit JSON line",
+      "<reach change>": "max files reached now and its change against the base commit",
+      "<pattern>": "a regular expression"
+    }
   }
 }

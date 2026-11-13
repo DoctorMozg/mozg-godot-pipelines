@@ -51,7 +51,7 @@ func _end_run() -> void:
 	var position: Vector3 = _arena.player.global_position
 	_finishes.append("%d %.4v" % [_arena.ticks, position])
 	root.remove_child(_arena)
-	_arena.free()
+	_arena.queue_free()
 	_arena = null
 
 

@@ -136,6 +136,7 @@ class TestCommittedGraph:
             subprocess.run(["git", "-C", str(tmp_path), *args], check=True, env=GIT_ENV)
         (tmp_path / "a.gd").write_text('const T = preload("res://t.gd")\n')
         committed = DependencyGraph.scan_commit(tmp_path, "HEAD")
+        assert committed is not None
         assert committed.edges() == on_disk.edges()
         assert DependencyGraph.scan_working_tree(tmp_path).edges()["a.gd"] == frozenset({"t.gd"})
 

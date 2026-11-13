@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 from godotkit.locate import GodotBinary
 from godotkit.receipts import ReceiptStore, tree_hash
-from godotkit_rig import CONTROL_SCENE, CONTROL_SCRIPT, GIT_ENV, CliRunner, FakeGodotFactory
+from godotkit_rig import (
+    CONTROL_SCENE,
+    CONTROL_SCRIPT,
+    GIT_ENV,
+    HEALTHY_SCRIPT,
+    CliRunner,
+    FakeGodotFactory,
+    ProjectFactory,
+)
 
 BOOT_OK = json.dumps(
     {
@@ -34,6 +43,26 @@ def _head_tree(project: Path) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+@pytest.fixture
+def uncommitted_project(git_project: Path, tmp_path: Path) -> Path:
+    """The healthy project copied into a repository whose commits do not hold it yet."""
+    top = tmp_path / "repo"
+    top.mkdir()
+    (top / "README.md").write_text("top\n")
+    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "c"]):
+        subprocess.run(["git", "-C", str(top), *args], check=True, env=GIT_ENV)
+    shutil.copytree(git_project, top / "game", ignore=shutil.ignore_patterns(".git"))
+    return top / "game"
+
+
+@pytest.fixture
+def fresh_repo_project(make_project: ProjectFactory) -> Path:
+    """The healthy project in a repository with no commits at all."""
+    project = make_project(HEALTHY_SCRIPT)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(project)], check=True, env=GIT_ENV)
+    return project
 
 
 class TestTreeHash:
@@ -71,6 +100,16 @@ class TestTreeHash:
         (game / "main.gd").write_text("extends Node2D\n")
         assert tree_hash(game) != clean
 
+    @pytest.mark.parametrize("fixture", ["uncommitted_project", "fresh_repo_project"])
+    def test_project_not_yet_committed_is_named_by_its_files(
+        self, fixture: str, request: pytest.FixtureRequest
+    ) -> None:
+        project: Path = request.getfixturevalue(fixture)
+        first = tree_hash(project)
+        assert tree_hash(project) == first
+        (project / "main.gd").write_text("extends Node2D\n")
+        assert tree_hash(project) != first
+
 
 @pytest.mark.usefixtures("no_gdtoolkit")
 class TestGateCli:
@@ -98,6 +137,20 @@ class TestGateCli:
         (git_project / "main.gd").write_text((git_project / "main.gd").read_text() + "\n")
         code, payload = run_cli(["receipt", "verify", *args], fake_godot())
         assert (code, payload["reason"]) == (1, "stale")
+
+    @pytest.mark.parametrize("fixture", ["uncommitted_project", "fresh_repo_project"])
+    def test_project_not_yet_committed_gets_a_receipt(
+        self,
+        fixture: str,
+        request: pytest.FixtureRequest,
+        run_cli: CliRunner,
+        fake_godot: FakeGodotFactory,
+    ) -> None:
+        args = ["--project", str(request.getfixturevalue(fixture))]
+        code, payload = run_cli(["gate", *args], fake_godot(PARSE_OK))
+        assert (code, payload["ok"], payload["reach"]) == (0, True, None), payload
+        code, payload = run_cli(["receipt", "verify", *args], fake_godot())
+        assert (code, payload["reason"]) == (0, "ok")
 
     def test_failed_step_fails_gate_and_verify(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory

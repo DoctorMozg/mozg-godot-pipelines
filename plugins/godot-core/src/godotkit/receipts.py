@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from godotkit.worktree import git
+from godotkit.worktree import git, head_commit
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def tree_hash(project: Path) -> str:
 
     A clean copy is named by its HEAD tree; a changed one by that tree plus each changed blob.
     """
-    base = git(project, "rev-parse", "HEAD:./").strip()
+    base = _committed_tree(project)
     prefix = git(project, "rev-parse", "--show-prefix").strip()
     listed = git(
         project, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames", "."
@@ -71,6 +71,15 @@ def tree_hash(project: Path) -> str:
     named = dict(zip(present, blobs, strict=True))
     lines = [base, *(f"{path}\0{named.get(path, 'deleted')}" for path in paths)]
     return hashlib.sha1("\n".join(lines).encode(), usedforsecurity=False).hexdigest()
+
+
+def _committed_tree(project: Path) -> str:
+    # A project HEAD does not hold yet starts from the empty tree; its files all count as new.
+    head = head_commit(project)
+    if head is not None and git(project, "ls-tree", "--name-only", head, "--", ".").strip():
+        return git(project, "rev-parse", f"{head}:./").strip()
+    log.info("%s is not in HEAD yet: hashing against the empty tree", project)
+    return git(project, "hash-object", "-t", "tree", "--stdin", input="").strip()
 
 
 class ReceiptStore:

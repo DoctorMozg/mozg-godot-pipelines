@@ -66,9 +66,12 @@ class DependencyGraph:
         return ProjectScanner(WorkingTreeSource(project)).scan()
 
     @classmethod
-    def scan_commit(cls, project: Path, ref: str) -> DependencyGraph:
-        """The graph as it was at `ref`, read from git without a checkout."""
-        return ProjectScanner(GitSource(project, ref)).scan()
+    def scan_commit(cls, project: Path, ref: str) -> DependencyGraph | None:
+        """The graph at `ref`, read from git without a checkout; None if `ref` has no project."""
+        source = GitSource(project, ref)
+        if PROJECT_FILE not in source.files():
+            return None
+        return ProjectScanner(source).scan()
 
     def edges(self) -> Mapping[str, frozenset[str]]:
         return self._edges
@@ -99,6 +102,9 @@ class DiskSource:
     def __init__(self, project: Path) -> None:
         self._project = project
 
+    def __str__(self) -> str:
+        return str(self._project)
+
     def files(self) -> list[str]:
         return sorted(_project_files(self._project))
 
@@ -128,6 +134,9 @@ class GitSource:
     def __init__(self, project: Path, ref: str) -> None:
         self._project = project
         self._ref = ref
+
+    def __str__(self) -> str:
+        return f"{self._project} at {self._ref}"
 
     def files(self) -> list[str]:
         listed = git(self._project, "ls-tree", "-r", "-z", "--name-only", self._ref, "--", ".")

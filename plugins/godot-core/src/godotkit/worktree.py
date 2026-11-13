@@ -55,6 +55,23 @@ def git(
     return completed.stdout
 
 
+def head_commit(repo: Path) -> str | None:
+    """HEAD's commit, or None in a repository with no commits yet; other git failures raise."""
+    completed = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+    )
+    # --quiet turns a missing ref into exit 1 with no output; a broken repository exits 128.
+    if completed.returncode == 1 and not completed.stdout:
+        return None
+    if completed.returncode != 0:
+        raise GitError(f"git rev-parse HEAD failed in {repo}: {completed.stderr.strip()}")
+    return completed.stdout.strip()
+
+
 class CacheWarmer:
     def __init__(self, link: Callable[[Path, Path], None] = os.link) -> None:
         self._link = link

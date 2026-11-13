@@ -45,6 +45,8 @@ def arena(tmp_path_factory: pytest.TempPathFactory) -> Path:
     shutil.copytree(
         REPO_ROOT / "testbeds" / "arena3d", copy, ignore=shutil.ignore_patterns(".godot")
     )
+    # The gate names its receipt by a git tree; a repository with nothing committed is enough.
+    subprocess.run(["git", "init", "-q", str(copy)], check=True)
     return copy
 
 
@@ -67,3 +69,8 @@ class TestArena3d:
         assert result["summary"]["ran"] == 2
         assert result["summary"]["failures"] == 0
         assert result["summary"]["checks"] >= 11
+
+    def test_every_gate_step_passes(self, arena: Path) -> None:
+        result = _godotkit("gate", "--project", str(arena), "--timeout", str(TIMEOUT_S))
+        failed = [step["name"] for step in result["steps"] if step["status"] == "fail"]
+        assert (result["ok"], failed) == (True, []), result

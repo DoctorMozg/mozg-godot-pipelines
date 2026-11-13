@@ -21,7 +21,7 @@ from godotkit.receipts import Receipt, Step, now, tree_hash
 from godotkit.runner import GodotRunner
 from godotkit.strict import ProjectFile
 from godotkit.testing import EntryCatalog, SuiteRunner
-from godotkit.worktree import git
+from godotkit.worktree import head_commit
 
 log = logging.getLogger(__name__)
 
@@ -56,13 +56,17 @@ class Gate:
             self._test,
         ]
         results = tuple(_timed(step) for step in steps)
-        head = git(self._project, "rev-parse", "HEAD").strip()
+        head = head_commit(self._project)
         tree = tree_hash(self._project)
         version = self._runner.binary.version
-        return Receipt("gate", now(), version, head, tree, results, self._reach())
+        reach = None if head is None else self._reach()
+        return Receipt("gate", now(), version, head or "", tree, results, reach)
 
-    def _reach(self) -> dict[str, object]:
+    def _reach(self) -> dict[str, object] | None:
         base = DependencyGraph.scan_commit(self._project, self._base)
+        if base is None:
+            log.info("no project at %s: reach has no base to compare against", self._base)
+            return None
         # Only entries present at the base compare like with like.
         entries = [entry.path for entry in EntryCatalog(self._project).entries()]
         shared = [path for path in entries if path in base.edges()]

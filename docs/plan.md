@@ -74,6 +74,14 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
   AloneGodot (2026-11-13): no member-order finding, as with gdlint; 344 scripts take 16.6 s with gdtoolkit 4.5.0 against 0.6 s without. GDQuest `gdscript-formatter` is not wired: its output is UNTESTED.
 - The checkable rules of research 18 ship as a skill reference (`gdscript-rules.md`), which code-writing skills load.
 
+### Baseline (`godotkit baseline`)
+
+- `godotkit-baseline.json` in the project root counts old violations per gate, file and rule; counts, not lines, because lines move with every edit above a finding.
+- `lint` and `arch` apply it whenever the file exists: a (file, rule) whose count grows fails with all its findings listed, since which one is new cannot be told; `--no-baseline` shows everything.
+- `baseline write [--gates …]` records the gates asked for (default: `lint`, and `arch` where `architecture.json` exists); `baseline shrink` lowers each count to what is found now and never raises or adds one.
+- gdlint findings are counted when gdtoolkit is installed at write time; installing it later makes its findings new.
+- AloneGodot worktree at HEAD (2026-11-13): 282 lint findings recorded in 0.65 s, 8.6 KB; `lint` then passes.
+
 ### Language server (`godotkit lsp`)
 
 - `lsp start` runs `godot --editor --headless --lsp-port P` in its own session, records pid and port in `.godot/godotkit-lsp.json`, reuses a live server, and sends one warm-up `initialize`, since the first one parses the workspace.

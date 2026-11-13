@@ -91,6 +91,7 @@ class TestAlphaAndDepth:
         assert _found(_fragment(body)) == found
 
 
+@pytest.mark.usefixtures("no_gdtoolkit")
 class TestShaderLintCli:
     def test_screen_texture_fails_lint(
         self, make_project: ProjectFactory, run_cli: CliRunner, fake_godot: FakeGodotFactory

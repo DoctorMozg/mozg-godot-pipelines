@@ -71,9 +71,21 @@ def _parser() -> argparse.ArgumentParser:
     lint = commands.add_parser("lint", help="architecture rules on GDScript files, no Godot run")
     lint.add_argument("paths", nargs="*", type=Path, help="files or folders; default: the project")
     lint.add_argument("--project", type=Path, default=Path.cwd())
+    lint.add_argument("--no-baseline", action="store_true", help="report baselined findings too")
 
     arch = commands.add_parser("arch", help="architecture.json rules on the dependency graph")
     arch.add_argument("--project", type=Path, default=Path.cwd())
+    arch.add_argument("--no-baseline", action="store_true", help="report baselined findings too")
+
+    baseline = commands.add_parser("baseline", help="record old violations so only new ones fail")
+    baseline_actions = baseline.add_subparsers(dest="action", required=True)
+    for action, text in (
+        ("write", "record the current findings of each gate"),
+        ("shrink", "lower counts to what is found now; never raises one"),
+    ):
+        sub = baseline_actions.add_parser(action, help=text)
+        sub.add_argument("--project", type=Path, default=Path.cwd())
+        sub.add_argument("--gates", help="comma-separated gates; default: every one that applies")
 
     lsp = commands.add_parser("lsp", help="GDScript diagnostics from a long-lived headless editor")
     lsp_actions = lsp.add_subparsers(dest="action", required=True)
@@ -121,6 +133,7 @@ def main(argv: Sequence[str]) -> int:
         "strict": cmd_files.strict,
         "lint": cmd_files.lint,
         "arch": cmd_files.arch,
+        "baseline": cmd_files.baseline,
     }
     if args.command in file_commands:
         return file_commands[args.command](args)

@@ -93,6 +93,12 @@ def run_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str])
 
 
 @pytest.fixture
+def no_gdtoolkit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Installed gdlint or gdformat would add findings; test_external covers them."""
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+
+
+@pytest.fixture
 def git_project(make_project: ProjectFactory) -> Path:
     """A healthy project committed to its own git repository."""
     project = make_project(HEALTHY_SCRIPT)

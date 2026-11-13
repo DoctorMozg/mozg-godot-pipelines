@@ -135,12 +135,8 @@ class TestProjectScripts:
         assert ScriptLinter().lint_files(GD_DIR, project_sources(GD_DIR, (".gd",))) == []
 
 
+@pytest.mark.usefixtures("no_gdtoolkit")
 class TestLintCli:
-    @pytest.fixture(autouse=True)
-    def _no_gdtoolkit(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        # Installed gdlint or gdformat would add findings; test_external covers them.
-        monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
-
     def test_findings_fail_with_path_and_line(
         self, make_project: ProjectFactory, run_cli: CliRunner, fake_godot: FakeGodotFactory
     ) -> None:

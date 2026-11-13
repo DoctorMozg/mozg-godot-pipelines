@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from godotkit.depgraph import SIDECAR_SUFFIXES, DependencyGraph, normalize_changed
+from godotkit.display import NativeDisplay
 from godotkit.frameworks import FRAMEWORKS, Framework, read_junit
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest, RunResult
@@ -200,8 +201,9 @@ class SuiteRunner:
         self._timeout_s = timeout_s
 
     def run(
-        self, project: Path, entries: Sequence[SuiteEntry], native: bool
+        self, project: Path, entries: Sequence[SuiteEntry], native: NativeDisplay | None
     ) -> tuple[EntryResult, ...]:
+        """Entries marked native run only when given a display to render on."""
         # GodotRunner gives every run its own user data, so parallel runs never share saves.
         store = DurationStore(project)
         order = store.order(entries)
@@ -212,12 +214,13 @@ class SuiteRunner:
         store.record(results)
         return results
 
-    def _one(self, project: Path, entry: SuiteEntry, native: bool) -> EntryResult:
-        if entry.native and not native:
+    def _one(self, project: Path, entry: SuiteEntry, native: NativeDisplay | None) -> EntryResult:
+        if entry.native and native is None:
             return EntryResult(entry, None, None, skipped="native")
         if entry.framework is not None:
             return self._suite(project, entry, FRAMEWORKS[entry.framework])
-        request = RunRequest(project, entry.godot_args(), self._timeout_s, not entry.native)
+        display = native if entry.native else None
+        request = RunRequest(project, entry.godot_args(), self._timeout_s, display)
         result = self._runner.run(request)
         verdict = _judge(entry, result.output, result.exit_code, result.timed_out)
         log.info("%s: %s in %.1f s", entry.name, verdict.reason, result.duration_s)

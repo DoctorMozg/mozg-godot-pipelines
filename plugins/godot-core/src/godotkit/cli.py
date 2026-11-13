@@ -18,6 +18,8 @@ from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_SETUP, emit
 from godotkit.runner import GodotRunner
 
+NATIVE_HELP = "render on X11, Wayland or xvfb-run instead of headless"
+
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="godotkit", description=__doc__)
@@ -37,6 +39,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--summary", help="regex with named integer groups the log must contain")
     run.add_argument("--log", type=Path, help="write the full Godot output to this file")
+    run.add_argument("--native", action="store_true", help=NATIVE_HELP)
 
     imp = commands.add_parser("import", help="headless import, judged, with a churn report")
     imp.add_argument("--project", type=Path, default=Path.cwd())
@@ -84,7 +87,9 @@ def _parser() -> argparse.ArgumentParser:
     affected.add_argument(
         "--changed", action="append", help="project-relative path; repeat for several"
     )
-    test.add_argument("--native", action="store_true", help="also run entries marked native")
+    test.add_argument(
+        "--native", action="store_true", help="also run native entries; " + NATIVE_HELP
+    )
     test.add_argument("--list", action="store_true", help="print the selection, run nothing")
     test.add_argument("--log-dir", type=Path, help="write the log of every failed entry here")
 

@@ -8,6 +8,7 @@ import sys
 from collections.abc import Callable, Mapping
 from typing import TypedDict
 
+from godotkit.display import NoDisplay, find_display
 from godotkit.locate import GodotLocator, GodotNotFound
 
 OPTIONAL_TOOLS = {
@@ -81,9 +82,12 @@ class Doctor:
         for name, found in drivers.items():
             if found is None:
                 notes.append(f"{name} missing: no {DRIVER_PURPOSE[name]} without a GPU")
-        display = self._env.get("DISPLAY") or self._env.get("WAYLAND_DISPLAY") or None
-        if display is None and tools["xvfb-run"] is None:
-            notes.append("no display and no xvfb-run: native runs and screenshots are unavailable")
+        display: str | None
+        try:
+            display = find_display(self._env, self._which).name
+        except NoDisplay as error:
+            display = None
+            notes.append(f"{error}: native runs and screenshots are unavailable")
         return DoctorReport(
             cmd="doctor",
             ok=godot is not None,

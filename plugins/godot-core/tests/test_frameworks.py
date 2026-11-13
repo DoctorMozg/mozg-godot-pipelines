@@ -104,7 +104,7 @@ class TestJudgement:
         monkeypatch.setenv("REPORT", str(tmp_path / "report.xml" if report else tmp_path / "none"))
         godot = fake_godot(output, exit_code=exit_code, shell=WRITE_REPORT if report else "")
         entry = _entry(suites, framework)
-        [result] = SuiteRunner(GodotRunner(godot), 1, 30).run(suites, [entry], native=False)
+        [result] = SuiteRunner(GodotRunner(godot), 1, 30).run(suites, [entry], native=None)
         assert result.verdict is not None
         assert (result.verdict.reason, result.verdict.summary) == (reason, summary)
 
@@ -133,7 +133,7 @@ def test_real_framework_suites_are_judged(
     (project / "test" / "broken_test.gd").write_text(f"extends {base}\n\nfunc test_x() -> void\n")
     runner = GodotRunner(real_godot)
     assert ProjectImporter(runner).run(ImportRequest(project, 300)).verdict.ok
-    results = SuiteRunner(runner, 3, 120).run(project, EntryCatalog(project).entries(), False)
+    results = SuiteRunner(runner, 3, 120).run(project, EntryCatalog(project).entries(), None)
     reasons = {r.entry.path: r.verdict.reason for r in results if r.verdict}
     assert reasons == {
         "test/pass_test.gd": "ok",

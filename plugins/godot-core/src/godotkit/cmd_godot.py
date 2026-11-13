@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 from collections.abc import Sequence
 from dataclasses import asdict
@@ -10,6 +11,7 @@ from pathlib import Path
 
 from godotkit.baseline import Baseline
 from godotkit.depgraph import DependencyGraph
+from godotkit.display import NativeDisplay, NoDisplay, find_display
 from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
@@ -53,10 +55,14 @@ def run(args: argparse.Namespace, runner: GodotRunner) -> int:
     if args.frames is not None:
         extra += ["--quit-after", str(args.frames)]
     try:
-        result = runner.run(RunRequest(project, tuple(extra), timeout_s=args.timeout))
+        display = native_display(args.native)
+        result = runner.run(RunRequest(project, tuple(extra), args.timeout, display))
     except ValueError as error:
         emit({"cmd": "run", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
+    except NoDisplay as error:
+        emit({"cmd": "run", "ok": False, "reason": "no_display", "detail": str(error)})
+        return EXIT_SETUP
     if args.log:
         args.log.write_text(result.output, encoding="utf-8")
     verdict = judge.judge(result.output, result.exit_code, result.timed_out)
@@ -65,6 +71,7 @@ def run(args: argparse.Namespace, runner: GodotRunner) -> int:
             "cmd": "run",
             "ok": verdict.ok,
             "reason": verdict.reason,
+            "display": display.name if display else None,
             "godot_exit": result.exit_code,
             "timed_out": result.timed_out,
             "duration_s": round(result.duration_s, 3),
@@ -76,6 +83,11 @@ def run(args: argparse.Namespace, runner: GodotRunner) -> int:
         }
     )
     return EXIT_OK if verdict.ok else EXIT_FAILED
+
+
+def native_display(wanted: bool) -> NativeDisplay | None:
+    """The display for a native run, or None for headless; raises NoDisplay rather than pass."""
+    return find_display(os.environ) if wanted else None
 
 
 def import_(args: argparse.Namespace, runner: GodotRunner) -> int:
@@ -160,6 +172,11 @@ def boot(args: argparse.Namespace, runner: GodotRunner) -> int:
 def test(args: argparse.Namespace, runner: GodotRunner) -> int:
     project = args.project.resolve()
     try:
+        display = native_display(args.native)
+    except NoDisplay as error:
+        emit({"cmd": "test", "ok": False, "reason": "no_display", "detail": str(error)})
+        return EXIT_SETUP
+    try:
         entries = EntryCatalog(project).entries()
         changed = changed_since(project, args.since) if args.since else args.changed
         selected = entries
@@ -171,9 +188,7 @@ def test(args: argparse.Namespace, runner: GodotRunner) -> int:
             ProjectImporter(runner).run(ImportRequest(project, args.timeout))
         results: tuple[EntryResult, ...] = ()
         if not args.list:
-            results = SuiteRunner(runner, args.jobs, args.timeout).run(
-                project, selected, args.native
-            )
+            results = SuiteRunner(runner, args.jobs, args.timeout).run(project, selected, display)
     except (ValueError, GitError) as error:
         emit({"cmd": "test", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED

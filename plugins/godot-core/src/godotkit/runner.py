@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from godotkit.display import NativeDisplay
 from godotkit.locate import GodotBinary
 
 log = logging.getLogger(__name__)
@@ -20,7 +21,8 @@ class RunRequest:
     project: Path
     args: tuple[str, ...] = ()
     timeout_s: float = 120.0
-    headless: bool = True
+    # None runs headless; a display renders for real.
+    display: NativeDisplay | None = None
 
 
 @dataclass(frozen=True)
@@ -42,9 +44,11 @@ class GodotRunner:
         return self._binary
 
     def command_for(self, request: RunRequest) -> tuple[str, ...]:
-        head = [str(self._binary.path)]
-        if request.headless:
-            head.append("--headless")
+        display = request.display
+        if display is None:
+            head: tuple[str, ...] = (str(self._binary.path), "--headless")
+        else:
+            head = (*display.wrapper, str(self._binary.path), *display.args)
         return (*head, "--path", str(request.project), *request.args)
 
     def run(self, request: RunRequest) -> RunResult:

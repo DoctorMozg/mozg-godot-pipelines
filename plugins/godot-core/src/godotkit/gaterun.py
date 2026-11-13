@@ -114,7 +114,7 @@ class Gate:
         if not entries:
             return Step("test", "not_applicable", "no test entries", 0.0)
         results = SuiteRunner(self._runner, self._jobs, self._timeout_s).run(
-            self._project, entries, native=False
+            self._project, entries, native=None
         )
         ran = [result for result in results if result.verdict is not None]
         failed = [result.entry.name for result in ran if result.verdict and not result.verdict.ok]

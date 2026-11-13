@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from godotkit import cli
+from godotkit.display import NoDisplay, find_display
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_SETUP
 from godotkit.runner import GodotRunner, RunRequest
@@ -57,6 +59,52 @@ class TestRunner:
     ) -> None:
         with pytest.raises(ValueError, match=r"no project\.godot"):
             GodotRunner(fake_godot()).run(RunRequest(tmp_path))
+
+
+def _which(*present: str) -> Callable[[str], str | None]:
+    return lambda name: f"/usr/bin/{name}" if name in present else None
+
+
+class TestNativeDisplay:
+    @pytest.mark.parametrize(
+        ("env", "name", "driver"),
+        [
+            ({"DISPLAY": ":0", "WAYLAND_DISPLAY": "wayland-0"}, "x11 :0", "x11"),
+            ({"WAYLAND_DISPLAY": "wayland-0"}, "wayland wayland-0", "wayland"),
+        ],
+    )
+    def test_a_desktop_display_is_named_explicitly(
+        self, env: dict[str, str], name: str, driver: str
+    ) -> None:
+        display = find_display(env, _which("xvfb-run"))
+        assert (display.name, display.wrapper) == (name, ())
+        assert display.args[:2] == ("--display-driver", driver)
+
+    def test_without_a_desktop_xvfb_run_wraps_the_command(
+        self, fake_godot: FakeGodotFactory, make_project: ProjectFactory
+    ) -> None:
+        display = find_display({}, _which("xvfb-run"))
+        project = make_project(HEALTHY_SCRIPT)
+        command = GodotRunner(fake_godot()).command_for(RunRequest(project, display=display))
+        assert command[0] == "/usr/bin/xvfb-run"
+        assert "--headless" not in command
+        assert command[command.index("--display-driver") + 1] == "x11"
+
+    @pytest.mark.usefixtures("no_gdtoolkit")
+    def test_nothing_to_render_on_is_a_setup_problem_not_a_pass(
+        self,
+        fake_godot: FakeGodotFactory,
+        make_project: ProjectFactory,
+        run_cli: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with pytest.raises(NoDisplay):
+            find_display({}, _which())
+        for name in ("DISPLAY", "WAYLAND_DISPLAY"):
+            monkeypatch.delenv(name, raising=False)
+        args = ["run", "--project", str(make_project(HEALTHY_SCRIPT)), "--native"]
+        code, payload = run_cli(args, fake_godot("main ready\n"))
+        assert (code, payload["reason"]) == (EXIT_SETUP, "no_display")
 
 
 class TestCli:

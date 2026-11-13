@@ -58,7 +58,7 @@ class TestDoctor:
         report = Doctor(env, GodotLocator(env), which=lambda name: f"/usr/bin/{name}").report()
         assert report["ok"] is True
         assert report["godot"] == {"path": str(binary.path), "version": "4.7.2.stable.fake"}
-        assert report["display"] == ":0"
+        assert report["display"] == "x11 :0"
         assert report["notes"] == []
 
     def test_software_drivers_are_found_or_noted(self) -> None:

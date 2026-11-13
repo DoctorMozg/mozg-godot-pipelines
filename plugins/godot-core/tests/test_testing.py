@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from godotkit.display import NativeDisplay
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.runner import GodotRunner
@@ -28,6 +29,7 @@ from godotkit_rig import (
 )
 
 ENTRY = "extends SceneTree\n"
+DISPLAY = NativeDisplay("x11 :9", ("--display-driver", "x11"))
 # $5 is the res:// script: the fake answers each entry with its own summary line.
 ANSWERS = (
     'case "$5" in\n'
@@ -106,7 +108,7 @@ class TestRuns:
     ) -> None:
         entries = EntryCatalog(suite).entries()
         results = SuiteRunner(GodotRunner(fake_godot(shell=ANSWERS)), 2, 30).run(
-            suite, entries, native=False
+            suite, entries, native=None
         )
         verdicts = {result.entry.path: result.verdict for result in results}
         assert {name: v.reason for name, v in verdicts.items() if v} == {
@@ -118,11 +120,11 @@ class TestRuns:
         self, fake_godot: FakeGodotFactory, suite: Path
     ) -> None:
         runner = SuiteRunner(GodotRunner(fake_godot("PASS: 7 startup checks.\n")), 1, 30)
-        [passed] = runner.run(suite, [SuiteEntry("tests/a_test.gd")], native=False)
+        [passed] = runner.run(suite, [SuiteEntry("tests/a_test.gd")], native=None)
         assert passed.verdict is not None
         assert passed.verdict.summary == {"checks": 7}
         runner = SuiteRunner(GodotRunner(fake_godot("done\n")), 1, 30)
-        [silent] = runner.run(suite, [SuiteEntry("tests/a_test.gd")], native=False)
+        [silent] = runner.run(suite, [SuiteEntry("tests/a_test.gd")], native=None)
         assert silent.verdict is not None
         assert silent.verdict.reason == "missing_summary"
 
@@ -133,11 +135,11 @@ class TestRuns:
         [entry, _] = EntryCatalog(suite).entries()
         output = "ERROR: Expected rejection.\nOk: 1 checks, 0 failures.\n"
         runner = SuiteRunner(GodotRunner(fake_godot(output)), 1, 30)
-        [allowed] = runner.run(suite, [entry], native=False)
+        [allowed] = runner.run(suite, [entry], native=None)
         runner = SuiteRunner(
             GodotRunner(fake_godot("ERROR: Parent node is busy\n" + output)), 1, 30
         )
-        [busy] = runner.run(suite, [entry], native=False)
+        [busy] = runner.run(suite, [entry], native=None)
         assert allowed.verdict is not None
         assert allowed.verdict.ok
         assert busy.verdict is not None
@@ -148,20 +150,21 @@ class TestRuns:
     ) -> None:
         native = SuiteEntry("tests/a_test.gd", native=True, summary=r"(?P<checks>\d+) checks")
         runner = SuiteRunner(GodotRunner(fake_godot("4 checks\n")), 1, 30)
-        [skipped] = runner.run(suite, [native], native=False)
-        [ran] = runner.run(suite, [native], native=True)
+        [skipped] = runner.run(suite, [native], native=None)
+        [ran] = runner.run(suite, [native], native=DISPLAY)
         assert (skipped.skipped, skipped.verdict) == ("native", None)
         assert ran.verdict is not None
         assert ran.verdict.ok
         assert ran.run is not None
         assert "--headless" not in ran.run.command
+        assert "--display-driver x11" in " ".join(ran.run.command)
 
     def test_parallel_runs_get_separate_user_data(
         self, fake_godot: FakeGodotFactory, suite: Path
     ) -> None:
         entries = [SuiteEntry("tests/a_test.gd"), SuiteEntry("tests/b_test.gd")]
         results = SuiteRunner(GodotRunner(fake_godot("1 checks, 0 failures\n")), 2, 30).run(
-            suite, entries, native=False
+            suite, entries, native=None
         )
         homes = {_line(result.run.output, "XDG_DATA_HOME=") for result in results if result.run}
         assert len(homes) == 2
@@ -184,7 +187,7 @@ class TestDurations:
         )
         godot = fake_godot("1 checks, 0 failures\n", shell=f'echo "$5" >> {calls}')
         results = SuiteRunner(GodotRunner(godot), 1, 30).run(
-            suite, EntryCatalog(suite).entries(), native=False
+            suite, EntryCatalog(suite).entries(), native=None
         )
         assert calls.read_text().split() == ["res://tests/b_test.gd", "res://tests/a_test.gd"]
         assert [result.entry.path for result in results] == ["tests/a_test.gd", "tests/b_test.gd"]
@@ -263,7 +266,7 @@ def test_real_entry_with_an_expected_push_error(
     )
     (project / CONFIG_FILE).write_text(json.dumps({"tests": {"allow_push_error": tolerated}}))
     [result] = SuiteRunner(GodotRunner(real_godot), 1, 60).run(
-        project, EntryCatalog(project).entries(), native=False
+        project, EntryCatalog(project).entries(), native=None
     )
     assert result.verdict is not None
     assert (result.verdict.reason, result.verdict.counts) == (reason, {"push_error": 1})

@@ -19,6 +19,7 @@ from godotkit.depgraph import DependencyGraph
 from godotkit.doctor import Doctor
 from godotkit.gates import CLASS_CACHE, BootGate, ParseGate
 from godotkit.importer import ImportRequest, ProjectImporter
+from godotkit.lint import ScriptLinter, project_scripts
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
 from godotkit.runner import GodotRunner, RunRequest
@@ -86,6 +87,10 @@ def _parser() -> argparse.ArgumentParser:
     test.add_argument("--native", action="store_true", help="also run entries marked native")
     test.add_argument("--list", action="store_true", help="print the selection, run nothing")
     test.add_argument("--log-dir", type=Path, help="write the log of every failed entry here")
+
+    lint = commands.add_parser("lint", help="architecture rules on GDScript files, no Godot run")
+    lint.add_argument("paths", nargs="*", type=Path, help="files or folders; default: the project")
+    lint.add_argument("--project", type=Path, default=Path.cwd())
 
     strict = commands.add_parser("strict", help="compare GDScript warning levels with the profile")
     strict.add_argument("--project", type=Path, default=Path.cwd())
@@ -303,6 +308,32 @@ def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
     }
 
 
+def _lint(args: argparse.Namespace) -> int:
+    project = args.project.resolve()
+    files: list[Path] = []
+    for path in [path.resolve() for path in args.paths] or [project]:
+        if not path.is_relative_to(project) or not path.exists():
+            detail = f"{path} is not an existing path inside {project}"
+            _emit({"cmd": "lint", "ok": False, "reason": "refused", "detail": detail})
+            return EXIT_REFUSED
+        files += project_scripts(path) if path.is_dir() else [path]
+    findings = ScriptLinter().lint_files(project, files)
+    counts: dict[str, int] = {}
+    for finding in findings:
+        counts[finding.rule] = counts.get(finding.rule, 0) + 1
+    _emit(
+        {
+            "cmd": "lint",
+            "ok": not findings,
+            "reason": "violations" if findings else "ok",
+            "files": len(files),
+            "counts": counts,
+            "findings": [asdict(finding) for finding in findings[:MAX_ISSUES_SHOWN]],
+        }
+    )
+    return EXIT_FAILED if findings else EXIT_OK
+
+
 def _strict(args: argparse.Namespace) -> int:
     try:
         profile = StrictProfile(args.project.resolve())
@@ -371,6 +402,8 @@ def main(argv: Sequence[str]) -> int:
         return _worktree(args)
     if args.command == "strict":
         return _strict(args)
+    if args.command == "lint":
+        return _lint(args)
     try:
         binary = locator.locate()
     except GodotNotFound as error:

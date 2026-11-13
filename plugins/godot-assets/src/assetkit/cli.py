@@ -1,6 +1,6 @@
 """assetkit command line: every command prints one JSON line on stdout.
 
-Exit codes: 0 ok, 2 setup problem (no Godot, unreadable contract), 3 refused input.
+Exit codes: 0 ok, 1 findings, 2 setup problem (no Godot, unreadable contract), 3 refused input.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import functools
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -17,13 +18,14 @@ from contextlib import closing
 from pathlib import Path
 
 from assetkit.contracts import ContractError, Json
+from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
 from assetkit.index import RegistryIndex
 from assetkit.promote import Promoter, PromoteRequest
 from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
 from assetkit.status import DECISIONS, fold, next_status
 
-EXIT_OK, EXIT_SETUP, EXIT_REFUSED = 0, 2, 3
+EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 ORIGINS = ("human", "generated", "licensed", "procedural")
 log = logging.getLogger(__name__)
 
@@ -90,6 +92,10 @@ def _parser() -> argparse.ArgumentParser:
     promote.add_argument("--role", default="main", help="which file of the version")
     promote.add_argument("--no-import", action="store_true", help="skip Godot; the UID stays null")
     promote.add_argument("--timeout", type=float, default=600.0, help="seconds for the import")
+
+    commands.add_parser(
+        "doctor", parents=[shared], help="find moved, missing and edited recorded files"
+    )
 
     status = commands.add_parser("status", parents=[shared], help="folded status from the index")
     status.add_argument("asset", nargs="?")
@@ -195,6 +201,15 @@ class Commands:
         promotion = Promoter(self._registry, importer).promote(request)
         return {"event": promotion.event, "other_import_errors": list(promotion.other_errors)}
 
+    def doctor(self, args: argparse.Namespace) -> dict[str, Json]:
+        findings = Doctor(self._registry).examine()
+        return {
+            "ok": not findings,
+            "findings": [finding.as_json() for finding in findings],
+            # Large binaries suit Git LFS; it is reported, never required.
+            "git_lfs": shutil.which("git-lfs") is not None,
+        }
+
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:
             raise Refused("--set needs an asset")
@@ -234,7 +249,8 @@ def main(argv: Sequence[str]) -> int:
         return _emit(
             {"cmd": name, "ok": False, "reason": "refused", "detail": str(error)}, EXIT_REFUSED
         )
-    return _emit({"cmd": name, "ok": True, **payload}, EXIT_OK)
+    ok = payload.pop("ok", True)
+    return _emit({"cmd": name, "ok": ok, **payload}, EXIT_OK if ok else EXIT_FAILED)
 
 
 def _emit(payload: dict[str, Json], code: int) -> int:

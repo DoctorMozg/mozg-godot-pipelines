@@ -1,13 +1,24 @@
-"""Shared types of the godot-assets tests."""
+"""Shared types and helpers of the godot-assets tests."""
 
 from __future__ import annotations
 
 import struct
 import zlib
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Protocol
+
+from assetkit.contracts import Json
+from assetkit.godot import ImportRun
+from assetkit.promote import Promoter, PromoteRequest, Promotion
+from assetkit.registry import AssetSpec, Registry, VersionSpec
 
 # Any: the JSON line an assetkit command printed.
 CliResult = tuple[int, dict[str, Any]]
+
+
+HUMAN: dict[str, Json] = {"origin": "human", "license": "CC0-1.0"}
+Importer = Callable[[Path], ImportRun]
 
 
 class CliRunner(Protocol):
@@ -26,3 +37,37 @@ def tiny_png() -> bytes:
     return (
         b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
     )
+
+
+def fake_import(project: Path) -> ImportRun:
+    """Writes an .import beside every PNG the way Godot does, with a UID made from its name."""
+    for png in project.rglob("*.png"):
+        if "registry" not in png.parts:
+            png.with_name(png.name + ".import").write_text(f'[remap]\n\nuid="uid://{png.stem}1"\n')
+    return ImportRun(ok=True, errors=(), timed_out=False)
+
+
+class Lane:
+    """One asset with versions staged under the registry, reviewed through the registry."""
+
+    def __init__(self, registry: Registry) -> None:
+        self.registry = registry
+        self.asset = str(registry.new_asset(AssetSpec("ui", "image", "Play"))["id"])
+
+    def version(self, content: bytes) -> str:
+        staged = self.registry.root / "staging" / self.asset / f"{len(content)}.png"
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        staged.write_bytes(content)
+        spec = VersionSpec((("main", staged),), dict(HUMAN), "tester")
+        return str(self.registry.add_version(self.asset, spec)["id"])
+
+    def approve(self, version: str) -> None:
+        fields = {"type": "decision", "decision": "approve", "version_id": version, "author": "t"}
+        self.registry.add_event(self.asset, fields)
+
+    def promote(
+        self, res_path: str = "res://ui/play.png", importer: Importer | None = fake_import
+    ) -> Promotion:
+        return Promoter(self.registry, importer).promote(
+            PromoteRequest(self.asset, res_path, "tester")
+        )

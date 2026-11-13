@@ -84,3 +84,29 @@ def read_uid(path: Path) -> str | None:
             if match:
                 return next(group for group in match.groups() if group)
     return None
+
+
+def uid_index(project: Path) -> dict[str, Path]:
+    """Every UID Godot assigned in the project, mapped to the file it names."""
+    found: dict[str, Path] = {}
+    for path in sorted(project.rglob("*")):
+        if _skipped(project, path):
+            continue
+        if path.suffix in (".uid", ".import"):
+            owner = path.with_suffix("")
+            # A sidecar left behind by a move outside the editor names no file.
+            if not owner.is_file():
+                continue
+        elif path.suffix in (".tscn", ".tres"):
+            owner = path
+        else:
+            continue
+        uid = read_uid(owner)
+        if uid is not None:
+            found[uid] = owner
+    return found
+
+
+def _skipped(project: Path, path: Path) -> bool:
+    top = path.relative_to(project).parts[0]
+    return top in (".godot", ".git", ".cache", "registry")

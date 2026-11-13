@@ -102,14 +102,16 @@ class Promoter:
 
     def _place(self, entry: dict[str, Json], target: Path, placed_sha: str | None) -> None:
         source = self._registry.project / str(entry["path"])
-        if source.resolve() == target.resolve():
+        held = hashlib.sha256(target.read_bytes()).hexdigest() if target.is_file() else None
+        # The file is already there, as after a move in the editor: only the record is new.
+        if source.resolve() == target.resolve() or held == entry["sha256"]:
             return
         if not source.is_file():
             raise RegistryError(f"{entry['path']} is gone; run assetkit doctor")
         if hashlib.sha256(source.read_bytes()).hexdigest() != entry["sha256"]:
             raise RegistryError(f"{entry['path']} changed since the version was recorded")
         # Only a file the registry placed, still unchanged, may be replaced by a newer version.
-        if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest() != placed_sha:
+        if target.exists() and held != placed_sha:
             raise RegistryError(f"{target} exists and is not the file promoted there before")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)

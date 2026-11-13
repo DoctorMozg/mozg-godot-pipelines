@@ -11,7 +11,7 @@ import pytest
 from assetkit import cli
 from assetkit.ids import UlidSource
 from assetkit.registry import Registry
-from assetkit_rig import CliResult, CliRunner
+from assetkit_rig import CliResult, CliRunner, Lane
 
 START_MS = 1_763_100_000_000
 
@@ -52,3 +52,8 @@ def run_cli(project: Path, capsys: pytest.CaptureFixture[str]) -> CliRunner:
         return code, payload
 
     return run
+
+
+@pytest.fixture
+def lane(registry: Registry) -> Lane:
+    return Lane(registry)

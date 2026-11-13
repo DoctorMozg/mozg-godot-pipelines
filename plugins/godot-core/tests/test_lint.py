@@ -85,6 +85,25 @@ class TestMemberOrder:
         assert _order(source) == []
 
     @pytest.mark.parametrize(
+        "source",
+        [
+            "class_name Door extends Node\nsignal opened\n",
+            "extends Node\n\n\nclass Inner:\n\tvar x: int\n\n\nvar a: int\n",
+            "extends Node\nclass One: pass\nsignal hit\n",
+            '@icon("res://i.svg")\nextends Node\n@warning_ignore("x")\nconst A := 1\n',
+        ],
+    )
+    def test_gdlint_accepts_it_so_godotkit_does(self, source: str) -> None:
+        assert _order(source) == []
+
+    def test_inner_class_members_are_ordered_too(self) -> None:
+        source = (
+            "extends Node\nvar a: int\n\n\nclass Inner:\n\tvar x: int\n\tsignal hit\n\n\n"
+            "\tfunc f() -> void:\n\t\tvar late: int = 1\n\t\tprint(late)\n\n\nconst B := 2\n"
+        )
+        assert _order(source) == ["signal after public var", "const after public var"]
+
+    @pytest.mark.parametrize(
         ("source", "message"),
         [
             ("extends Node\nvar a: int\nsignal hit\n", "signal after public var"),
@@ -111,6 +130,11 @@ class TestProjectScripts:
 
 
 class TestLintCli:
+    @pytest.fixture(autouse=True)
+    def _no_gdtoolkit(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        # Installed gdlint or gdformat would add findings; test_external covers them.
+        monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+
     def test_findings_fail_with_path_and_line(
         self, make_project: ProjectFactory, run_cli: CliRunner, fake_godot: FakeGodotFactory
     ) -> None:

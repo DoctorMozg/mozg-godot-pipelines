@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 from dataclasses import asdict
 from pathlib import Path
 
+from godotkit.external import ExternalLinters
 from godotkit.lint import ScriptLinter, project_scripts
-from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, MAX_ISSUES_SHOWN, emit
+from godotkit.output import (
+    EXIT_FAILED,
+    EXIT_OK,
+    EXIT_REFUSED,
+    EXIT_SETUP,
+    MAX_ISSUES_SHOWN,
+    emit,
+)
 from godotkit.strict import StrictProfile
 from godotkit.worktree import GitError, WorktreeManager
 
@@ -22,6 +31,13 @@ def lint(args: argparse.Namespace) -> int:
             return EXIT_REFUSED
         files += project_scripts(path) if path.is_dir() else [path]
     findings = ScriptLinter().lint_files(project, files)
+    external = ExternalLinters()
+    relative = [file.relative_to(project).as_posix() for file in files]
+    try:
+        findings += external.lint(project, relative)
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+        emit({"cmd": "lint", "ok": False, "reason": "tool_failed", "detail": str(error)})
+        return EXIT_SETUP
     counts: dict[str, int] = {}
     for finding in findings:
         counts[finding.rule] = counts.get(finding.rule, 0) + 1
@@ -31,6 +47,7 @@ def lint(args: argparse.Namespace) -> int:
             "ok": not findings,
             "reason": "violations" if findings else "ok",
             "files": len(files),
+            "tools": external.tools,
             "counts": counts,
             "findings": [asdict(finding) for finding in findings[:MAX_ISSUES_SHOWN]],
         }

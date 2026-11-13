@@ -30,6 +30,7 @@ ORDER = (
     "tool",
     "class_name",
     "extends",
+    "docstring",
     "signal",
     "enum",
     "const",
@@ -39,9 +40,9 @@ ORDER = (
     "private var",
     "@onready public var",
     "@onready private var",
-    "method or class",
+    "method",
 )
-_HEADER_ANNOTATIONS = frozenset({"tool", "icon", "static_unload"})
+INNER_CLASS = "class"
 
 
 @dataclass(frozen=True)
@@ -111,25 +112,42 @@ class GdSource:
             yield current
 
 
+@dataclass
+class MemberScope:
+    """The members of one class body; `indent` is unknown until its first member."""
+
+    indent: int | None
+    rank: int = -1
+    pending: set[str] = field(default_factory=set)
+
+
 class ScriptLinter:
     def lint_text(self, text: str, path: str) -> list[Finding]:
         findings: list[Finding] = []
-        top_order = -1
-        pending: set[str] = set()
+        scopes = [MemberScope(0)]
         for statement in GdSource(text).statements():
             for rule, offset, message in _statement_rules(statement):
                 line = statement.line_at(offset)
                 if not statement.ignores(rule, line):
                     findings.append(Finding(path, line, rule, message))
-            if statement.indent == 0:
-                kind, pending = _member_kind(statement.bare.strip(), pending)
-                if kind is None:
-                    continue
-                rank = ORDER.index(kind)
-                if rank < top_order and not statement.ignores("member-order", statement.line):
-                    message = f"{kind} after {ORDER[top_order]}"
-                    findings.append(Finding(path, statement.line, "member-order", message))
-                top_order = max(top_order, rank)
+            # Anything at or left of the enclosing body's indent has left the inner class.
+            while len(scopes) > 1 and statement.indent <= (scopes[-2].indent or 0):
+                scopes.pop()
+            scope = scopes[-1]
+            if scope.indent is None:
+                scope.indent = statement.indent
+            if statement.indent != scope.indent:
+                continue
+            kind, scope.pending = _member_kind(statement.bare.strip(), scope.pending)
+            if kind == INNER_CLASS:
+                scopes.append(MemberScope(None))
+            if kind is None or kind == INNER_CLASS:
+                continue
+            rank = ORDER.index(kind)
+            if rank < scope.rank and not statement.ignores("member-order", statement.line):
+                message = f"{kind} after {ORDER[scope.rank]}"
+                findings.append(Finding(path, statement.line, "member-order", message))
+            scope.rank = max(scope.rank, rank)
         return findings
 
     def lint_files(self, project: Path, files: Iterable[Path]) -> list[Finding]:
@@ -177,23 +195,27 @@ def _statement_rules(statement: Statement) -> Iterator[tuple[str, int, str]]:
 
 
 def _member_kind(text: str, pending: set[str]) -> tuple[str | None, set[str]]:
+    """Maps a class-body statement to its ORDER kind the way gdlint 4.5.0 does."""
     annotations = set(pending)
     while match := _ANNOTATION.match(text):
         annotations.add(match["name"])
         text = text[match.end() :]
     if not text:
-        if annotations & _HEADER_ANNOTATIONS:
-            return "tool", set()
-        return None, annotations
-    word = text.split()[0]
-    if word == "static" and text.split()[1:2] == ["var"]:
+        return ("tool", set()) if "tool" in annotations else (None, annotations)
+    words = text.split()
+    if words[0] == "class_name":
+        return ("extends" if "extends" in words else "class_name"), set()
+    if words[0] in ("extends", "signal", "enum", "const"):
+        return words[0], set()
+    if words[0] == "class":
+        return INNER_CLASS, set()
+    if text.startswith('"'):
+        return "docstring", set()
+    if words[:2] == ["static", "var"]:
         return "static var", set()
-    if word in ("class_name", "extends", "signal", "enum", "const"):
-        return word, set()
-    if word != "var":
-        return "method or class", set()
-    name = text.split()[1] if len(text.split()) > 1 else ""
-    scope = "private" if name.startswith("_") else "public"
+    if words[0] != "var":
+        return "method", set()
+    scope = "private" if len(words) > 1 and words[1].startswith("_") else "public"
     if any(annotation.startswith("export") for annotation in annotations):
         return "@export var", set()
     if "onready" in annotations:

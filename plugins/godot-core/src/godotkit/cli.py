@@ -73,6 +73,17 @@ def _parser() -> argparse.ArgumentParser:
     arch = commands.add_parser("arch", help="architecture.json rules on the dependency graph")
     arch.add_argument("--project", type=Path, default=Path.cwd())
 
+    lsp = commands.add_parser("lsp", help="GDScript diagnostics from a long-lived headless editor")
+    lsp_actions = lsp.add_subparsers(dest="action", required=True)
+    for action, text in (("start", "start or reuse the server"), ("stop", "stop the server")):
+        sub = lsp_actions.add_parser(action, help=text)
+        sub.add_argument("--project", type=Path, default=Path.cwd())
+        sub.add_argument("--timeout", type=float, default=120.0)
+    diag = lsp_actions.add_parser("diag", help="diagnostics for scripts, as Godot sees them")
+    diag.add_argument("files", nargs="+", type=Path)
+    diag.add_argument("--project", type=Path, default=Path.cwd())
+    diag.add_argument("--timeout", type=float, default=5.0)
+
     strict = commands.add_parser("strict", help="compare GDScript warning levels with the profile")
     strict.add_argument("--project", type=Path, default=Path.cwd())
     strict.add_argument(
@@ -111,6 +122,8 @@ def main(argv: Sequence[str]) -> int:
     }
     if args.command in file_commands:
         return file_commands[args.command](args)
+    if args.command == "lsp":
+        return cmd_godot.lsp(args, locator)
     try:
         binary = locator.locate()
     except GodotNotFound as error:

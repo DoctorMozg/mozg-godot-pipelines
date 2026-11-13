@@ -64,7 +64,7 @@ All the Rust tools are below 1.0. Adding any of them is a dependency decision fo
 - LSP:
   - Port 6005; it needs a running editor on the project ([external editor](https://docs.godotengine.org/en/stable/tutorials/editor/external_editor.html)).
   - It parses every script on `initialize`, but publishes diagnostics only for files the client opened (`gdscript_language_protocol.cpp`, `gdscript_workspace.cpp`, master). N files need N `didOpen` calls; there is no pull diagnostics.
-  - UNVERIFIED: that `--editor --headless` starts the server, and whether warnings are included.
+  - Verified on 4.7.2 (2026-11-13): `--editor --headless --lsp-port P` starts the server; Error-level warnings arrive as severity 1 with "(Warning treated as error.)", Warn-level ones as severity 2 with a `(NAME)` prefix. Sequential clients work, and the editor writes only under `.godot/`.
 
 ## Test frameworks
 

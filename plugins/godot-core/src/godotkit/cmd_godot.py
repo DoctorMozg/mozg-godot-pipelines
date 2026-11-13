@@ -11,8 +11,17 @@ from pathlib import Path
 from godotkit.depgraph import DependencyGraph
 from godotkit.gates import CLASS_CACHE, BootGate, ParseGate
 from godotkit.importer import ImportRequest, ProjectImporter
+from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
-from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, MAX_ISSUES_SHOWN, emit
+from godotkit.lsp import DiagnosticsClient, LspError, LspServer
+from godotkit.output import (
+    EXIT_FAILED,
+    EXIT_OK,
+    EXIT_REFUSED,
+    EXIT_SETUP,
+    MAX_ISSUES_SHOWN,
+    emit,
+)
 from godotkit.runner import GodotRunner, RunRequest
 from godotkit.testing import (
     EntryCatalog,
@@ -220,3 +229,55 @@ def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
         "summary": verdict.summary,
         "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
     }
+
+
+def lsp(args: argparse.Namespace, locator: GodotLocator) -> int:
+    project = args.project.resolve()
+    server = LspServer(project)
+    command = f"lsp {args.action}"
+    try:
+        if args.action == "stop":
+            emit({"cmd": command, "ok": True, "stopped": server.stop()})
+            return EXIT_OK
+        if args.action == "start":
+            state, started = server.start(locator.locate(), args.timeout)
+            emit(
+                {
+                    "cmd": command,
+                    "ok": True,
+                    "port": state.port,
+                    "pid": state.pid,
+                    "started": started,
+                }
+            )
+            return EXIT_OK
+        files = [path.resolve() for path in args.files]
+        outside = [
+            str(path) for path in files if not path.is_relative_to(project) or path.suffix != ".gd"
+        ]
+        if outside:
+            detail = f"not .gd files inside {project}: {outside}"
+            emit({"cmd": command, "ok": False, "reason": "refused", "detail": detail})
+            return EXIT_REFUSED
+        running = server.running()
+        if running is None:
+            detail = "no language server; run `godotkit lsp start` first"
+            emit({"cmd": command, "ok": False, "reason": "no_lsp", "detail": detail})
+            return EXIT_SETUP
+        findings = DiagnosticsClient(project, running.port, args.timeout).diagnose(files)
+    except GodotNotFound as error:
+        emit({"cmd": command, "ok": False, "reason": "no_godot", "detail": str(error)})
+        return EXIT_SETUP
+    except LspError as error:
+        emit({"cmd": command, "ok": False, "reason": "no_lsp", "detail": str(error)})
+        return EXIT_SETUP
+    errors = [finding for finding in findings if finding.rule == "gdscript-error"]
+    emit(
+        {
+            "cmd": command,
+            "ok": not errors,
+            "reason": "errors" if errors else "ok",
+            "findings": [asdict(finding) for finding in findings[:MAX_ISSUES_SHOWN]],
+        }
+    )
+    return EXIT_FAILED if errors else EXIT_OK

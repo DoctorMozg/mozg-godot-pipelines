@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from godotkit import cmd_files, cmd_godot
+from godotkit import cmd_baseline, cmd_files, cmd_godot
 from godotkit.doctor import Doctor
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_SETUP, emit
@@ -50,6 +50,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     check.add_argument("--project", type=Path, default=Path.cwd())
     check.add_argument("--timeout", type=float, default=300.0)
+    check.add_argument(
+        "--strict", action="store_true", help="load under the strict warning profile"
+    )
+    check.add_argument("--no-baseline", action="store_true", help="fail on baselined files too")
 
     boot = commands.add_parser("boot", help="boot gate: the main scene starts and takes a click")
     boot.add_argument("--project", type=Path, default=Path.cwd())
@@ -133,12 +137,13 @@ def main(argv: Sequence[str]) -> int:
         "strict": cmd_files.strict,
         "lint": cmd_files.lint,
         "arch": cmd_files.arch,
-        "baseline": cmd_files.baseline,
     }
     if args.command in file_commands:
         return file_commands[args.command](args)
     if args.command == "lsp":
         return cmd_godot.lsp(args, locator)
+    if args.command == "baseline":
+        return cmd_baseline.baseline(args, locator)
     try:
         binary = locator.locate()
     except GodotNotFound as error:

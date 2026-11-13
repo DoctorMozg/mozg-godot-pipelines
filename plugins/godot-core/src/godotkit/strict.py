@@ -201,3 +201,10 @@ def _addons_rule(raw: str) -> object:
 
 def _with_addons_excluded(raw: str) -> str:
     return json.dumps({**_rules(raw), ADDONS: 0})
+
+
+def profile_override() -> str:
+    """override.cfg text applying the profile for one run, leaving project.godot untouched."""
+    lines = [f"{PREFIX}enable=true", f"{PREFIX}directory_rules={json.dumps({ADDONS: 0})}"]
+    lines += [f"{PREFIX}{name}={profile}" for name, (profile, _) in LEVELS.items()]
+    return f"[{SECTION}]\n\n" + "\n".join(lines) + "\n"

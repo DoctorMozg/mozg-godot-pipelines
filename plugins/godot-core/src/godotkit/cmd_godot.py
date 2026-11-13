@@ -8,8 +8,9 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
+from godotkit.baseline import Baseline
 from godotkit.depgraph import DependencyGraph
-from godotkit.gates import CLASS_CACHE, BootGate, ParseGate
+from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, StrictGate
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
@@ -101,18 +102,39 @@ def import_(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if verdict.ok else EXIT_FAILED
 
 
+# Failures a parse gate can pin to a file; anything else (crash, timeout) is never baselined.
+FILE_REASONS = frozenset(
+    {"parse_error", "script_error", "shader_error", "engine_error", "test_failures"}
+)
+
+
 def check(args: argparse.Namespace, runner: GodotRunner) -> int:
+    project = args.project.resolve()
+    gate = "strict" if args.strict else "check"
     try:
-        outcome = ParseGate(runner).run(args.project.resolve(), args.timeout)
+        known = None if args.no_baseline else Baseline.load(project)
+        gates = StrictGate(runner) if args.strict else ParseGate(runner)
+        outcome = gates.run(project, args.timeout)
     except ValueError as error:
         emit({"cmd": "check", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
     verdict = outcome.verdict
+    ok, reason = verdict.ok, verdict.reason
+    extra: dict[str, object] = {}
+    findings = outcome.findings()
+    if known is not None and not ok:
+        judgement = known.judge(gate, findings)
+        attributed = verdict.reason in FILE_REASONS and bool(findings)
+        baselined = attributed and not judgement.new
+        ok, reason = (True, "baselined") if baselined else (False, reason)
+        grown = [asdict(item) for item in judgement.growth]
+        extra = {"baseline": {"tolerated": judgement.tolerated, "grown": grown}}
     emit(
         {
             "cmd": "check",
-            "ok": verdict.ok,
-            "reason": verdict.reason,
+            "gate": gate,
+            "ok": ok,
+            "reason": reason,
             "duration_s": round(outcome.result.duration_s, 3),
             "imported_first": outcome.imported_first,
             "summary": verdict.summary,
@@ -120,9 +142,10 @@ def check(args: argparse.Namespace, runner: GodotRunner) -> int:
             "shaders": outcome.shaders_checked,
             "failed_shaders": [asdict(failure) for failure in outcome.failed_shaders],
             "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
+            **extra,
         }
     )
-    return EXIT_OK if verdict.ok else EXIT_FAILED
+    return EXIT_OK if ok else EXIT_FAILED
 
 
 def boot(args: argparse.Namespace, runner: GodotRunner) -> int:

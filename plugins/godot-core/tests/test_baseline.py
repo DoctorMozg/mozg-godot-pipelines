@@ -7,9 +7,17 @@ from pathlib import Path
 
 import pytest
 from godotkit.baseline import BASELINE_FILE, Baseline, Growth
+from godotkit.gates import CLASS_CACHE
 from godotkit.lint import Finding
+from godotkit.locate import GodotBinary
 from godotkit_rig import CliRunner, FakeGodotFactory, ProjectFactory
 
+# Parse gate output with main.gd failing; NEW_FAILURE adds a second script.
+GATE_LOG = (
+    "GODOTKIT_PARSE_FAIL res://main.gd\n"
+    "GODOTKIT_SHADERS 0 files\nGODOTKIT_PARSE 2 scripts 1 failed\n"
+)
+NEW_FAILURE = "GODOTKIT_PARSE_FAIL res://new.gd\n" + GATE_LOG.replace("1 failed", "2 failed")
 OLD_SCRIPT = (
     "extends Node\n\n\nfunc _ready() -> void:\n\tget_parent().hide()\n\tget_parent().show()\n"
 )
@@ -81,7 +89,8 @@ class TestBaselineCli:
     ) -> None:
         godot = fake_godot()
         lint = ["lint", "--project", str(project)]
-        code, written = run_cli(["baseline", "write", "--project", str(project)], godot)
+        write = ["baseline", "write", "--gates", "lint", "--project", str(project)]
+        code, written = run_cli(write, godot)
         assert (code, written["totals"]) == (0, {"lint": {"before": 0, "after": 2}})
         code, payload = run_cli(lint, godot)
         assert (code, payload["baseline"]) == (0, {"tolerated": 2, "grown": []})
@@ -99,24 +108,101 @@ class TestBaselineCli:
         shrink = ["baseline", "shrink", "--project", str(project)]
         code, payload = run_cli(shrink, godot)
         assert (code, payload["reason"]) == (3, "refused")
-        run_cli(["baseline", "write", "--project", str(project)], godot)
+        run_cli(["baseline", "write", "--gates", "lint", "--project", str(project)], godot)
         (project / "main.gd").write_text(OLD_SCRIPT.replace("\tget_parent().show()\n", ""))
         code, payload = run_cli(shrink, godot)
         assert (code, payload["totals"]) == (0, {"lint": {"before": 2, "after": 1}})
         assert Baseline.load(project) == Baseline({"lint": {"main.gd": {"get-parent": 1}}})
 
-    def test_arch_joins_with_its_rules_and_unknown_gates_are_refused(
-        self, project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    def test_arch_joins_with_its_rules_and_godot_gates_skip_without_godot(
+        self, project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory, tmp_path: Path
     ) -> None:
         godot = fake_godot()
         (project / "architecture.json").write_text(json.dumps({"max_file_lines": 3}))
-        code, payload = run_cli(["baseline", "write", "--project", str(project)], godot)
+        absent = GodotBinary(tmp_path / "absent", "none")
+        code, payload = run_cli(["baseline", "write", "--project", str(project)], absent)
         totals = payload["totals"]
         assert isinstance(totals, dict)
-        assert (code, sorted(totals)) == (0, ["arch", "lint"])
+        assert (code, sorted(totals), payload["skipped"]) == (
+            0,
+            ["arch", "lint"],
+            ["check", "strict"],
+        )
         code, payload = run_cli(["arch", "--project", str(project)], godot)
         assert (code, payload["ok"]) == (0, True)
         code, payload = run_cli(
             ["baseline", "write", "--gates", "lint,boot", "--project", str(project)], godot
         )
         assert (code, payload["reason"]) == (3, "refused")
+
+
+class TestCheckBaseline:
+    @pytest.fixture
+    def project(self, make_project: ProjectFactory) -> Path:
+        path = make_project(OLD_SCRIPT)
+        (path / CLASS_CACHE).parent.mkdir()
+        (path / CLASS_CACHE).write_text("list=[]\n")
+        return path
+
+    def test_baselined_failure_passes_and_a_new_one_fails(
+        self, project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        args = ["--project", str(project)]
+        write = ["baseline", "write", "--gates", "check", *args]
+        code, written = run_cli(write, fake_godot(GATE_LOG))
+        assert (code, written["totals"]) == (0, {"check": {"before": 0, "after": 1}})
+        code, payload = run_cli(["check", *args], fake_godot(GATE_LOG))
+        assert (code, payload["reason"]) == (0, "baselined")
+        code, payload = run_cli(["check", *args], fake_godot(NEW_FAILURE))
+        assert (code, payload["reason"]) == (1, "test_failures")
+        assert payload["baseline"] == {
+            "tolerated": 1,
+            "grown": [{"path": "new.gd", "rule": "load", "allowed": 0, "found": 1}],
+        }
+
+    def test_unfinished_gate_is_never_recorded(
+        self, project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        code, payload = run_cli(
+            ["baseline", "write", "--gates", "check", "--project", str(project)], fake_godot("")
+        )
+        assert (code, payload["reason"]) == (2, "tool_failed")
+        assert not (project / BASELINE_FILE).exists()
+
+    def test_strict_gate_applies_the_profile_only_during_the_run(
+        self, project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory, tmp_path: Path
+    ) -> None:
+        seen = tmp_path / "override-seen"
+        godot = fake_godot(GATE_LOG, shell=f'cat "$3/override.cfg" > {seen}')
+        code, payload = run_cli(["check", "--strict", "--project", str(project)], godot)
+        assert (code, payload["gate"], payload["failed_scripts"]) == (
+            1,
+            "strict",
+            ["res://main.gd"],
+        )
+        assert "gdscript/warnings/untyped_declaration=2" in seen.read_text()
+        assert not (project / "override.cfg").exists()
+
+
+@pytest.mark.live_godot
+def test_a_file_joins_the_strict_profile_once_clean(
+    make_project: ProjectFactory, real_godot: GodotBinary, run_cli: CliRunner
+) -> None:
+    loose = "extends Node\n\n\nfunc _ready() -> void:\n\tvar count = 3\n\tprint(count)\n"
+    project = make_project(loose)
+    args = ["--project", str(project)]
+    strict = ["check", "--strict", *args]
+    code, payload = run_cli(strict, real_godot)
+    assert (code, payload["failed_scripts"]) == (1, ["res://main.gd"])
+    run_cli(["baseline", "write", "--gates", "check,strict", *args], real_godot)
+    code, payload = run_cli(strict, real_godot)
+    assert (code, payload["reason"]) == (0, "baselined")
+    (project / "main.gd").write_text(loose.replace("var count = 3", "var count: int = 3"))
+    code, shrunk = run_cli(["baseline", "shrink", *args], real_godot)
+    assert shrunk["totals"] == {
+        "check": {"before": 0, "after": 0},
+        "strict": {"before": 1, "after": 0},
+    }
+    (project / "main.gd").write_text(loose)
+    code, payload = run_cli(strict, real_godot)
+    assert (code, payload["reason"]) == (1, "parse_error")

@@ -7,8 +7,8 @@ import subprocess
 from dataclasses import asdict
 from pathlib import Path
 
-from godotkit.arch import CONFIG_FILE, ArchChecker, ArchRules
-from godotkit.baseline import BASELINE_FILE, Baseline
+from godotkit.arch import ArchChecker, ArchRules
+from godotkit.baseline import Baseline
 from godotkit.depgraph import DependencyGraph
 from godotkit.external import ExternalLinters
 from godotkit.lint import Finding, ScriptLinter, project_sources
@@ -26,7 +26,6 @@ from godotkit.strict import StrictProfile
 from godotkit.worktree import GitError, WorktreeManager
 
 LINT_SUFFIXES = (".gd", *SCENE_SUFFIXES, *SHADER_SUFFIXES)
-BASELINE_GATES = ("lint", "arch")
 TOOL_ERRORS = (RuntimeError, OSError, subprocess.TimeoutExpired)
 
 
@@ -46,7 +45,7 @@ def lint(args: argparse.Namespace) -> int:
     external = ExternalLinters()
     try:
         known = None if args.no_baseline else Baseline.load(project)
-        findings = _lint_findings(project, files, external)
+        findings = lint_findings(project, files, external)
     except ValueError as error:
         emit({"cmd": "lint", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
@@ -62,7 +61,7 @@ def arch(args: argparse.Namespace) -> int:
     project = args.project.resolve()
     try:
         known = None if args.no_baseline else Baseline.load(project)
-        findings = _arch_findings(project)
+        findings = arch_findings(project)
     except ValueError as error:
         emit({"cmd": "arch", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
@@ -71,56 +70,7 @@ def arch(args: argparse.Namespace) -> int:
     return EXIT_OK if payload["ok"] else EXIT_FAILED
 
 
-def baseline(args: argparse.Namespace) -> int:
-    """`write` records every gate asked for; `shrink` lowers counts and never raises one."""
-    project = args.project.resolve()
-    command = f"baseline {args.action}"
-    try:
-        current = Baseline.load(project)
-        if args.action == "shrink" and current is None:
-            raise ValueError(f"no {BASELINE_FILE} in {project} to shrink")
-        gates = _baseline_gates(project, args.gates, current if args.action == "shrink" else None)
-        updated = current or Baseline()
-        totals: dict[str, dict[str, int]] = {}
-        for gate in gates:
-            findings = _gate_findings(project, gate)
-            before = updated.total(gate)
-            if args.action == "write":
-                updated = updated.recorded(gate, findings)
-            else:
-                updated = updated.shrunk(gate, findings)
-            totals[gate] = {"before": before, "after": updated.total(gate)}
-    except ValueError as error:
-        emit({"cmd": command, "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    except TOOL_ERRORS as error:
-        emit({"cmd": command, "ok": False, "reason": "tool_failed", "detail": str(error)})
-        return EXIT_SETUP
-    updated.save(project)
-    emit({"cmd": command, "ok": True, "path": str(project / BASELINE_FILE), "totals": totals})
-    return EXIT_OK
-
-
-def _baseline_gates(project: Path, asked: str | None, current: Baseline | None) -> list[str]:
-    if asked:
-        gates = asked.split(",")
-        unknown = sorted(set(gates) - set(BASELINE_GATES))
-        if unknown:
-            raise ValueError(f"unknown gates {unknown}; known: {', '.join(BASELINE_GATES)}")
-        return gates
-    if current is not None:
-        return [gate for gate in BASELINE_GATES if gate in current.gates]
-    # arch joins by default only where the project has rules for it.
-    return [gate for gate in BASELINE_GATES if gate != "arch" or (project / CONFIG_FILE).is_file()]
-
-
-def _gate_findings(project: Path, gate: str) -> list[Finding]:
-    if gate == "lint":
-        return _lint_findings(project, project_sources(project, LINT_SUFFIXES), ExternalLinters())
-    return _arch_findings(project)
-
-
-def _lint_findings(project: Path, files: list[Path], external: ExternalLinters) -> list[Finding]:
+def lint_findings(project: Path, files: list[Path], external: ExternalLinters) -> list[Finding]:
     scripts = [file for file in files if file.suffix == ".gd"]
     scenes = [file for file in files if file.suffix in SCENE_SUFFIXES]
     shaders = [file for file in files if file.suffix in SHADER_SUFFIXES]
@@ -132,7 +82,7 @@ def _lint_findings(project: Path, files: list[Path], external: ExternalLinters) 
     return findings + external.lint(project, relative)
 
 
-def _arch_findings(project: Path) -> list[Finding]:
+def arch_findings(project: Path) -> list[Finding]:
     rules = ArchRules.load(project)
     return ArchChecker(project, rules, DependencyGraph.scan(project)).check()
 

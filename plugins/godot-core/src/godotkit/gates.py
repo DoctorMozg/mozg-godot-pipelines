@@ -5,13 +5,17 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
 
 from godotkit.importer import OVERRIDE_FILE, ImportRequest, ProjectImporter
+from godotkit.lint import Finding
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest, RunResult
+from godotkit.strict import profile_override
 
 log = logging.getLogger(__name__)
 
@@ -66,6 +70,17 @@ class ParseOutcome:
     failed_shaders: tuple[ShaderFailure, ...]
     imported_first: bool
 
+    def findings(self) -> list[Finding]:
+        """Failed files as findings, the unit a baseline counts."""
+        found = [
+            Finding(_relative(path), 1, "load", "fails to load") for path in self.failed_scripts
+        ]
+        found += [
+            Finding(_relative(failure.path), failure.line or 1, "shader", failure.message)
+            for failure in self.failed_shaders
+        ]
+        return found
+
 
 @dataclass(frozen=True)
 class BootOutcome:
@@ -106,6 +121,17 @@ class ParseGate:
         )
 
 
+class StrictGate:
+    """The parse gate under the strict profile; a script that fails here is not yet strict."""
+
+    def __init__(self, runner: GodotRunner, importer: ProjectImporter | None = None) -> None:
+        self._parse = ParseGate(runner, importer)
+
+    def run(self, project: Path, timeout_s: float) -> ParseOutcome:
+        with _override(project, profile_override(), "strict gate"):
+            return self._parse.run(project, timeout_s)
+
+
 class BootGate:
     """Adds the probe as an autoload through override.cfg, so the main scene starts as on F5."""
 
@@ -113,19 +139,29 @@ class BootGate:
         self._runner = runner
 
     def run(self, project: Path, timeout_s: float) -> BootOutcome:
-        override = project / OVERRIDE_FILE
-        if override.exists():
-            raise ValueError(f"{override} exists; refusing to replace it for the boot probe")
         probe = GD_DIR / "boot_probe.gd"
-        override.write_text(f'[autoload]\n\nGodotkitProbe="*{probe}"\n', encoding="utf-8")
-        try:
+        with _override(project, f'[autoload]\n\nGodotkitProbe="*{probe}"\n', "boot probe"):
             result = self._runner.run(RunRequest(project, (), timeout_s))
-        finally:
-            override.unlink()
         verdict = LogJudge().judge(result.output, result.exit_code, result.timed_out)
         report = _read_report(result.output)
         state = _input_state(report)
         return BootOutcome(result, verdict, _boot_reason(verdict, report, state), state, report)
+
+
+@contextmanager
+def _override(project: Path, text: str, purpose: str) -> Iterator[None]:
+    override = project / OVERRIDE_FILE
+    if override.exists():
+        raise ValueError(f"{override} exists; refusing to replace it for the {purpose}")
+    override.write_text(text, encoding="utf-8")
+    try:
+        yield
+    finally:
+        override.unlink()
+
+
+def _relative(path: str) -> str:
+    return path.removeprefix("res://")
 
 
 def shader_failures(output: str) -> tuple[ShaderFailure, ...]:

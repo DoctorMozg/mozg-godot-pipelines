@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contract:asset-version",
+  "title": "asset-version",
+  "description": "One immutable version of an asset, at registry/assets/<family>/<asset_id>/versions/<id>.json. Written once, never edited.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "asset_id",
+    "files",
+    "provenance",
+    "created_by",
+    "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "asset-version/1"
+    },
+    "id": {
+      "$ref": "#/$defs/ulid"
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_version": {
+      "description": "The version this one was made from, or null.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "media": {
+      "description": "Measurements of the kind: pixel size, frames, duration, loudness.",
+      "type": "object"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "generation": {
+      "$ref": "#/$defs/generation"
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "generated"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "generation"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "ulid": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "file": {
+      "type": "object",
+      "required": [
+        "role",
+        "path",
+        "sha256",
+        "bytes",
+        "storage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "description": "What the file is to the version: main, source, preview, prompt.",
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "description": "Project-relative POSIX path, or the store URI once pruned.",
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "storage": {
+          "enum": [
+            "project",
+            "staging",
+            "external"
+          ]
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "origin",
+        "license"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "origin": {
+          "enum": [
+            "human",
+            "generated",
+            "licensed",
+            "procedural"
+          ]
+        },
+        "license": {
+          "description": "SPDX id or LicenseRef-<name>.",
+          "type": "string",
+          "minLength": 1
+        },
+        "creator": {
+          "type": "string"
+        },
+        "source_url": {
+          "type": "string"
+        },
+        "attribution": {
+          "type": "string"
+        },
+        "digital_source_type": {
+          "description": "IPTC digital source type, such as trainedAlgorithmicMedia.",
+          "type": "string"
+        },
+        "human_edited": {
+          "type": "boolean"
+        },
+        "c2pa": {
+          "description": "Path of a kept C2PA manifest, or null when the file carries none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "required": [
+        "provider",
+        "model"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "prompt_file": {
+          "type": "string"
+        },
+        "negative_prompt": {
+          "type": "string"
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "params": {
+          "type": "object"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "generated_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    }
+  }
+}

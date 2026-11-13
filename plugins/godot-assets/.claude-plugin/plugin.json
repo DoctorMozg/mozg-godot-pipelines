@@ -1,0 +1,16 @@
+{
+  "name": "godot-assets",
+  "version": "0.1.0",
+  "description": "Project asset registry for Godot: immutable versions, review events, provenance and a folded status",
+  "author": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "assets",
+    "review",
+    "provenance"
+  ]
+}

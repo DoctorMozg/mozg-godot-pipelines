@@ -18,7 +18,14 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "--disable-plugin-autoload -p xdist -ra --strict-config --strict-markers --import-mode=importlib -m 'not live_claude and not live_godot'"
-pythonpath = ["tools", "tests", "plugins/godot-core/src", "plugins/godot-core/tests"]
+pythonpath = [
+  "tools",
+  "tests",
+  "plugins/godot-core/src",
+  "plugins/godot-core/tests",
+  "plugins/godot-assets/src",
+  "plugins/godot-assets/tests",
+]
 # Each suite runs in its own process (see the Makefile), so a bare pytest runs the repo tests.
 testpaths = ["tests"]
 markers = [

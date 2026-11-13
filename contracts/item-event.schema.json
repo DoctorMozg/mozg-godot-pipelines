@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contract:item-event",
+  "title": "item-event",
+  "description": "One immutable note, review decision, status change or promotion about a registry item, at .../events/<id>.json. Status is folded from these, never stored.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "item",
+    "type",
+    "author",
+    "at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "item-event/1"
+    },
+    "id": {
+      "$ref": "#/$defs/ulid"
+    },
+    "item": {
+      "description": "The asset id, or KEY@locale for a string.",
+      "type": "string",
+      "minLength": 1
+    },
+    "version_id": {
+      "description": "The version the event is about; null for the item as a whole.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ulid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "type": {
+      "enum": [
+        "note",
+        "decision",
+        "status",
+        "promote"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "approve",
+        "retake",
+        "reject"
+      ]
+    },
+    "status": {
+      "enum": [
+        "final",
+        "deprecated"
+      ]
+    },
+    "promote": {
+      "type": "object",
+      "required": [
+        "res_path",
+        "godot_uid"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "res_path": {
+          "type": "string",
+          "pattern": "^res://"
+        },
+        "godot_uid": {
+          "description": "Null until Godot has imported the file.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "reply_to": {
+      "description": "The event this note answers.",
+      "$ref": "#/$defs/ulid"
+    },
+    "body": {
+      "description": "Markdown text of a note, or the reason of a decision.",
+      "type": "string"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    },
+    "at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "note"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "body"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "decision"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "decision",
+          "version_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "status"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "promote"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "promote",
+          "version_id"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "ulid": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    }
+  }
+}

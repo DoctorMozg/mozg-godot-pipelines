@@ -20,6 +20,18 @@
         "testing",
         "headless"
       ]
+    },
+    {
+      "name": "godot-assets",
+      "source": "./plugins/godot-assets",
+      "description": "Project asset registry for Godot: immutable versions, review events, provenance and a folded status",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "assets",
+        "review",
+        "provenance"
+      ]
     }
   ]
 }

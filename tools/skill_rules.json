@@ -13,5 +13,8 @@
       "<count>": "a finding count from the survey",
       "<file contents>": "the full text of a file to write"
     }
+  },
+  "godot-assets": {
+    "placeholders": {}
   }
 }

@@ -45,6 +45,7 @@ class SceneState:
     instanced: set[str] = field(default_factory=set)
     references: list[tuple[int, str, str]] = field(default_factory=list)
     node_paths: list[tuple[int, str, str]] = field(default_factory=list)
+    unseen_parents: list[tuple[int, str]] = field(default_factory=list)
 
     def add(self, line: int, rule: str, message: str) -> None:
         self.findings.append(Finding(self.path, line, rule, message))
@@ -79,6 +80,12 @@ class SceneLinter:
                 rule = "unknown-ext-id" if kind == "ExtResource" else "unknown-sub-id"
                 message = f'{kind}("{ref_id}") is not declared; the file fails to load'
                 state.add(number, rule, message)
+        for number, parent in state.unseen_parents:
+            if state.knows_node(parent):
+                message = f'parent "{parent}" is declared below its child; Godot leaks the child'
+                state.add(number, "child-before-parent", message)
+            else:
+                state.add(number, "unknown-node-path", f'parent "{parent}" names no node here')
         for number, role, node_path in state.node_paths:
             if not state.knows_node(node_path):
                 state.add(number, "unknown-node-path", f'{role} "{node_path}" names no node here')
@@ -135,7 +142,12 @@ class SceneLinter:
             node_path = "."
         else:
             node_path = name if parent == "." else f"{parent}/{name}"
-            state.node_paths.append((number, "parent", parent))
+            # A parent must come first; one seen only later in the file is out of order.
+            if not state.knows_node(parent):
+                state.unseen_parents.append((number, parent))
+        if node_path in state.nodes:
+            message = f'"{node_path}" is declared twice; a NodePath reaches only one of them'
+            state.add(number, "duplicate-node-name", message)
         state.nodes.add(node_path)
         if "instance" in attrs or "instance_placeholder" in attrs:
             state.instanced.add(node_path)

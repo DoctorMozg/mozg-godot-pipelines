@@ -66,7 +66,7 @@ The path of the scene or resource file, and the change to make. The project is t
 
 1. Check the edit, in this order:
 
-   - `godotkit lint --project P <absolute path of the file>`: undeclared and duplicate ids, missing files, stale and duplicate uids, parents and connections naming no node, embedded shaders. Paths resolve from the current folder, so pass the file's absolute path.
+   - `godotkit lint --project P <absolute path of the file>`: undeclared and duplicate ids, missing files, stale and duplicate uids, parents and connections naming no node, a child declared above its parent, two siblings with one name, embedded shaders. Paths resolve from the current folder, so pass the file's absolute path.
    - `godotkit check --project P`: every script and shader the scene uses loads.
    - `godotkit run --project P --scene res://<path> --frames 30 --log <log file>`: instantiates the scene. Expect `"ok": true` and `"warnings": 0`; a parent declared after its child counts one warning, and the dropped node leaks, which fails the run with `engine_error`. The log names the node.
 

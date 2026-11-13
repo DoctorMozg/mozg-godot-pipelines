@@ -94,6 +94,25 @@ class TestNodePaths:
     def test_path_to_no_node_is_reported(self, project: Path, body: str) -> None:
         assert _rules(project, _scene(body)) == ["unknown-node-path"]
 
+    def test_child_declared_before_its_parent_is_reported(self, project: Path) -> None:
+        body = (
+            '[node name="Child" type="Node" parent="Box"]\n'
+            '[node name="Box" type="Node" parent="."]\n'
+        )
+        assert _rules(project, _scene(body)) == ["child-before-parent"]
+
+    def test_duplicate_sibling_name_is_reported(self, project: Path) -> None:
+        body = '[node name="A" type="Node" parent="."]\n[node name="A" type="Node2D" parent="."]\n'
+        assert _rules(project, _scene(body)) == ["duplicate-node-name"]
+
+    def test_same_name_under_different_parents_passes(self, project: Path) -> None:
+        body = (
+            '[node name="A" type="Node" parent="."]\n'
+            '[node name="B" type="Node" parent="."]\n'
+            '[node name="A" type="Node" parent="B"]\n'
+        )
+        assert _rules(project, _scene(body)) == []
+
     def test_children_of_instanced_scene_are_trusted(self, project: Path) -> None:
         body = (
             '[node name="Hud" parent="." instance=ExtResource("1")]\n'

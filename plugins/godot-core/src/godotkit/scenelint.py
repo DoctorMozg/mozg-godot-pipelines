@@ -105,6 +105,9 @@ class SceneLinter:
             if attrs.get("id") in ids:
                 state.add(number, "duplicate-id", f'{kind} id "{attrs["id"]}" is declared twice')
             ids.add(attrs.get("id", ""))
+            if kind == "sub_resource" and attrs.get("type") == "Shader":
+                message = "shader embedded here; save it as a .gdshader file"
+                state.add(number, "embedded-shader", message)
             if kind == "ext_resource":
                 self._ext_target(state, number, attrs)
         elif kind == "node":

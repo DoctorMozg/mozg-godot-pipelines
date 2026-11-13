@@ -20,13 +20,14 @@ from godotkit.output import (
     emit,
 )
 from godotkit.scenelint import SCENE_SUFFIXES, ProjectIndex, SceneLinter
+from godotkit.shaderlint import SHADER_SUFFIXES, ShaderLinter
 from godotkit.strict import StrictProfile
 from godotkit.worktree import GitError, WorktreeManager
 
 
 def lint(args: argparse.Namespace) -> int:
     project = args.project.resolve()
-    suffixes = (".gd", *SCENE_SUFFIXES)
+    suffixes = (".gd", *SCENE_SUFFIXES, *SHADER_SUFFIXES)
     files: list[Path] = []
     for path in [path.resolve() for path in args.paths] or [project]:
         if not path.is_relative_to(project) or not path.exists():
@@ -40,7 +41,9 @@ def lint(args: argparse.Namespace) -> int:
         files += project_sources(path, suffixes) if path.is_dir() else [path]
     scripts = [file for file in files if file.suffix == ".gd"]
     scenes = [file for file in files if file.suffix in SCENE_SUFFIXES]
+    shaders = [file for file in files if file.suffix in SHADER_SUFFIXES]
     findings = ScriptLinter().lint_files(project, scripts)
+    findings += ShaderLinter().lint_files(project, shaders)
     if scenes:
         findings += SceneLinter(ProjectIndex.scan(project)).lint_files(project, scenes)
     external = ExternalLinters()

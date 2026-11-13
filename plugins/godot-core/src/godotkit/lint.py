@@ -24,6 +24,10 @@ _UP_SEGMENT = re.compile(r"(?:^|/)\.\.(?:/|$)")
 _STRING_SIGNAL = re.compile(r"""\b(?P<call>connect|emit_signal)\s*\(\s*&?["']""")
 _FREE = re.compile(r"(?<![\w])free\s*\(\s*\)")
 _CREATE_TIMER = re.compile(r"\bcreate_timer\s*\(")
+# A name with a `material` or `mat` segment: material, material_override, base_mat, get_material().
+_MATERIAL_DUPLICATE = re.compile(
+    r"\b(?:[a-z0-9]+_)*(?:material|mat)(?:_[a-z0-9]+)*(?:\(\s*\))?\s*\.\s*duplicate\s*\(", re.I
+)
 _ANNOTATION = re.compile(r"@(?P<name>\w+)(?:\([^()]*\))?\s*")
 
 # gdlint's class-definitions-order (gdtoolkit 4.5.0, docs/research/19, 2026-11-13).
@@ -186,6 +190,10 @@ def _statement_rules(statement: Statement) -> Iterator[tuple[str, int, str]]:
         if not statement.commented(statement.line_at(match.start())):
             message = "free() without a comment; use queue_free() or say why"
             yield "bare-free", match.start(), message
+    for match in _MATERIAL_DUPLICATE.finditer(statement.bare):
+        if not statement.commented(statement.line_at(match.start())):
+            message = "material duplicate() per spawn; use an instance uniform or say why"
+            yield "material-duplicate", match.start(), message
     for match in _CREATE_TIMER.finditer(statement.bare):
         args = _call_args(statement.bare, match.end())
         if len(args) < 2 or args[1] != "false":

@@ -72,6 +72,10 @@ class TestIdsAndTargets:
         scene = HEADER + '[ext_resource type="Script" path="res://gone.gd" id="1"]\n\n' + ROOT
         assert _rules(project, scene) == ["missing-resource"]
 
+    def test_embedded_shader_is_reported(self, project: Path) -> None:
+        body = '[sub_resource type="Shader" id="s"]\ncode = "shader_type canvas_item;"\n'
+        assert _rules(project, _scene(body)) == ["embedded-shader"]
+
     def test_header_uid_taken_by_another_file(self, project: Path) -> None:
         (project / "other.tscn").write_text(HEADER + '[node name="Other" type="Node"]\n')
         assert _rules(project, _scene()) == ["duplicate-uid"]

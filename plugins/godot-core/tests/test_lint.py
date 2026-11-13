@@ -32,6 +32,8 @@ class TestStatementRules:
             ("\tchild.free()\n", "bare-free"),
             ("\tawait get_tree().create_timer(1.0).timeout\n", "timer-ignores-pause"),
             ("\tawait get_tree().create_timer(1.0, true).timeout\n", "timer-ignores-pause"),
+            ("\tmesh.material_override = base_mat.duplicate()\n", "material-duplicate"),
+            ("\tvar m: Material = get_material().duplicate(true)\n", "material-duplicate"),
         ],
     )
     def test_violation_is_reported(self, body: str, rule: str) -> None:
@@ -49,6 +51,8 @@ class TestStatementRules:
             "\t# Freed now: the pool reuses its name this frame.\n\tchild.free()\n",
             "\tchild.free()  # freed now, before the reload\n",
             "\tawait get_tree().create_timer(maxf(delay, 0.1), false).timeout\n",
+            "\tvar copy: Dictionary = format.duplicate()\n",
+            "\t# One copy for the whole board, made once.\n\tshared = material.duplicate()\n",
         ],
     )
     def test_clean_code_passes(self, body: str) -> None:

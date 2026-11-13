@@ -20,7 +20,7 @@ from pathlib import Path
 from assetkit.contracts import ContractError, Json
 from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
-from assetkit.hub import build_static
+from assetkit.hub import HubControl, HubError, build_static
 from assetkit.index import RegistryIndex
 from assetkit.promote import Promoter, PromoteRequest
 from assetkit.prune import STORE_ENV, BlobStore, Pruner, default_store
@@ -118,6 +118,11 @@ def _parser() -> argparse.ArgumentParser:
     hub_actions = hub.add_subparsers(dest="action", required=True)
     build = hub_actions.add_parser("build", parents=[shared], help="write a read-only static page")
     build.add_argument("--out", type=Path, help="folder; default .cache/mozg/hub")
+    serve = hub_actions.add_parser(
+        "serve", parents=[shared], help="start the hub, or name the one already running"
+    )
+    serve.add_argument("--foreground", action="store_true", help="serve from this process")
+    hub_actions.add_parser("stop", parents=[shared], help="stop this project's hub")
 
     status = commands.add_parser("status", parents=[shared], help="folded status from the index")
     status.add_argument("asset", nargs="?")
@@ -235,8 +240,16 @@ class Commands:
         return Pruner(self._registry, BlobStore(args.store or default_store(os.environ)))
 
     def hub(self, args: argparse.Namespace) -> dict[str, Json]:
-        page = build_static(self._registry, args.out)
-        return {"page": str(page)}
+        control = HubControl(self._registry)
+        if args.action == "build":
+            return {"page": str(build_static(self._registry, args.out))}
+        if args.action == "stop":
+            return {"stopped": control.stop()}
+        if args.foreground:
+            control.serve(self._author)
+            return {"stopped": True}
+        info, reused = control.start(self._author)
+        return {**info.as_json(), "reused": reused}
 
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:
@@ -258,6 +271,8 @@ def main(argv: Sequence[str]) -> int:
             raise Refused(f"not a Godot project (no project.godot): {project}")
         commands = Commands(Registry(project), args.author or _default_author(project))
         payload = getattr(commands, args.command.replace("-", "_"))(args)
+    except HubError as error:
+        return _emit({"cmd": name, "ok": False, "reason": "hub", "detail": str(error)}, EXIT_FAILED)
     except GodotMissing as error:
         return _emit(
             {"cmd": name, "ok": False, "reason": "no_godot", "detail": str(error)}, EXIT_SETUP

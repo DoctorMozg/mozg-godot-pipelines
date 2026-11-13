@@ -135,6 +135,9 @@ class Registry:
             raise RegistryError(f"asset {asset!r} exists in several families: {found}")
         return found[0].parent
 
+    def asset_records(self, asset: str) -> AssetRecords:
+        return self._records(self.asset_dir(asset))
+
     def records(self) -> list[AssetRecords]:
         return [
             self._records(path.parent) for path in sorted(self.root.glob("assets/*/*/asset.json"))

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import itertools
+import json
 from pathlib import Path
+from typing import Any
 
 import pytest
+from assetkit import cli
 from assetkit.ids import UlidSource
 from assetkit.registry import Registry
+from assetkit_rig import CliResult, CliRunner
 
 START_MS = 1_763_100_000_000
 
@@ -31,3 +35,20 @@ def project(tmp_path: Path) -> Path:
 @pytest.fixture
 def registry(project: Path, ulids: UlidSource) -> Registry:
     return Registry(project, ulids, clock=lambda: "2026-11-14T10:00:00Z")
+
+
+@pytest.fixture
+def run_cli(project: Path, capsys: pytest.CaptureFixture[str]) -> CliRunner:
+    """Runs assetkit in-process on the fixture project as author 'tester'."""
+
+    def run(*args: str) -> CliResult:
+        command = [args[0], *args[1:]]
+        # Options follow the subcommand; "version add" takes them after "add".
+        at = 2 if args[0] == "version" else 1
+        command[at:at] = ["--project", str(project), "--author", "tester"]
+        code = cli.main(command)
+        # Any: the JSON line the command printed.
+        payload: dict[str, Any] = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        return code, payload
+
+    return run

@@ -1,0 +1,234 @@
+"""assetkit command line: every command prints one JSON line on stdout.
+
+Exit codes: 0 ok, 2 setup problem (unreadable contract), 3 refused input.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import subprocess
+import sys
+from collections.abc import Sequence
+from contextlib import closing
+from pathlib import Path
+
+from assetkit.contracts import ContractError, Json
+from assetkit.index import RegistryIndex
+from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
+from assetkit.status import DECISIONS, fold, next_status
+
+EXIT_OK, EXIT_SETUP, EXIT_REFUSED = 0, 2, 3
+ORIGINS = ("human", "generated", "licensed", "procedural")
+log = logging.getLogger(__name__)
+
+
+class Refused(Exception):
+    """The registry state does not allow the request; the message says why."""
+
+
+def _parser() -> argparse.ArgumentParser:
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--project", type=Path, default=Path.cwd())
+    shared.add_argument("--author", help="who writes the record; default: git user.name")
+    parser = argparse.ArgumentParser(prog="assetkit", description=__doc__)
+    parser.add_argument("-v", "--verbose", action="store_true", help="log decisions to stderr")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    new = commands.add_parser("new", parents=[shared], help="register a new asset")
+    new.add_argument("--family", required=True, help="folder under registry/assets/")
+    new.add_argument("--kind", required=True)
+    new.add_argument("--title", required=True)
+    new.add_argument("--tag", action="append", default=[])
+    new.add_argument("--owner")
+    new.add_argument("--ship", action="store_true", help="the asset ships in the game")
+    new.add_argument("--license", help="SPDX id new versions start from")
+
+    version = commands.add_parser("version", help="versions of an asset")
+    add = version.add_subparsers(dest="action", required=True).add_parser(
+        "add", parents=[shared], help="record a new immutable version"
+    )
+    add.add_argument("asset")
+    add.add_argument(
+        "--file",
+        action="append",
+        required=True,
+        help="ROLE=PATH or PATH (role main); PATH is relative to the project",
+    )
+    add.add_argument("--origin", required=True, choices=ORIGINS)
+    add.add_argument("--license", help="SPDX id; default: the asset's default_license")
+    add.add_argument("--parent", help="the version this one was made from")
+    for name in ("creator", "source-url", "attribution", "digital-source-type"):
+        add.add_argument(f"--{name}")
+    add.add_argument("--human-edited", action="store_true")
+    for name in ("provider", "model", "prompt", "job-id"):
+        add.add_argument(f"--{name}", help="generation detail" if name != "prompt" else None)
+    add.add_argument("--seed", type=int)
+
+    note = commands.add_parser("note", parents=[shared], help="add a note to an asset")
+    note.add_argument("asset")
+    note.add_argument("--body", required=True)
+    note.add_argument("--version")
+    note.add_argument("--reply-to", help="the event id this note answers")
+
+    decide = commands.add_parser("decide", parents=[shared], help="review the current version")
+    decide.add_argument("asset")
+    decide.add_argument("decision", choices=list(DECISIONS))
+    decide.add_argument("--version", help="must be the current version; default: it")
+    decide.add_argument("--body", help="the reason, shown to whoever makes the retake")
+
+    status = commands.add_parser("status", parents=[shared], help="folded status from the index")
+    status.add_argument("asset", nargs="?")
+    status.add_argument("--set", choices=("final", "deprecated"), help="write a status event")
+    status.add_argument("--body")
+    return parser
+
+
+class Commands:
+    def __init__(self, registry: Registry, author: str) -> None:
+        self._registry = registry
+        self._author = author
+
+    def new(self, args: argparse.Namespace) -> dict[str, Json]:
+        spec = AssetSpec(
+            args.family, args.kind, args.title, tuple(args.tag), args.owner, args.ship, args.license
+        )
+        return {"asset": self._registry.new_asset(spec)}
+
+    def version(self, args: argparse.Namespace) -> dict[str, Json]:
+        asset = self._registry.asset_records(args.asset).asset
+        license_id = args.license or asset.get("default_license")
+        if not license_id:
+            raise Refused(f"{args.asset} has no default_license; pass --license")
+        provenance = {
+            "origin": args.origin,
+            "license": license_id,
+            "human_edited": args.human_edited,
+        }
+        for name in ("creator", "source_url", "attribution", "digital_source_type"):
+            if getattr(args, name):
+                provenance[name] = getattr(args, name)
+        generation = {
+            name: getattr(args, name)
+            for name in ("provider", "model", "prompt", "job_id", "seed")
+            if getattr(args, name) is not None
+        }
+        files = tuple(_role_and_path(pair) for pair in args.file)
+        spec = VersionSpec(files, provenance, self._author, generation or None, args.parent)
+        return {"version": self._registry.add_version(args.asset, spec)}
+
+    def note(self, args: argparse.Namespace) -> dict[str, Json]:
+        records = self._registry.asset_records(args.asset)
+        if args.version and args.version not in {v["id"] for v in records.versions}:
+            raise Refused(f"{args.asset} has no version {args.version}")
+        if args.reply_to and args.reply_to not in {e["id"] for e in records.events}:
+            raise Refused(f"{args.asset} has no event {args.reply_to} to reply to")
+        fields: dict[str, Json] = {"type": "note", "body": args.body, "author": self._author}
+        fields |= {
+            k: v for k, v in (("version_id", args.version), ("reply_to", args.reply_to)) if v
+        }
+        return {"event": self._registry.add_event(args.asset, fields)}
+
+    def decide(self, args: argparse.Namespace) -> dict[str, Json]:
+        records = self._registry.asset_records(args.asset)
+        folded = fold(records.versions, records.events)
+        version = args.version or folded.current_version
+        if version is None:
+            raise Refused(f"{args.asset} has no version to decide on")
+        if version != folded.current_version:
+            raise Refused(f"{version} is not the current version {folded.current_version}")
+        if next_status(folded.status, args.decision) is None:
+            raise Refused(f"{args.asset} is {folded.status}, which takes no {args.decision}")
+        fields: dict[str, Json] = {
+            "type": "decision",
+            "decision": args.decision,
+            "version_id": version,
+            "author": self._author,
+        }
+        if args.body:
+            fields["body"] = args.body
+        return {"event": self._registry.add_event(args.asset, fields)}
+
+    def status(self, args: argparse.Namespace) -> dict[str, Json]:
+        written = None
+        if args.set:
+            written = self._set_status(args)
+        index = RegistryIndex(self._registry)
+        state = index.refresh()
+        with closing(index.connect()) as connection:
+            query = "SELECT * FROM assets ORDER BY family, id"
+            params: tuple[str, ...] = ()
+            if args.asset:
+                self._registry.asset_dir(args.asset)
+                query, params = "SELECT * FROM assets WHERE id = ?", (args.asset,)
+            assets = [dict(row) for row in connection.execute(query, params)]
+            payload: dict[str, Json] = {"index_rebuilt": state.rebuilt, "assets": assets}
+            if args.asset:
+                rows = connection.execute(
+                    "SELECT * FROM events WHERE asset_id = ? ORDER BY id", params
+                )
+                payload["events"] = [dict(row) for row in rows]
+        if written is not None:
+            payload["event"] = written
+        return payload
+
+    def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
+        if not args.asset:
+            raise Refused("--set needs an asset")
+        records = self._registry.asset_records(args.asset)
+        folded = fold(records.versions, records.events)
+        if next_status(folded.status, args.set) is None:
+            raise Refused(f"{args.asset} is {folded.status}, which cannot become {args.set}")
+        fields: dict[str, Json] = {"type": "status", "status": args.set, "author": self._author}
+        if args.body:
+            fields["body"] = args.body
+        return self._registry.add_event(args.asset, fields)
+
+
+def main(argv: Sequence[str]) -> int:
+    args = _parser().parse_args(list(argv))
+    logging.basicConfig(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        format="assetkit: %(message)s",
+        stream=sys.stderr,
+    )
+    name = "version add" if args.command == "version" else args.command
+    try:
+        project = args.project.resolve()
+        if not (project / "project.godot").is_file():
+            raise Refused(f"not a Godot project (no project.godot): {project}")
+        commands = Commands(Registry(project), args.author or _default_author(project))
+        payload = getattr(commands, args.command)(args)
+    except ContractError as error:
+        return _emit(
+            {"cmd": name, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP
+        )
+    except (Refused, RegistryError) as error:
+        return _emit(
+            {"cmd": name, "ok": False, "reason": "refused", "detail": str(error)}, EXIT_REFUSED
+        )
+    return _emit({"cmd": name, "ok": True, **payload}, EXIT_OK)
+
+
+def _emit(payload: dict[str, Json], code: int) -> int:
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return code
+
+
+def _role_and_path(pair: str) -> tuple[str, Path]:
+    role, _, path = pair.rpartition("=")
+    return role or "main", Path(path)
+
+
+def _default_author(project: Path) -> str:
+    found = subprocess.run(
+        ["git", "-C", str(project), "config", "user.name"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    name = found.stdout.strip() or os.environ.get("USER", "")
+    log.info("author from git or USER: %r", name)
+    return name or "unknown"

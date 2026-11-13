@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from godotkit.gates import GD_DIR
-from godotkit.lint import ScriptLinter, project_scripts
+from godotkit.lint import ScriptLinter, project_sources
 from godotkit_rig import HEALTHY_SCRIPT, CliRunner, FakeGodotFactory, ProjectFactory
 
 
@@ -122,11 +122,13 @@ class TestProjectScripts:
             (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
             (tmp_path / relative).write_text("extends Node\n")
         (tmp_path / "raw" / ".gdignore").write_text("")
-        found = [path.relative_to(tmp_path).as_posix() for path in project_scripts(tmp_path)]
+        found = [
+            path.relative_to(tmp_path).as_posix() for path in project_sources(tmp_path, (".gd",))
+        ]
         assert found == ["a.gd", "src/b.gd"]
 
     def test_godotkit_probe_scripts_follow_the_rules(self) -> None:
-        assert ScriptLinter().lint_files(GD_DIR, project_scripts(GD_DIR)) == []
+        assert ScriptLinter().lint_files(GD_DIR, project_sources(GD_DIR, (".gd",))) == []
 
 
 class TestLintCli:

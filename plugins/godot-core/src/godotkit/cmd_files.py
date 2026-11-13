@@ -8,7 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from godotkit.external import ExternalLinters
-from godotkit.lint import ScriptLinter, project_scripts
+from godotkit.lint import ScriptLinter, project_sources
 from godotkit.output import (
     EXIT_FAILED,
     EXIT_OK,
@@ -17,22 +17,32 @@ from godotkit.output import (
     MAX_ISSUES_SHOWN,
     emit,
 )
+from godotkit.scenelint import SCENE_SUFFIXES, ProjectIndex, SceneLinter
 from godotkit.strict import StrictProfile
 from godotkit.worktree import GitError, WorktreeManager
 
 
 def lint(args: argparse.Namespace) -> int:
     project = args.project.resolve()
+    suffixes = (".gd", *SCENE_SUFFIXES)
     files: list[Path] = []
     for path in [path.resolve() for path in args.paths] or [project]:
         if not path.is_relative_to(project) or not path.exists():
             detail = f"{path} is not an existing path inside {project}"
             emit({"cmd": "lint", "ok": False, "reason": "refused", "detail": detail})
             return EXIT_REFUSED
-        files += project_scripts(path) if path.is_dir() else [path]
-    findings = ScriptLinter().lint_files(project, files)
+        if path.is_file() and path.suffix not in suffixes:
+            detail = f"{path} is not a {', '.join(suffixes)} file"
+            emit({"cmd": "lint", "ok": False, "reason": "refused", "detail": detail})
+            return EXIT_REFUSED
+        files += project_sources(path, suffixes) if path.is_dir() else [path]
+    scripts = [file for file in files if file.suffix == ".gd"]
+    scenes = [file for file in files if file.suffix in SCENE_SUFFIXES]
+    findings = ScriptLinter().lint_files(project, scripts)
+    if scenes:
+        findings += SceneLinter(ProjectIndex.scan(project)).lint_files(project, scenes)
     external = ExternalLinters()
-    relative = [file.relative_to(project).as_posix() for file in files]
+    relative = [file.relative_to(project).as_posix() for file in scripts]
     try:
         findings += external.lint(project, relative)
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -89,7 +89,7 @@ class ProjectScanner:
             for path in self._files
             if Path(path).suffix in SCANNED_SUFFIXES or path == PROJECT_FILE
         }
-        uids = self._uid_table(texts)
+        uids = self._uid_table()
         classes = {
             name: path
             for path, text in texts.items()
@@ -115,22 +115,8 @@ class ProjectScanner:
         log.info("dependency graph: %d files, %d may load anything", len(edges), len(wildcard))
         return DependencyGraph(edges, frozenset(wildcard), globals_)
 
-    def _uid_table(self, texts: Mapping[str, str]) -> dict[str, str]:
-        table: dict[str, str] = {}
-        for path in self._files:
-            if path.endswith(".uid"):
-                uid = (self._project / path).read_text(encoding="utf-8").strip()
-                table[uid] = path.removesuffix(".uid")
-            elif path.endswith(".import"):
-                text = (self._project / path).read_text(encoding="utf-8", errors="replace")
-                for match in _UID_DECLARATION.finditer(text):
-                    table[match[1] or match[2]] = path.removesuffix(".import")
-        for path, text in texts.items():
-            if path.endswith((".tscn", ".tres")):
-                header = _UID_DECLARATION.search(text)
-                if header:
-                    table[header[1] or header[2]] = path
-        return table
+    def _uid_table(self) -> dict[str, str]:
+        return dict(uid_declarations(self._project, self._files))
 
     def _literal_targets(self, text: str) -> tuple[set[str], bool]:
         targets: set[str] = set()
@@ -162,6 +148,30 @@ class ProjectScanner:
     def _main_scene(self, project_text: str) -> set[str]:
         match = re.search(r'^run/main_scene="res://([^"]+)"', project_text, re.M)
         return {match[1]} if match and match[1] in self._files else set()
+
+
+def uid_declarations(project: Path, files: Iterable[str]) -> Iterator[tuple[str, str]]:
+    """(uid, path) from .uid and .import sidecars, then from scene and resource headers."""
+    scenes: list[str] = []
+    for path in files:
+        if path.endswith(".uid"):
+            uid = (project / path).read_text(encoding="utf-8").strip()
+            yield uid, path.removesuffix(".uid")
+        elif path.endswith(".import"):
+            text = (project / path).read_text(encoding="utf-8", errors="replace")
+            for match in _UID_DECLARATION.finditer(text):
+                yield match[1] or match[2], path.removesuffix(".import")
+        elif path.endswith((".tscn", ".tres")):
+            scenes.append(path)
+    for path in scenes:
+        with (project / path).open(encoding="utf-8", errors="replace") as handle:
+            header = _UID_DECLARATION.search(handle.readline())
+        if header:
+            yield header[1] or header[2], path
+
+
+def project_files(project: Path) -> list[str]:
+    return sorted(_project_files(project))
 
 
 def normalize_changed(paths: Iterable[str]) -> frozenset[str]:

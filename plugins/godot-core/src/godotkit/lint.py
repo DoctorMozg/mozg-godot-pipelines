@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -11,7 +12,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 IGNORE_MARK = re.compile(r"godotkit:ignore=(?P<rules>[\w,-]+)")
-SKIPPED_DIRS = frozenset({"addons", ".godot"})
+SKIPPED_DIRS = frozenset({"addons"})
 
 _STRING = re.compile(r"""(?P<q>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')""")
 _GET_PARENT = re.compile(r"\bget_parent\s*\(")
@@ -159,18 +160,16 @@ class ScriptLinter:
         return findings
 
 
-def project_scripts(project: Path) -> list[Path]:
-    """Every .gd under the project, minus addons, .godot and folders marked with .gdignore."""
+def project_sources(project: Path, suffixes: tuple[str, ...]) -> list[Path]:
+    """Files with these suffixes, minus addons, hidden folders and folders with a .gdignore."""
     found: list[Path] = []
-    for path in sorted(project.rglob("*.gd")):
-        parts = path.relative_to(project).parts[:-1]
-        if any(part in SKIPPED_DIRS or part.startswith(".") for part in parts):
+    for root, dirs, files in os.walk(project):
+        if ".gdignore" in files:
+            dirs.clear()
             continue
-        folders = (project.joinpath(*parts[:end]) for end in range(len(parts) + 1))
-        if any((folder / ".gdignore").exists() for folder in folders):
-            continue
-        found.append(path)
-    return found
+        dirs[:] = [name for name in dirs if name not in SKIPPED_DIRS and not name.startswith(".")]
+        found += [Path(root) / name for name in files if Path(name).suffix in suffixes]
+    return sorted(found)
 
 
 def _statement_rules(statement: Statement) -> Iterator[tuple[str, int, str]]:

@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from godotkit.depgraph import project_files, uid_declarations
+from godotkit.depgraph import DiskSource, project_files, uid_declarations
 from godotkit.lint import Finding
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class ProjectIndex:
     def scan(cls, project: Path) -> ProjectIndex:
         files = project_files(project)
         uids: dict[str, list[str]] = {}
-        for uid, path in uid_declarations(project, files):
+        for uid, path in uid_declarations(DiskSource(project), files):
             if path not in uids.setdefault(uid, []):
                 uids[uid].append(path)
         return cls(frozenset(files), uids)

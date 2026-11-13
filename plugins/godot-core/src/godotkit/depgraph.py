@@ -8,9 +8,13 @@ from __future__ import annotations
 import logging
 import os
 import re
+import subprocess
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
+
+from godotkit.worktree import GitError, git
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +59,16 @@ class DependencyGraph:
 
     @classmethod
     def scan(cls, project: Path) -> DependencyGraph:
-        return ProjectScanner(project).scan()
+        return ProjectScanner(DiskSource(project)).scan()
+
+    @classmethod
+    def scan_working_tree(cls, project: Path) -> DependencyGraph:
+        return ProjectScanner(WorkingTreeSource(project)).scan()
+
+    @classmethod
+    def scan_commit(cls, project: Path, ref: str) -> DependencyGraph:
+        """The graph as it was at `ref`, read from git without a checkout."""
+        return ProjectScanner(GitSource(project, ref)).scan()
 
     def edges(self) -> Mapping[str, frozenset[str]]:
         return self._edges
@@ -74,12 +87,81 @@ class DependencyGraph:
         return Reach(frozenset(seen), everything=False)
 
 
-class ProjectScanner:
+class FileSource(Protocol):
+    """Project-relative POSIX paths and their text, from disk or from a commit."""
+
+    def files(self) -> list[str]: ...
+
+    def read(self, paths: Iterable[str]) -> dict[str, str]: ...
+
+
+class DiskSource:
     def __init__(self, project: Path) -> None:
-        if not (project / PROJECT_FILE).is_file():
-            raise ValueError(f"not a Godot project (no {PROJECT_FILE}): {project}")
         self._project = project
-        self._files = frozenset(_project_files(project))
+
+    def files(self) -> list[str]:
+        return sorted(_project_files(self._project))
+
+    def read(self, paths: Iterable[str]) -> dict[str, str]:
+        return {
+            path: (self._project / path).read_text(encoding="utf-8", errors="replace")
+            for path in paths
+        }
+
+
+class WorkingTreeSource(DiskSource):
+    """The files a commit of the working tree would hold: tracked and untracked, not ignored.
+
+    Compared with a GitSource, both sides then count the same kind of files.
+    """
+
+    def files(self) -> list[str]:
+        listed = git(self._project, "ls-files", "-z", "-co", "--exclude-standard", "--", ".")
+        return _visible(
+            path for path in listed.split("\0") if path and (self._project / path).is_file()
+        )
+
+
+class GitSource:
+    """The project as committed at `ref`: one ls-tree and one cat-file batch, no checkout."""
+
+    def __init__(self, project: Path, ref: str) -> None:
+        self._project = project
+        self._ref = ref
+
+    def files(self) -> list[str]:
+        listed = git(self._project, "ls-tree", "-r", "-z", "--name-only", self._ref, "--", ".")
+        return _visible(path for path in listed.split("\0") if path)
+
+    def read(self, paths: Iterable[str]) -> dict[str, str]:
+        wanted = list(paths)
+        request = "".join(f"{self._ref}:./{path}\n" for path in wanted).encode()
+        completed = subprocess.run(
+            ["git", "-C", str(self._project), "cat-file", "--batch"],
+            input=request,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise GitError(f"git cat-file failed in {self._project}: {completed.stderr!r}")
+        data, position, texts = completed.stdout, 0, {}
+        for path in wanted:
+            end = data.index(b"\n", position)
+            header = data[position:end].split()
+            if header[-1] == b"missing":
+                raise GitError(f"{path} is missing at {self._ref}")
+            size = int(header[2])
+            texts[path] = data[end + 1 : end + 1 + size].decode("utf-8", errors="replace")
+            position = end + 2 + size
+        return texts
+
+
+class ProjectScanner:
+    def __init__(self, source: FileSource) -> None:
+        self._source = source
+        self._files = frozenset(source.files())
+        if PROJECT_FILE not in self._files:
+            raise ValueError(f"not a Godot project (no {PROJECT_FILE}): {source}")
         self._dirs = frozenset(
             "" if parent == Path(".") else parent.as_posix()
             for f in self._files
@@ -87,11 +169,11 @@ class ProjectScanner:
         )
 
     def scan(self) -> DependencyGraph:
-        texts = {
-            path: (self._project / path).read_text(encoding="utf-8", errors="replace")
-            for path in self._files
+        texts = self._source.read(
+            path
+            for path in sorted(self._files)
             if Path(path).suffix in SCANNED_SUFFIXES or path == PROJECT_FILE
-        }
+        )
         uids = self._uid_table()
         classes = {
             name: path
@@ -119,7 +201,7 @@ class ProjectScanner:
         return DependencyGraph(edges, frozenset(wildcard), globals_)
 
     def _uid_table(self) -> dict[str, str]:
-        return dict(uid_declarations(self._project, self._files))
+        return dict(uid_declarations(self._source, sorted(self._files)))
 
     def _literal_targets(self, text: str) -> tuple[set[str], bool]:
         targets: set[str] = set()
@@ -153,24 +235,23 @@ class ProjectScanner:
         return {match[1]} if match and match[1] in self._files else set()
 
 
-def uid_declarations(project: Path, files: Iterable[str]) -> Iterator[tuple[str, str]]:
+def uid_declarations(source: FileSource, files: Iterable[str]) -> Iterator[tuple[str, str]]:
     """(uid, path) from .uid and .import sidecars, then from scene and resource headers."""
-    scenes: list[str] = []
+    files = list(files)
+    texts = source.read(
+        path for path in files if path.endswith((".uid", ".import", ".tscn", ".tres"))
+    )
     for path in files:
         if path.endswith(".uid"):
-            uid = (project / path).read_text(encoding="utf-8").strip()
-            yield uid, path.removesuffix(".uid")
+            yield texts[path].strip(), path.removesuffix(".uid")
         elif path.endswith(".import"):
-            text = (project / path).read_text(encoding="utf-8", errors="replace")
-            for match in _UID_DECLARATION.finditer(text):
+            for match in _UID_DECLARATION.finditer(texts[path]):
                 yield match[1] or match[2], path.removesuffix(".import")
-        elif path.endswith((".tscn", ".tres")):
-            scenes.append(path)
-    for path in scenes:
-        with (project / path).open(encoding="utf-8", errors="replace") as handle:
-            header = _UID_DECLARATION.search(handle.readline())
-        if header:
-            yield header[1] or header[2], path
+    for path in files:
+        if path.endswith((".tscn", ".tres")):
+            header = _UID_DECLARATION.search(texts[path].split("\n", 1)[0])
+            if header:
+                yield header[1] or header[2], path
 
 
 def project_files(project: Path) -> list[str]:
@@ -185,6 +266,22 @@ def normalize_changed(paths: Iterable[str]) -> frozenset[str]:
             path = path.removesuffix(suffix)
         normalized.add(path)
     return frozenset(normalized)
+
+
+def _visible(paths: Iterable[str]) -> list[str]:
+    """Drops files in hidden folders and under a .gdignore, as Godot does."""
+    paths = list(paths)
+    ignored = {
+        path.rsplit("/", 1)[0] if "/" in path else ""
+        for path in paths
+        if path.rsplit("/", 1)[-1] == ".gdignore"
+    }
+    return sorted(
+        path
+        for path in paths
+        if not any(part.startswith(".") for part in path.split("/")[:-1])
+        and not any(folder == "" or path.startswith(folder + "/") for folder in ignored)
+    )
 
 
 def _project_files(project: Path) -> Iterable[str]:

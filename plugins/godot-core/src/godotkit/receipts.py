@@ -40,6 +40,7 @@ class Receipt:
     head: str
     tree: str
     steps: tuple[Step, ...]
+    reach: dict[str, object] | None = None
 
     @property
     def ok(self) -> bool:

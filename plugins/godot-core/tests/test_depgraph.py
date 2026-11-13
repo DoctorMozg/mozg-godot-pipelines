@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
 from godotkit.depgraph import DependencyGraph, normalize_changed
-from godotkit_rig import PROJECT_GODOT
+from godotkit_rig import GIT_ENV, PROJECT_GODOT
 
 GraphFactory = Callable[[Mapping[str, str]], DependencyGraph]
 AUTOLOAD = '\n[autoload]\n\nBus="*res://autoload/bus.gd"\n'
@@ -114,6 +115,29 @@ class TestGlobals:
             }
         ).reach("t.gd")
         assert "registry/a.json" not in reach.files
+
+
+class TestCommittedGraph:
+    def test_commit_graph_matches_disk_and_ignores_later_edits(
+        self, graph: GraphFactory, tmp_path: Path
+    ) -> None:
+        on_disk = graph(
+            {
+                "t.gd": 'const A = preload("res://a.gd")\n',
+                "a.gd": "extends Node\n",
+                "a.gd.uid": "uid://aaa\n",
+                "u.gd": 'const A = preload("uid://aaa")\n',
+                "skip/.gdignore": "",
+                "skip/x.gd": "extends Node\n",
+                ".hidden/y.gd": "extends Node\n",
+            }
+        )
+        for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "c"]):
+            subprocess.run(["git", "-C", str(tmp_path), *args], check=True, env=GIT_ENV)
+        (tmp_path / "a.gd").write_text('const T = preload("res://t.gd")\n')
+        committed = DependencyGraph.scan_commit(tmp_path, "HEAD")
+        assert committed.edges() == on_disk.edges()
+        assert DependencyGraph.scan_working_tree(tmp_path).edges()["a.gd"] == frozenset({"t.gd"})
 
 
 def test_sidecar_changes_map_to_their_source() -> None:

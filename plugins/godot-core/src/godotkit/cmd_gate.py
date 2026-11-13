@@ -16,7 +16,7 @@ from godotkit.worktree import GitError
 def gate(args: argparse.Namespace, runner: GodotRunner) -> int:
     project = args.project.resolve()
     try:
-        receipt = Gate(runner, GateRequest(project, args.timeout, args.jobs)).run()
+        receipt = Gate(runner, GateRequest(project, args.timeout, args.jobs, args.base)).run()
     except (ValueError, GitError) as error:
         emit({"cmd": "gate", "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
@@ -33,6 +33,7 @@ def gate(args: argparse.Namespace, runner: GodotRunner) -> int:
             "failed": failed,
             "receipt": str(path),
             "tree": receipt.tree,
+            "reach": receipt.reach,
             "steps": [asdict(step) for step in receipt.steps],
         }
     )

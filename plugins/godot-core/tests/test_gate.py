@@ -93,6 +93,28 @@ class TestGateCli:
         assert isinstance(steps, list)
         assert (code, steps[-1]["status"], steps[-1]["detail"]["checks"]) == (0, "pass", 3)
 
+    def test_new_cross_layer_edge_raises_reach_against_base(
+        self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        files = {
+            "tests/a_test.gd": 'extends SceneTree\nconst P = preload("res://game/player.gd")\n',
+            "game/player.gd": "extends Node\n",
+            "ui/hud.gd": 'extends Control\nconst M = preload("res://ui/menu.gd")\n',
+            "ui/menu.gd": "extends Control\n",
+        }
+        for name, text in files.items():
+            (git_project / name).parent.mkdir(exist_ok=True)
+            (git_project / name).write_text(text)
+        for args in (["add", "-A"], ["commit", "-q", "-m", "layers"]):
+            subprocess.run(["git", "-C", str(git_project), *args], check=True, env=GIT_ENV)
+        player = git_project / "game" / "player.gd"
+        player.write_text('extends Node\nconst Hud = preload("res://ui/hud.gd")\n')
+        godot = fake_godot(PARSE_OK + "1 checks, 0 failures\n")
+        _, payload = run_cli(["gate", "--project", str(git_project)], godot)
+        reach = payload["reach"]
+        assert isinstance(reach, dict)
+        assert (reach["base"], reach["change"]["max"]) == ("HEAD", 2)
+
     def test_files_changed_by_import_fail_the_gate(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
     ) -> None:

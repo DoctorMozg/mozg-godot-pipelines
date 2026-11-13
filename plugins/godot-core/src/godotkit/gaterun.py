@@ -11,10 +11,12 @@ from pathlib import Path
 from godotkit.arch import CONFIG_FILE
 from godotkit.baseline import Baseline
 from godotkit.cmd_files import LINT_SUFFIXES, arch_findings, lint_findings
+from godotkit.depgraph import DependencyGraph
 from godotkit.external import ExternalLinters
 from godotkit.gates import BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.lint import Finding, project_sources
+from godotkit.reach import compare, reach_stats
 from godotkit.receipts import Receipt, Step, now, tree_hash
 from godotkit.runner import GodotRunner
 from godotkit.strict import ProjectFile
@@ -29,6 +31,7 @@ class GateRequest:
     project: Path
     timeout_s: float = 600.0
     jobs: int = 4
+    base: str = "HEAD"
 
 
 class Gate:
@@ -39,6 +42,7 @@ class Gate:
         self._project = request.project
         self._timeout_s = request.timeout_s
         self._jobs = request.jobs
+        self._base = request.base
         self._known = Baseline.load(request.project)
 
     def run(self) -> Receipt:
@@ -54,7 +58,16 @@ class Gate:
         results = tuple(_timed(step) for step in steps)
         head = git(self._project, "rev-parse", "HEAD").strip()
         tree = tree_hash(self._project)
-        return Receipt("gate", now(), self._runner.binary.version, head, tree, results)
+        version = self._runner.binary.version
+        return Receipt("gate", now(), version, head, tree, results, self._reach())
+
+    def _reach(self) -> dict[str, object]:
+        base = DependencyGraph.scan_commit(self._project, self._base)
+        # Only entries present at the base compare like with like.
+        entries = [entry.path for entry in EntryCatalog(self._project).entries()]
+        shared = [path for path in entries if path in base.edges()]
+        current = reach_stats(DependencyGraph.scan_working_tree(self._project), shared)
+        return compare(current, reach_stats(base, shared), self._base)
 
     def _import(self) -> Step:
         report = ProjectImporter(self._runner).run(ImportRequest(self._project, self._timeout_s))

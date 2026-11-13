@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from godotkit import cli
 from godotkit.gates import CLASS_CACHE, BootGate, ParseGate
 from godotkit.importer import OVERRIDE_FILE
 from godotkit.locate import GodotBinary
+from godotkit.output import EXIT_FAILED, EXIT_OK
 from godotkit.runner import GodotRunner
 from godotkit_rig import (
     BUSY_PARENT_SCRIPT,
@@ -136,7 +136,7 @@ class TestGateCli:
         code, payload = run_cli(
             ["boot", "--project", str(project)], fake_godot(_probe_line(clicked=False))
         )
-        assert code == cli.EXIT_FAILED
+        assert code == EXIT_FAILED
         assert (payload["reason"], payload["input"]) == ("input_dead", "dead")
 
     def test_check_prints_failed_scripts(
@@ -144,7 +144,7 @@ class TestGateCli:
     ) -> None:
         output = "GODOTKIT_PARSE 3 scripts 0 failed\n"
         code, payload = run_cli(["check", "--project", str(project)], fake_godot(output))
-        assert code == cli.EXIT_OK
+        assert code == EXIT_OK
         assert payload["summary"] == {"checks": 3, "failures": 0}
 
 

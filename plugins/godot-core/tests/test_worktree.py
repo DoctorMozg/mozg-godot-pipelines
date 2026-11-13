@@ -7,9 +7,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from godotkit import cli
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotBinary
+from godotkit.output import EXIT_OK, EXIT_REFUSED
 from godotkit.runner import GodotRunner
 from godotkit.worktree import CacheWarmer, GitError, WorktreeManager
 from godotkit_rig import GIT_ENV, CliRunner, FakeGodotFactory, write_png
@@ -135,7 +135,7 @@ class TestWorktreeCli:
         code, payload = run_cli(
             ["worktree", "new", path, "--project", str(git_project)], fake_godot()
         )
-        assert code == cli.EXIT_OK
+        assert code == EXIT_OK
         assert payload["cache"] == {
             "linked_files": 1,
             "copied_files": 1,
@@ -143,10 +143,10 @@ class TestWorktreeCli:
             "copied_bytes": 5,
         }
         code, payload = run_cli(["worktree", "remove", path], fake_godot())
-        assert (code, payload["ok"]) == (cli.EXIT_OK, True)
+        assert (code, payload["ok"]) == (EXIT_OK, True)
 
     def test_remove_of_a_plain_folder_is_refused(
         self, tmp_path: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
     ) -> None:
         code, payload = run_cli(["worktree", "remove", str(tmp_path)], fake_godot())
-        assert (code, payload["reason"]) == (cli.EXIT_REFUSED, "refused")
+        assert (code, payload["reason"]) == (EXIT_REFUSED, "refused")

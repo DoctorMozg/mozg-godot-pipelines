@@ -6,39 +6,17 @@ Exit codes: 0 ok, 1 the check failed, 2 setup problem (no Godot), 3 refused inpu
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
-import re
 import sys
-from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from collections.abc import Sequence
 from pathlib import Path
 
-from godotkit.depgraph import DependencyGraph
+from godotkit import cmd_files, cmd_godot
 from godotkit.doctor import Doctor
-from godotkit.gates import CLASS_CACHE, BootGate, ParseGate
-from godotkit.importer import ImportRequest, ProjectImporter
-from godotkit.lint import ScriptLinter, project_scripts
 from godotkit.locate import GodotLocator, GodotNotFound
-from godotkit.logjudge import LogJudge
-from godotkit.runner import GodotRunner, RunRequest
-from godotkit.strict import StrictProfile
-from godotkit.testing import (
-    EntryCatalog,
-    EntryResult,
-    SuiteRunner,
-    changed_since,
-    select_affected,
-)
-from godotkit.worktree import GitError, WorktreeManager
-
-EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
-MAX_ISSUES_SHOWN = 20
-
-
-def _emit(payload: Mapping[str, object]) -> None:
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+from godotkit.output import EXIT_OK, EXIT_SETUP, emit
+from godotkit.runner import GodotRunner
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -110,282 +88,6 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run(args: argparse.Namespace, runner: GodotRunner) -> int:
-    project = args.project.resolve()
-    if args.frames is not None and args.frames < 1:
-        _emit({"cmd": "run", "ok": False, "reason": "refused", "detail": "--frames must be >= 1"})
-        return EXIT_REFUSED
-    try:
-        summary = re.compile(args.summary, re.MULTILINE) if args.summary else None
-        judge = LogJudge(summary)
-    except (re.error, ValueError) as error:
-        _emit({"cmd": "run", "ok": False, "reason": "refused", "detail": f"--summary: {error}"})
-        return EXIT_REFUSED
-    extra: list[str] = []
-    if args.script:
-        extra += ["-s", args.script]
-    elif args.scene:
-        extra.append(args.scene)
-    if args.frames is not None:
-        extra += ["--quit-after", str(args.frames)]
-    try:
-        result = runner.run(RunRequest(project, tuple(extra), timeout_s=args.timeout))
-    except ValueError as error:
-        _emit({"cmd": "run", "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    if args.log:
-        args.log.write_text(result.output, encoding="utf-8")
-    verdict = judge.judge(result.output, result.exit_code, result.timed_out)
-    _emit(
-        {
-            "cmd": "run",
-            "ok": verdict.ok,
-            "reason": verdict.reason,
-            "godot_exit": result.exit_code,
-            "timed_out": result.timed_out,
-            "duration_s": round(result.duration_s, 3),
-            "counts": verdict.counts,
-            "warnings": verdict.warnings,
-            "summary": verdict.summary,
-            "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
-            "log": str(args.log) if args.log else None,
-        }
-    )
-    return EXIT_OK if verdict.ok else EXIT_FAILED
-
-
-def _import(args: argparse.Namespace, runner: GodotRunner) -> int:
-    request = ImportRequest(args.project.resolve(), args.timeout, args.single_thread)
-    try:
-        report = ProjectImporter(runner).run(request)
-    except ValueError as error:
-        _emit({"cmd": "import", "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    verdict = report.verdict
-    _emit(
-        {
-            "cmd": "import",
-            "ok": verdict.ok,
-            "reason": verdict.reason,
-            "godot_exit": report.result.exit_code,
-            "duration_s": round(report.result.duration_s, 3),
-            "cold": report.cold,
-            "churn": report.churn,
-            "counts": verdict.counts,
-            "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
-        }
-    )
-    return EXIT_OK if verdict.ok else EXIT_FAILED
-
-
-def _check(args: argparse.Namespace, runner: GodotRunner) -> int:
-    try:
-        outcome = ParseGate(runner).run(args.project.resolve(), args.timeout)
-    except ValueError as error:
-        _emit({"cmd": "check", "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    verdict = outcome.verdict
-    _emit(
-        {
-            "cmd": "check",
-            "ok": verdict.ok,
-            "reason": verdict.reason,
-            "duration_s": round(outcome.result.duration_s, 3),
-            "imported_first": outcome.imported_first,
-            "summary": verdict.summary,
-            "failed_scripts": outcome.failed_scripts,
-            "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
-        }
-    )
-    return EXIT_OK if verdict.ok else EXIT_FAILED
-
-
-def _boot(args: argparse.Namespace, runner: GodotRunner) -> int:
-    try:
-        outcome = BootGate(runner).run(args.project.resolve(), args.timeout)
-    except ValueError as error:
-        _emit({"cmd": "boot", "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    _emit(
-        {
-            "cmd": "boot",
-            "ok": outcome.ok,
-            "reason": outcome.reason,
-            "input": outcome.input_state,
-            "probe": outcome.report,
-            "duration_s": round(outcome.result.duration_s, 3),
-            "counts": outcome.verdict.counts,
-            "issues": [asdict(issue) for issue in outcome.verdict.issues[:MAX_ISSUES_SHOWN]],
-        }
-    )
-    return EXIT_OK if outcome.ok else EXIT_FAILED
-
-
-def _test(args: argparse.Namespace, runner: GodotRunner) -> int:
-    project = args.project.resolve()
-    try:
-        entries = EntryCatalog(project).entries()
-        changed = changed_since(project, args.since) if args.since else args.changed
-        selected = entries
-        if changed is not None:
-            selected = select_affected(entries, DependencyGraph.scan(project), changed)
-        imported_first = not args.list and not (project / CLASS_CACHE).is_file()
-        if imported_first:
-            # Suites extend class_name types (GdUnitTestSuite, GutTest) that resolve through it.
-            ProjectImporter(runner).run(ImportRequest(project, args.timeout))
-        results: tuple[EntryResult, ...] = ()
-        if not args.list:
-            results = SuiteRunner(runner, args.jobs, args.timeout).run(
-                project, selected, args.native
-            )
-    except (ValueError, GitError) as error:
-        _emit({"cmd": "test", "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    ran = [result for result in results if result.verdict is not None]
-    failed = [result for result in ran if result.verdict is not None and not result.verdict.ok]
-    if failed:
-        reason = "test_failures"
-    elif not entries:
-        reason = "no_tests"
-    else:
-        reason = "ok"
-    _emit(
-        {
-            "cmd": "test",
-            "ok": reason == "ok",
-            "reason": reason,
-            "imported_first": imported_first,
-            "selection": {
-                "entries": len(entries),
-                "selected": [entry.name for entry in selected] if args.list else len(selected),
-                "changed": sorted(changed) if changed is not None else None,
-            },
-            "summary": _test_summary(results),
-            "failed": [_failure(result, args.log_dir) for result in failed],
-            "results": [
-                {
-                    "entry": result.entry.name,
-                    "reason": result.verdict.reason if result.verdict else "skipped",
-                    "skipped": result.skipped,
-                    "checks": (result.verdict.summary or {}).get("checks")
-                    if result.verdict
-                    else None,
-                    "duration_s": round(result.duration_s, 3),
-                }
-                for result in results
-            ],
-        }
-    )
-    return EXIT_OK if reason == "ok" else EXIT_FAILED
-
-
-def _test_summary(results: Sequence[EntryResult]) -> dict[str, int]:
-    summaries = [result.verdict.summary or {} for result in results if result.verdict]
-    return {
-        "ran": len(summaries),
-        "skipped": sum(1 for result in results if result.skipped),
-        "failed": sum(1 for result in results if result.verdict and not result.verdict.ok),
-        "checks": sum(summary.get("checks", 0) for summary in summaries),
-        "failures": sum(summary.get("failures", 0) for summary in summaries),
-    }
-
-
-def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
-    verdict, run = result.verdict, result.run
-    if verdict is None or run is None:
-        raise ValueError(f"{result.entry.name} did not run, so it cannot have failed")
-    log_path = None
-    if log_dir is not None:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / (re.sub(r"[^\w.-]+", "_", result.entry.name) + ".log")
-        log_path.write_text(run.output, encoding="utf-8")
-    return {
-        "entry": result.entry.name,
-        "log": str(log_path) if log_path else None,
-        "reason": verdict.reason,
-        "summary": verdict.summary,
-        "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
-    }
-
-
-def _lint(args: argparse.Namespace) -> int:
-    project = args.project.resolve()
-    files: list[Path] = []
-    for path in [path.resolve() for path in args.paths] or [project]:
-        if not path.is_relative_to(project) or not path.exists():
-            detail = f"{path} is not an existing path inside {project}"
-            _emit({"cmd": "lint", "ok": False, "reason": "refused", "detail": detail})
-            return EXIT_REFUSED
-        files += project_scripts(path) if path.is_dir() else [path]
-    findings = ScriptLinter().lint_files(project, files)
-    counts: dict[str, int] = {}
-    for finding in findings:
-        counts[finding.rule] = counts.get(finding.rule, 0) + 1
-    _emit(
-        {
-            "cmd": "lint",
-            "ok": not findings,
-            "reason": "violations" if findings else "ok",
-            "files": len(files),
-            "counts": counts,
-            "findings": [asdict(finding) for finding in findings[:MAX_ISSUES_SHOWN]],
-        }
-    )
-    return EXIT_FAILED if findings else EXIT_OK
-
-
-def _strict(args: argparse.Namespace) -> int:
-    try:
-        profile = StrictProfile(args.project.resolve())
-        written = profile.write() if args.write else ()
-        remaining = profile.deviations()
-    except ValueError as error:
-        _emit({"cmd": "strict", "ok": False, "reason": "refused", "detail": str(error)})
-        return EXIT_REFUSED
-    _emit(
-        {
-            "cmd": "strict",
-            "ok": not remaining,
-            "reason": "below_profile" if remaining else "ok",
-            "deviations": [asdict(deviation) for deviation in remaining],
-            "written": [asdict(deviation) for deviation in written],
-        }
-    )
-    return EXIT_FAILED if remaining else EXIT_OK
-
-
-def _worktree(args: argparse.Namespace) -> int:
-    manager = WorktreeManager()
-    path = args.path.resolve()
-    try:
-        if args.action == "remove":
-            manager.remove(path)
-            _emit({"cmd": "worktree remove", "ok": True, "path": str(path)})
-            return EXIT_OK
-        warm = args.warm_from.resolve() if args.warm_from else None
-        report = manager.create(args.project.resolve(), path, args.ref, warm)
-    except (ValueError, GitError) as error:
-        _emit(
-            {
-                "cmd": f"worktree {args.action}",
-                "ok": False,
-                "reason": "refused",
-                "detail": str(error),
-            }
-        )
-        return EXIT_REFUSED
-    _emit(
-        {
-            "cmd": "worktree new",
-            "ok": True,
-            "path": str(report.path),
-            "ref": report.ref,
-            "cache": asdict(report.cache) if report.cache else None,
-        }
-    )
-    return EXIT_OK
-
-
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -396,19 +98,26 @@ def main(argv: Sequence[str]) -> int:
     locator = GodotLocator(os.environ)
     if args.command == "doctor":
         report = Doctor(os.environ, locator).report()
-        _emit(report)
+        emit(report)
         return EXIT_OK if report["ok"] else EXIT_SETUP
-    if args.command == "worktree":
-        return _worktree(args)
-    if args.command == "strict":
-        return _strict(args)
-    if args.command == "lint":
-        return _lint(args)
+    file_commands = {
+        "worktree": cmd_files.worktree,
+        "strict": cmd_files.strict,
+        "lint": cmd_files.lint,
+    }
+    if args.command in file_commands:
+        return file_commands[args.command](args)
     try:
         binary = locator.locate()
     except GodotNotFound as error:
-        _emit({"cmd": args.command, "ok": False, "reason": "no_godot", "detail": str(error)})
+        emit({"cmd": args.command, "ok": False, "reason": "no_godot", "detail": str(error)})
         return EXIT_SETUP
     runner = GodotRunner(binary)
-    handlers = {"import": _import, "check": _check, "boot": _boot, "run": _run, "test": _test}
+    handlers = {
+        "import": cmd_godot.import_,
+        "check": cmd_godot.check,
+        "boot": cmd_godot.boot,
+        "run": cmd_godot.run,
+        "test": cmd_godot.test,
+    }
     return handlers[args.command](args, runner)

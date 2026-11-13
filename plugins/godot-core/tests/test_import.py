@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from godotkit import cli
 from godotkit.importer import OVERRIDE_FILE, ImportRequest, ProjectImporter
+from godotkit.output import EXIT_FAILED, EXIT_OK
 from godotkit.runner import GodotRunner
 from godotkit_rig import CliRunner, FakeGodotFactory, ProjectFactory
 
@@ -69,7 +69,7 @@ class TestImportCli:
         code, payload = run_cli(
             ["import", "--project", str(git_project)], fake_godot(shell=CREATE_UID)
         )
-        assert code == cli.EXIT_OK
+        assert code == EXIT_OK
         assert payload["cold"] is True
         assert payload["churn"] == ["main.gd.uid"]
 
@@ -78,5 +78,5 @@ class TestImportCli:
     ) -> None:
         output = "SCRIPT ERROR: Parse Error: Expected end of statement.\n   at: (res://tool.gd:3)\n"
         code, payload = run_cli(["import", "--project", str(git_project)], fake_godot(output))
-        assert code == cli.EXIT_FAILED
+        assert code == EXIT_FAILED
         assert payload["reason"] == "parse_error"

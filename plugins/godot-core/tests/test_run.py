@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from godotkit import cli
 from godotkit.locate import GodotBinary
+from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_SETUP
 from godotkit.runner import GodotRunner, RunRequest
 from godotkit_rig import (
     HEALTHY_SCRIPT,
@@ -70,7 +71,7 @@ class TestCli:
             ["run", "--project", str(project), "--frames", "5"],
             fake_godot(TRAP_OUTPUT, exit_code=0),
         )
-        assert code == cli.EXIT_FAILED
+        assert code == EXIT_FAILED
         assert payload["ok"] is False
         assert payload["reason"] == "script_error"
         assert payload["godot_exit"] == 0
@@ -85,7 +86,7 @@ class TestCli:
         log = tmp_path / "run.log"
         args = ["run", "--project", str(make_project(HEALTHY_SCRIPT)), "--log", str(log)]
         code, payload = run_cli(args, fake_godot("main ready\n"))
-        assert code == cli.EXIT_OK
+        assert code == EXIT_OK
         assert payload["log"] == str(log)
         assert "main ready" in log.read_text()
 
@@ -101,14 +102,14 @@ class TestCli:
     ) -> None:
         args = ["run", "--project", str(make_project(HEALTHY_SCRIPT)), *extra]
         code, payload = run_cli(args, fake_godot())
-        assert code == cli.EXIT_REFUSED
+        assert code == EXIT_REFUSED
         assert payload["reason"] == "refused"
 
     def test_missing_godot_is_a_setup_problem(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setenv("GODOT_BIN", str(tmp_path / "absent"))
-        assert cli.main(["run", "--project", str(tmp_path)]) == cli.EXIT_SETUP
+        assert cli.main(["run", "--project", str(tmp_path)]) == EXIT_SETUP
         assert json.loads(capsys.readouterr().out)["reason"] == "no_godot"
 
 
@@ -137,4 +138,4 @@ class TestRealGodot:
         assert payload["reason"] == reason
         # The point of the judge: Godot itself reports success for both broken projects.
         assert payload["godot_exit"] == 0
-        assert code == (cli.EXIT_OK if ok else cli.EXIT_FAILED)
+        assert code == (EXIT_OK if ok else EXIT_FAILED)

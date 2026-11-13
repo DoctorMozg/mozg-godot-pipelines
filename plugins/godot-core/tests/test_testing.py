@@ -7,8 +7,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from godotkit import cli
 from godotkit.locate import GodotBinary
+from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.runner import GodotRunner
 from godotkit.testing import CONFIG_FILE, EntryCatalog, SuiteEntry, SuiteRunner, changed_since
 from godotkit_rig import (
@@ -170,7 +170,7 @@ class TestSelection:
         code, payload = run_cli(
             ["test", "--project", str(suite), "--since", "HEAD", "--list"], fake_godot()
         )
-        assert code == cli.EXIT_OK
+        assert code == EXIT_OK
         assert payload["selection"] == {
             "entries": 2,
             "selected": ["tests/a_test.gd"],
@@ -184,7 +184,7 @@ class TestSelection:
         code, payload = run_cli(
             ["test", "--project", str(suite), "--log-dir", str(logs)], fake_godot(shell=ANSWERS)
         )
-        assert code == cli.EXIT_FAILED
+        assert code == EXIT_FAILED
         failed = payload["failed"]
         assert isinstance(failed, list)
         assert "checks=2 failures=1" in Path(failed[0]["log"]).read_text()
@@ -203,14 +203,14 @@ class TestSelection:
         calls = tmp_path / "calls"
         godot = fake_godot("1 checks, 0 failures\n", shell=f'echo "$4" >> {calls}')
         code, payload = run_cli(["test", "--project", str(suite), "--jobs", "1"], godot)
-        assert (code, payload["imported_first"]) == (cli.EXIT_OK, True)
+        assert (code, payload["imported_first"]) == (EXIT_OK, True)
         assert calls.read_text().split() == ["--import", "--script", "--script"]
 
     def test_unknown_ref_is_refused(
         self, suite: Path, fake_godot: FakeGodotFactory, run_cli: CliRunner
     ) -> None:
         code, payload = run_cli(["test", "--project", str(suite), "--since", "nope"], fake_godot())
-        assert (code, payload["reason"]) == (cli.EXIT_REFUSED, "refused")
+        assert (code, payload["reason"]) == (EXIT_REFUSED, "refused")
 
 
 def _line(output: str, prefix: str) -> str:

@@ -70,6 +70,9 @@ def _parser() -> argparse.ArgumentParser:
     lint.add_argument("paths", nargs="*", type=Path, help="files or folders; default: the project")
     lint.add_argument("--project", type=Path, default=Path.cwd())
 
+    arch = commands.add_parser("arch", help="architecture.json rules on the dependency graph")
+    arch.add_argument("--project", type=Path, default=Path.cwd())
+
     strict = commands.add_parser("strict", help="compare GDScript warning levels with the profile")
     strict.add_argument("--project", type=Path, default=Path.cwd())
     strict.add_argument(
@@ -104,6 +107,7 @@ def main(argv: Sequence[str]) -> int:
         "worktree": cmd_files.worktree,
         "strict": cmd_files.strict,
         "lint": cmd_files.lint,
+        "arch": cmd_files.arch,
     }
     if args.command in file_commands:
         return file_commands[args.command](args)

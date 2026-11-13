@@ -57,6 +57,9 @@ class DependencyGraph:
     def scan(cls, project: Path) -> DependencyGraph:
         return ProjectScanner(project).scan()
 
+    def edges(self) -> Mapping[str, frozenset[str]]:
+        return self._edges
+
     def reach(self, path: str) -> Reach:
         seen: set[str] = set()
         pending = [path, *self._globals]

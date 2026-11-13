@@ -7,8 +7,10 @@ import subprocess
 from dataclasses import asdict
 from pathlib import Path
 
+from godotkit.arch import ArchChecker, ArchRules
+from godotkit.depgraph import DependencyGraph
 from godotkit.external import ExternalLinters
-from godotkit.lint import ScriptLinter, project_sources
+from godotkit.lint import Finding, ScriptLinter, project_sources
 from godotkit.output import (
     EXIT_FAILED,
     EXIT_OK,
@@ -48,21 +50,33 @@ def lint(args: argparse.Namespace) -> int:
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
         emit({"cmd": "lint", "ok": False, "reason": "tool_failed", "detail": str(error)})
         return EXIT_SETUP
+    emit({**_findings_payload("lint", findings), "files": len(files), "tools": external.tools})
+    return EXIT_FAILED if findings else EXIT_OK
+
+
+def arch(args: argparse.Namespace) -> int:
+    project = args.project.resolve()
+    try:
+        rules = ArchRules.load(project)
+        findings = ArchChecker(project, rules, DependencyGraph.scan(project)).check()
+    except ValueError as error:
+        emit({"cmd": "arch", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    emit(_findings_payload("arch", findings))
+    return EXIT_FAILED if findings else EXIT_OK
+
+
+def _findings_payload(command: str, findings: list[Finding]) -> dict[str, object]:
     counts: dict[str, int] = {}
     for finding in findings:
         counts[finding.rule] = counts.get(finding.rule, 0) + 1
-    emit(
-        {
-            "cmd": "lint",
-            "ok": not findings,
-            "reason": "violations" if findings else "ok",
-            "files": len(files),
-            "tools": external.tools,
-            "counts": counts,
-            "findings": [asdict(finding) for finding in findings[:MAX_ISSUES_SHOWN]],
-        }
-    )
-    return EXIT_FAILED if findings else EXIT_OK
+    return {
+        "cmd": command,
+        "ok": not findings,
+        "reason": "violations" if findings else "ok",
+        "counts": counts,
+        "findings": [asdict(finding) for finding in findings[:MAX_ISSUES_SHOWN]],
+    }
 
 
 def strict(args: argparse.Namespace) -> int:

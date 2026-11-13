@@ -72,6 +72,16 @@ def test_refusals_name_the_reason(
     assert message in payload["detail"]
 
 
+def test_note_with_a_region(run_cli: CliRunner, asset: str) -> None:
+    version = _version(run_cli, asset)
+    note = ("note", asset, "--body", "seam", "--version", version, "--region", "t=0.5,0.75")
+    code, payload = run_cli(*note, "--region-file", "main", "--frame", "2")
+    assert (code, payload["event"]["region"]) == (
+        0,
+        {"selector": "t=0.5,0.75", "file": "main", "frame": 2},
+    )
+
+
 def test_folder_without_project_godot_is_refused(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -5,6 +5,7 @@ The CLI and the hub both write through here, so a click and a command obey the s
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from assetkit.contracts import Json
@@ -18,6 +19,30 @@ class NoteRequest:
     body: str
     version: str | None = None
     reply_to: str | None = None
+    region: Mapping[str, Json] | None = None
+
+
+def check_region(region: Mapping[str, Json], version: Mapping[str, Json]) -> None:
+    """Refuses a box outside the picture, a reversed time range or a file the version lacks."""
+    selector = str(region.get("selector", ""))
+    kind, _, values = selector.partition("=")
+    try:
+        numbers = [float(n) for n in values.removeprefix("percent:").split(",")]
+    except ValueError as error:
+        raise RegistryError(f"selector {selector!r} is not a media fragment") from error
+    if kind == "xywh" and values.startswith("percent:") and len(numbers) == 4:
+        x, y, width, height = numbers
+        # A box drawn to the very edge may round a hair past 100.
+        if width <= 0 or height <= 0 or x + width > 100.01 or y + height > 100.01:
+            raise RegistryError(f"box {selector!r} is empty or leaves the picture")
+    elif kind == "t" and len(numbers) in (1, 2):
+        if len(numbers) == 2 and numbers[1] <= numbers[0]:
+            raise RegistryError(f"time range {selector!r} ends before it starts")
+    else:
+        raise RegistryError(f"selector {selector!r} is neither xywh=percent:x,y,w,h nor t=a,b")
+    role = region.get("file")
+    if role is not None and role not in {f["role"] for f in version["files"]}:
+        raise RegistryError(f"version {version['id']} has no {role} file")
 
 
 class Review:
@@ -31,8 +56,13 @@ class Review:
         if not request.body.strip():
             raise RegistryError(f"{request.asset}: a note needs a body")
         records = self._registry.asset_records(request.asset)
-        if request.version and request.version not in {v["id"] for v in records.versions}:
+        versions = {str(v["id"]): v for v in records.versions}
+        if request.version and request.version not in versions:
             raise RegistryError(f"{request.asset} has no version {request.version}")
+        if request.region is not None:
+            if not request.version:
+                raise RegistryError(f"{request.asset}: a region note names its version")
+            check_region(request.region, versions[request.version])
         if request.reply_to and request.reply_to not in {e["id"] for e in records.events}:
             raise RegistryError(f"{request.asset} has no event {request.reply_to} to reply to")
         fields: dict[str, Json] = {"type": "note", "body": request.body, "author": self._author}
@@ -40,6 +70,8 @@ class Review:
             fields["version_id"] = request.version
         if request.reply_to:
             fields["reply_to"] = request.reply_to
+        if request.region is not None:
+            fields["region"] = dict(request.region)
         return self._registry.add_event(request.asset, fields)
 
     def decide(

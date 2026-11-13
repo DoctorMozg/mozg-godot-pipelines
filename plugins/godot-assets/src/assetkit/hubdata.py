@@ -60,8 +60,8 @@ def _item(records: AssetRecords) -> dict[str, Json]:
 
 
 def _event(event: Mapping[str, Json], effect: str) -> dict[str, Json]:
-    keys = ("id", "type", "decision", "status", "version_id", "body", "author", "at", "reply_to")
-    shown: dict[str, Json] = {key: event[key] for key in keys if key in event}
+    # The card already names the asset, and the contract tag means nothing to the page.
+    shown: dict[str, Json] = {k: v for k, v in event.items() if k not in ("schema", "item")}
     shown["effect"] = effect
     return shown
 

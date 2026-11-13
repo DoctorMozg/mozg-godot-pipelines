@@ -94,6 +94,30 @@
     "at": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "region": {
+      "description": "Where on the version a note points: a W3C media fragment (percent box or time range), optionally on one frame of one file.",
+      "type": "object",
+      "required": [
+        "selector"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "type": "string",
+          "pattern": "^(xywh=percent:[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?){3}|t=[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?)?)$"
+        },
+        "file": {
+          "description": "Role of the file the region is on; main when absent.",
+          "type": "string",
+          "minLength": 1
+        },
+        "frame": {
+          "description": "Frame index of a sprite or video.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "allOf": [
@@ -167,6 +191,23 @@
         "required": [
           "version_id"
         ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "region"
+        ]
+      },
+      "then": {
+        "required": [
+          "version_id"
+        ],
+        "properties": {
+          "type": {
+            "const": "note"
+          }
+        }
       }
     }
   ],

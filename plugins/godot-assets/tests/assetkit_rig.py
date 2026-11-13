@@ -25,18 +25,23 @@ class CliRunner(Protocol):
     def __call__(self, *args: str) -> CliResult: ...
 
 
-def tiny_png() -> bytes:
-    """A valid 1x1 RGB PNG, so a real Godot import succeeds."""
+def png(width: int = 1, height: int = 1, rgb: tuple[int, int, int] = (255, 0, 0)) -> bytes:
+    """A valid solid-colour RGB PNG, so real Godot imports and browsers accept it."""
 
     def chunk(kind: bytes, data: bytes) -> bytes:
         body = kind + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
 
-    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
-    pixels = zlib.compress(b"\x00\xff\x00\x00")
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    row = b"\x00" + bytes(rgb) * width
+    pixels = zlib.compress(row * height)
     return (
         b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
     )
+
+
+def tiny_png() -> bytes:
+    return png()
 
 
 def fake_import(project: Path) -> ImportRun:

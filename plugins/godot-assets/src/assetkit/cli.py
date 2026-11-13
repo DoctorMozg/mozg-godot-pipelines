@@ -82,6 +82,9 @@ def _parser() -> argparse.ArgumentParser:
     note.add_argument("--body", required=True)
     note.add_argument("--version")
     note.add_argument("--reply-to", help="the event id this note answers")
+    note.add_argument("--region", help="xywh=percent:x,y,w,h or t=start,end; needs --version")
+    note.add_argument("--region-file", help="role of the file the region is on")
+    note.add_argument("--frame", type=int, help="frame of a sprite or video the region is on")
 
     decide = commands.add_parser("decide", parents=[shared], help="review the current version")
     decide.add_argument("asset")
@@ -170,7 +173,15 @@ class Commands:
         return {"version": self._registry.add_version(args.asset, spec)}
 
     def note(self, args: argparse.Namespace) -> dict[str, Json]:
-        request = NoteRequest(args.asset, args.body, args.version, args.reply_to)
+        region: dict[str, Json] | None = None
+        if args.region:
+            region = {"selector": args.region}
+            region |= {
+                k: v
+                for k, v in (("file", args.region_file), ("frame", args.frame))
+                if v is not None
+            }
+        request = NoteRequest(args.asset, args.body, args.version, args.reply_to, region)
         return {"event": self._review.note(request)}
 
     def decide(self, args: argparse.Namespace) -> dict[str, Json]:

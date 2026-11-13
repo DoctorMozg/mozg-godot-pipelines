@@ -11,7 +11,8 @@ from typing import Any
 
 import pytest
 from assetkit import hooks
-from assetkit.hub import PAGE_DIR, PAGE_FILES, HubControl, HubInfo
+from assetkit.hub import PAGE_DIR, HubControl, HubInfo
+from assetkit.hubserver import PAGE_FILES
 from assetkit_rig import CliRunner, Lane
 
 LAUNCHER = Path(__file__).resolve().parents[1] / "bin" / "assetkit"
@@ -37,7 +38,7 @@ def test_static_build_embeds_items_and_points_at_the_project(
 
 def test_page_loads_only_its_own_scripts() -> None:
     html = (PAGE_DIR / "index.html").read_text()
-    assert html.count("<script src=") == 2
+    assert html.count("<script src=") == 3
     assert "<script>" not in html
     assert "onclick" not in html
 

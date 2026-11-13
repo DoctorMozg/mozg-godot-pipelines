@@ -165,6 +165,13 @@ class TestServing:
         events = lane.registry.asset_records(lane.asset).events
         assert [(e["decision"], e["body"]) for e in events] == [("retake", "darker")]
 
+    def test_note_with_region_is_written(self, client: Client, lane: Lane) -> None:
+        version = lane.version(b"one")
+        region = {"selector": "xywh=percent:0,0,50,50"}
+        note = {"type": "note", "asset": lane.asset, "body": "x", "version_id": version}
+        assert client.post({**note, "region": region})[1]["event"]["region"] == region
+        assert client.post({**note, "region": "xywh"})[0] == 400
+
     def test_stream_pushes_a_change_without_polling_by_the_page(
         self, hub: HubServer, lane: Lane
     ) -> None:

@@ -86,3 +86,34 @@ class TestReviewWriter:
     def test_author_is_required(self, registry: Registry) -> None:
         with pytest.raises(RegistryError, match="needs an author"):
             Review(registry, " ")
+
+
+class TestRegions:
+    @pytest.mark.parametrize(
+        ("region", "message"),
+        [
+            ({"selector": "xywh=percent:90,0,20,10"}, "leaves the picture"),
+            ({"selector": "xywh=percent:0,0,0,10"}, "is empty"),
+            ({"selector": "t=2,1"}, "ends before it starts"),
+            ({"selector": "xywh=1,2,3,4"}, "neither"),
+            ({"selector": "t=1", "file": "sheet"}, "has no sheet file"),
+        ],
+    )
+    def test_bad_regions_are_refused(
+        self, lane: Lane, review: Review, region: dict[str, Any], message: str
+    ) -> None:
+        version = lane.version(b"one")
+        with pytest.raises(RegistryError, match=message):
+            review.note(NoteRequest(lane.asset, "here", version, region=region))
+
+    def test_region_needs_a_version(self, lane: Lane, review: Review) -> None:
+        lane.version(b"one")
+        with pytest.raises(RegistryError, match="names its version"):
+            review.note(NoteRequest(lane.asset, "here", region={"selector": "t=1"}))
+
+    def test_region_note_reaches_the_page_data(self, lane: Lane, review: Review) -> None:
+        version = lane.version(b"one")
+        region = {"selector": "xywh=percent:10,10,80,90", "file": "main", "frame": 0}
+        review.note(NoteRequest(lane.asset, "eyes too big", version, region=region))
+        [event] = _item(lane.registry)["events"]
+        assert (event["region"], event["version_id"]) == (region, version)

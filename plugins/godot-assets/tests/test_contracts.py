@@ -57,6 +57,13 @@ VALID: dict[str, dict[str, Any]] = {
     },
 }
 Mutation = Callable[[dict[str, Any]], None]
+
+
+def _unanchored_region(record: dict[str, Any]) -> None:
+    record.update(type="note", region={"selector": "t=1"})
+    record.pop("version_id")
+
+
 BROKEN: list[tuple[str, str, Mutation]] = [
     ("asset", "/: missing required 'title'", lambda r: r.pop("title")),
     ("asset", "/id: 'Hero' does not match", lambda r: r.update(id="Hero")),
@@ -76,6 +83,13 @@ BROKEN: list[tuple[str, str, Mutation]] = [
     ("item-event", "/: missing required 'decision'", lambda r: r.pop("decision")),
     ("item-event", "/version_id: matches none", lambda r: r.update(version_id="v1")),
     ("item-event", "/body: expected string", lambda r: r.update(body=3)),
+    ("item-event", "/type: must be 'note'", lambda r: r.update(region={"selector": "t=1"})),
+    (
+        "item-event",
+        "/region/selector: 'xywh=10,10,5,5' does not match",
+        lambda r: r.update(type="note", region={"selector": "xywh=10,10,5,5"}),
+    ),
+    ("item-event", "/: missing required 'version_id'", _unanchored_region),
 ]
 
 
@@ -93,6 +107,20 @@ def test_broken_record_fails_both_checkers(name: str, message: str, mutate: Muta
     errors = Contract.load(name).errors(record)
     assert any(error.startswith(message) for error in errors), errors
     assert not jsonschema.Draft202012Validator(_schema(name)).is_valid(record)
+
+
+@pytest.mark.parametrize(
+    "region",
+    [
+        {"selector": "xywh=percent:10,20.5,30,40", "file": "sheet", "frame": 3},
+        {"selector": "t=1.5,2"},
+    ],
+)
+def test_note_with_region_passes_both_checkers(region: dict[str, Any]) -> None:
+    record = {**copy.deepcopy(VALID["item-event"]), "type": "note", "region": region}
+    record.pop("decision")
+    assert Contract.load("item-event").errors(record) == []
+    jsonschema.Draft202012Validator(_schema("item-event")).validate(record)
 
 
 def test_human_origin_needs_no_generation() -> None:

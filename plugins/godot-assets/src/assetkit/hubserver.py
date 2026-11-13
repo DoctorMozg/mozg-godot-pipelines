@@ -25,7 +25,8 @@ from assetkit.review import NoteRequest, Review
 log = logging.getLogger(__name__)
 
 MAX_BODY = 64 * 1024
-PAGE_FILES = {"/": "index.html", "/app.js": "app.js", "/app.css": "app.css"}
+PAGE_FILES = ("index.html", "viewers.js", "app.js", "app.css")
+PAGE_ROUTES = {"/" if name == "index.html" else f"/{name}": name for name in PAGE_FILES}
 PAGE_POLICY = "default-src 'self'; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'"
 # A registered SVG or HTML file must not run script in the hub's origin.
 FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
@@ -84,8 +85,8 @@ class HubHandler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         if not self._host_ok():
             return
-        if url.path in PAGE_FILES:
-            self._page(PAGE_FILES[url.path])
+        if url.path in PAGE_ROUTES:
+            self._page(PAGE_ROUTES[url.path])
         elif url.path == "/items.js":
             # The static build fills this file; served pages fetch live data instead.
             self._send(HTTPStatus.OK, b"", "text/javascript")
@@ -137,11 +138,15 @@ class HubHandler(BaseHTTPRequestHandler):
                 _optional(body, "body"),
             )
         if kind == "note":
+            region = body.get("region")
+            if region is not None and not isinstance(region, dict):
+                raise BadRequest("field 'region' must be an object")
             request = NoteRequest(
                 asset,
                 _text(body, "body"),
                 _optional(body, "version_id"),
                 _optional(body, "reply_to"),
+                region,
             )
             return review.note(request)
         raise BadRequest(f"the hub writes notes and decisions, not {kind!r}")

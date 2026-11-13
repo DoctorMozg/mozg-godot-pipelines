@@ -12,7 +12,7 @@ from assetkit.hub import PAGE_DIR, build_static
 from assetkit.hubserver import HubConfig, HubServer
 from assetkit.registry import Registry
 from assetkit.review import Review
-from assetkit_rig import Lane, tiny_png
+from assetkit_rig import Lane, png, tiny_png
 from chrome_rig import Chrome, find_chrome
 
 pytestmark = pytest.mark.live_browser
@@ -70,6 +70,29 @@ def test_review_round_trip_in_the_served_page(chrome: Chrome, hub: HubServer, la
     chrome.evaluate(page, f"{_card(lane, '[data-action=retake]')}.click()")
     chrome.wait_for(page, f"{_card(lane)}.dataset.status === 'retake'")
     assert _decisions(lane) == [("approve", None), ("retake", "too bright")]
+    assert chrome.errors == []
+
+
+def test_drawn_box_becomes_a_region_note(chrome: Chrome, hub: HubServer, lane: Lane) -> None:
+    version = lane.version(png(200, 100))
+    page = chrome.open(hub.url)
+    stage = _card(lane, ".stage")
+    chrome.wait_for(page, f"{_card(lane, 'img')}?.naturalWidth === 200")
+    box = chrome.evaluate(
+        page, f"(r => [r.left, r.top, r.width, r.height])({stage}.getBoundingClientRect())"
+    )
+    assert isinstance(box, list)
+    left, top, width, height = box
+    chrome.drag(
+        page, (left + width * 0.25, top + height * 0.5), (left + width * 0.75, top + height)
+    )
+    chrome.evaluate(page, f"{_card(lane, '[data-note]')}.value = 'eyes'")
+    chrome.evaluate(page, f"{_card(lane, '[data-action=note]')}.click()")
+    chrome.wait_for(page, f"{_card(lane, '.region[data-event]')} !== null")
+    [note] = lane.registry.asset_records(lane.asset).events
+    assert (note["body"], note["version_id"], note["region"]["file"]) == ("eyes", version, "main")
+    x, y, w, h = (float(n) for n in str(note["region"]["selector"]).split(":")[1].split(","))
+    assert (round(x), round(y), round(w), round(h)) == (25, 50, 50, 50)
     assert chrome.errors == []
 
 

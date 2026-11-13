@@ -1,6 +1,7 @@
 "use strict";
 
 // One page for the served hub (live, writable) and the static build (read-only).
+const { el } = window.HubDom;
 const params = new URLSearchParams(location.hash.slice(1));
 const token = params.get("token") || "";
 const staticData = window.HUB_STATIC || null;
@@ -8,22 +9,9 @@ const grid = document.getElementById("grid");
 const filter = document.getElementById("filter");
 const connection = document.getElementById("connection");
 const message = document.getElementById("message");
+// A box drawn but not yet sent, per asset; it survives live re-renders.
+const drafts = new Map();
 let items = [];
-
-function el(tag, attrs, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs || {})) {
-    if (value === null || value === undefined || value === false) continue;
-    if (key === "class") node.className = value;
-    else if (key.startsWith("data-")) node.setAttribute(key, value);
-    else node[key] = value;
-  }
-  for (const child of children) {
-    if (child === null || child === undefined) continue;
-    node.append(typeof child === "string" ? document.createTextNode(child) : child);
-  }
-  return node;
-}
 
 function fileUrl(file) {
   if (!file.url) return null;
@@ -41,51 +29,83 @@ function setConnection(state) {
   connection.textContent = state;
 }
 
-async function post(body) {
-  const response = await fetch("api/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Hub-Token": token },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-  return payload.event;
-}
-
-async function decide(item, decision, note) {
+async function post(item, body) {
   try {
-    await post({
-      type: "decision",
-      asset: item.asset,
-      decision,
-      version_id: item.current_version,
-      body: note || null,
+    const response = await fetch("api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Hub-Token": token },
+      body: JSON.stringify({ asset: item.asset, version_id: item.current_version, ...body }),
     });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
     showMessage("");
+    return payload.event;
   } catch (error) {
     showMessage(`${item.title}: ${error.message}`);
+    return null;
   }
 }
 
-function preview(version) {
-  const file = version && version.files.find((f) => (f.media_type || "").startsWith("image/"));
-  const url = file && fileUrl(file);
-  if (url) return el("img", { class: "preview", src: url, alt: file.path, loading: "lazy" });
-  const first = version && version.files[0];
-  return el("p", { class: "meta" }, first ? `${first.path} (no preview yet)` : "no version yet");
+function decide(item, decision, note) {
+  return post(item, { type: "decision", decision, body: note || null });
+}
+
+async function addNote(item, textarea) {
+  const body = textarea.value.trim();
+  if (!body) {
+    showMessage(`${item.title}: write the note first`);
+    return;
+  }
+  const region = drafts.get(item.asset) || null;
+  if (await post(item, { type: "note", body, region })) {
+    drafts.delete(item.asset);
+    textarea.value = "";
+  }
+}
+
+function regionNotes(item, versionId) {
+  return item.events.filter((e) => e.type === "note" && e.region && e.version_id === versionId);
+}
+
+function viewerContext(item) {
+  return {
+    fileUrl,
+    writable: !staticData,
+    regionNotes: (versionId) => regionNotes(item, versionId),
+    draft: () => drafts.get(item.asset) || null,
+    setDraft: (region) => (region ? drafts.set(item.asset, region) : drafts.delete(item.asset)),
+  };
 }
 
 function actions(item) {
   if (staticData || !item.current_version) return null;
-  const note = el("textarea", { placeholder: "Note for a retake or reject", "data-note": "1" });
-  const button = (decision, label) => {
-    const node = el("button", { type: "button", "data-action": decision }, label);
-    node.addEventListener("click", () => decide(item, decision, note.value.trim()));
+  const note = el("textarea", {
+    placeholder: "Note; drag on the picture to point at a spot", "data-note": "1",
+  });
+  const button = (action, label, run) => {
+    const node = el("button", { type: "button", "data-action": action }, label);
+    node.addEventListener("click", run);
     return node;
   };
+  const decision = (name, label) => button(name, label, () => decide(item, name, note.value.trim()));
   return el("div", { class: "actions" },
-    button("approve", "Approve (A)"), button("retake", "Retake (R)"), button("reject", "Reject"),
-    note);
+    decision("approve", "Approve (A)"), decision("retake", "Retake (R)"),
+    decision("reject", "Reject"), button("note", "Note (N)", () => addNote(item, note)), note);
+}
+
+function noteLine(item, event) {
+  const numbered = event.region ? regionNotes(item, event.version_id) : [];
+  const label = event.region ? `[${numbered.indexOf(event) + 1}] ` : "";
+  const line = el("p", { class: "note", "data-event": event.id }, `${label}${event.author}: ${event.body}`);
+  if (event.region) {
+    line.addEventListener("click", () => {
+      const card = line.closest(".card");
+      for (const box of card.querySelectorAll(".region.active")) box.classList.remove("active");
+      const box = card.querySelector(`.region[data-event="${CSS.escape(event.id)}"]`);
+      if (box) box.classList.add("active");
+    });
+  }
+  return line;
 }
 
 function versionRow(item, version) {
@@ -104,27 +124,27 @@ function versionRow(item, version) {
 
 function card(item) {
   const current = item.versions.find((v) => v.id === item.current_version);
-  const notes = item.events.filter((e) => e.body).slice(-3);
+  const notes = item.events.filter((e) => e.body).slice(-5);
   const node = el("article", {
     class: "card", tabIndex: 0, "data-asset": item.asset, "data-status": item.status,
-    "data-current": item.current_version || "",
+    "data-current": item.current_version || "", "data-kind": item.kind,
   },
   el("h2", {}, item.title),
   el("div", { class: "meta" }, `${item.family} / ${item.kind}${item.ship ? " / ships" : ""} `,
     el("span", { class: `pill ${item.status}` }, item.status)),
-  preview(current),
+  window.HubViewers.view(item, current, viewerContext(item)),
   actions(item),
-  ...notes.map((e) => el("p", { class: "note" }, `${e.author}: ${e.body}`)),
+  ...notes.map((e) => noteLine(item, e)),
   el("ul", { class: "versions" }, ...item.versions.map((v) => versionRow(item, v))));
   node.addEventListener("keydown", (event) => onKey(event, item, node));
   return node;
 }
 
 function onKey(event, item, node) {
-  if (event.target.tagName === "TEXTAREA") return;
+  if (["TEXTAREA", "INPUT", "SELECT"].includes(event.target.tagName)) return;
   const key = event.key.toLowerCase();
   if (key === "a" && !staticData) decide(item, "approve", "");
-  else if (key === "r" && !staticData) node.querySelector("[data-note]").focus();
+  else if ((key === "r" || key === "n") && !staticData) node.querySelector("[data-note]").focus();
   else if (key === "j") (node.nextElementSibling || node).focus();
   else if (key === "k") (node.previousElementSibling || node).focus();
   else return;

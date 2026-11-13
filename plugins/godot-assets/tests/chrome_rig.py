@@ -95,6 +95,13 @@ class Chrome:
             time.sleep(0.05)
         raise TimeoutError(f"not true within {timeout_s} s: {expression}; errors {self.errors}")
 
+    def drag(self, session: str, start: tuple[float, float], end: tuple[float, float]) -> None:
+        """A left-button drag; Chrome turns these mouse events into pointer events."""
+        steps = [("mousePressed", start), ("mouseMoved", end), ("mouseReleased", end)]
+        for kind, (x, y) in steps:
+            params = {"type": kind, "x": x, "y": y, "button": "left", "buttons": 1, "clickCount": 1}
+            self.send("Input.dispatchMouseEvent", params, session)
+
     def close(self) -> None:
         try:
             self.send("Browser.close")

@@ -19,14 +19,13 @@ from pathlib import Path
 
 from assetkit.contracts import Json
 from assetkit.hubdata import HubData
-from assetkit.hubserver import HubConfig, HubServer
+from assetkit.hubserver import PAGE_FILES, HubConfig, HubServer
 from assetkit.index import CACHE_DIR
 from assetkit.registry import Registry
 
 log = logging.getLogger(__name__)
 
 PAGE_DIR = Path(__file__).resolve().parents[2] / "data" / "hub"
-PAGE_FILES = ("index.html", "app.js", "app.css")
 LAUNCHER = Path(__file__).resolve().parents[2] / "bin" / "_assetkit_run.py"
 
 

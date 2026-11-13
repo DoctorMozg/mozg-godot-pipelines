@@ -37,6 +37,10 @@ class GodotRunner:
         self._binary = binary
         self._base_env = dict(os.environ if base_env is None else base_env)
 
+    @property
+    def binary(self) -> GodotBinary:
+        return self._binary
+
     def command_for(self, request: RunRequest) -> tuple[str, ...]:
         head = [str(self._binary.path)]
         if request.headless:

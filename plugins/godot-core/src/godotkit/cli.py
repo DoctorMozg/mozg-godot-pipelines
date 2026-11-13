@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from godotkit import cmd_baseline, cmd_files, cmd_godot
+from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot
 from godotkit.doctor import Doctor
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_SETUP, emit
@@ -54,6 +54,17 @@ def _parser() -> argparse.ArgumentParser:
         "--strict", action="store_true", help="load under the strict warning profile"
     )
     check.add_argument("--no-baseline", action="store_true", help="fail on baselined files too")
+
+    gate = commands.add_parser("gate", help="every pre-commit check in one run; writes a receipt")
+    gate.add_argument("--project", type=Path, default=Path.cwd())
+    gate.add_argument("--timeout", type=float, default=600.0, help="seconds per Godot run")
+
+    receipt = commands.add_parser("receipt", help="gate receipts")
+    receipt_actions = receipt.add_subparsers(dest="action", required=True)
+    verify = receipt_actions.add_parser(
+        "verify", help="the newest gate receipt passed and matches the tree"
+    )
+    verify.add_argument("--project", type=Path, default=Path.cwd())
 
     boot = commands.add_parser("boot", help="boot gate: the main scene starts and takes a click")
     boot.add_argument("--project", type=Path, default=Path.cwd())
@@ -137,6 +148,7 @@ def main(argv: Sequence[str]) -> int:
         "strict": cmd_files.strict,
         "lint": cmd_files.lint,
         "arch": cmd_files.arch,
+        "receipt": cmd_gate.receipt_verify,
     }
     if args.command in file_commands:
         return file_commands[args.command](args)
@@ -156,5 +168,6 @@ def main(argv: Sequence[str]) -> int:
         "boot": cmd_godot.boot,
         "run": cmd_godot.run,
         "test": cmd_godot.test,
+        "gate": cmd_gate.gate,
     }
     return handlers[args.command](args, runner)

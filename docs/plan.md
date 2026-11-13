@@ -85,6 +85,14 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
 - `baseline write` defaults to every gate that applies; without Godot, `check` and `strict` are listed as `skipped`.
 - AloneGodot worktree at HEAD (2026-11-13): every gate in 15.2 s; 282 lint findings, no `check` failure, 65 of 342 scripts not yet strict. 36 of those fail with "Failed to compile depended scripts", so strict clean-up goes from leaves to dependents.
 
+### Gate and receipts (`godotkit gate`)
+
+- `gate` runs every step even after one fails, so one run shows everything: warm import (fails when it changes tracked or new files: generated files are committed, never merged by hand), parse gate, `lint`, and `arch` where `architecture.json` exists; each applies the baseline.
+- It always writes a receipt to `.godot/godotkit/receipts/<time>-gate.json`: Godot version, HEAD, tree hash and every step with status, reason, duration and detail. There is no separate `receipt write`, because a receipt not produced by a gate run would be a claim nothing checked.
+- Tree hash: `git write-tree` over a copy of the index after `git add -A`, less `.godot`. It covers untracked files, and the copied stat cache spares rehashing unchanged assets. Writing a receipt never changes it.
+- `receipt verify` fails with `no_receipt`, `stale` (the tree moved on) or `gate_failed`.
+- Proven 2026-11-13 on real Godot: a fresh fixture fails `import` because its first import writes `main.gd.uid`; after committing it the gate passes, and a new file makes `verify` report `stale`.
+
 ### Language server (`godotkit lsp`)
 
 - `lsp start` runs `godot --editor --headless --lsp-port P` in its own session, records pid and port in `.godot/godotkit-lsp.json`, reuses a live server, and sends one warm-up `initialize`, since the first one parses the workspace.

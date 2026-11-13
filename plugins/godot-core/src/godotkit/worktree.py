@@ -7,7 +7,7 @@ import logging
 import os
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,9 +38,13 @@ class GitError(RuntimeError):
     pass
 
 
-def git(repo: Path, *args: str) -> str:
+def git(repo: Path, *args: str, env: Mapping[str, str] | None = None) -> str:
     completed = subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True, check=False
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **env} if env else None,
     )
     if completed.returncode != 0:
         raise GitError(f"git {' '.join(args)} failed in {repo}: {completed.stderr.strip()}")

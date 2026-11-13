@@ -10,7 +10,15 @@ import pytest
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.runner import GodotRunner
-from godotkit.testing import CONFIG_FILE, EntryCatalog, SuiteEntry, SuiteRunner, changed_since
+from godotkit.testing import (
+    CONFIG_FILE,
+    DURATIONS_FILE,
+    DurationStore,
+    EntryCatalog,
+    SuiteEntry,
+    SuiteRunner,
+    changed_since,
+)
 from godotkit_rig import (
     GIT_ENV,
     HEALTHY_SCRIPT,
@@ -157,6 +165,30 @@ class TestRuns:
         )
         homes = {_line(result.run.output, "XDG_DATA_HOME=") for result in results if result.run}
         assert len(homes) == 2
+
+
+class TestDurations:
+    def test_unknown_entries_go_first_then_the_slowest(self, tmp_path: Path) -> None:
+        (tmp_path / DURATIONS_FILE).parent.mkdir(parents=True)
+        (tmp_path / DURATIONS_FILE).write_text(json.dumps({"a.gd": 1.0, "b.gd": 9.0}))
+        entries = [SuiteEntry("a.gd"), SuiteEntry("b.gd"), SuiteEntry("new.gd")]
+        assert DurationStore(tmp_path).order(entries) == [2, 1, 0]
+
+    def test_slowest_runs_first_results_keep_order_and_times_are_kept(
+        self, fake_godot: FakeGodotFactory, suite: Path, tmp_path: Path
+    ) -> None:
+        calls = tmp_path / "calls"
+        (suite / DURATIONS_FILE).parent.mkdir(parents=True, exist_ok=True)
+        (suite / DURATIONS_FILE).write_text(
+            json.dumps({"tests/a_test.gd": 1.0, "tests/b_test.gd": 50.0})
+        )
+        godot = fake_godot("1 checks, 0 failures\n", shell=f'echo "$5" >> {calls}')
+        results = SuiteRunner(GodotRunner(godot), 1, 30).run(
+            suite, EntryCatalog(suite).entries(), native=False
+        )
+        assert calls.read_text().split() == ["res://tests/b_test.gd", "res://tests/a_test.gd"]
+        assert [result.entry.path for result in results] == ["tests/a_test.gd", "tests/b_test.gd"]
+        assert json.loads((suite / DURATIONS_FILE).read_text())["tests/b_test.gd"] < 50.0
 
 
 class TestSelection:

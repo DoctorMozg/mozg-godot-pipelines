@@ -91,6 +91,9 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
 - It always writes a receipt to `.godot/godotkit/receipts/<time>-gate.json`: Godot version, HEAD, tree hash and every step with status, reason, duration and detail. There is no separate `receipt write`, because a receipt not produced by a gate run would be a claim nothing checked.
 - Tree hash: `git write-tree` over a copy of the index after `git add -A`, less `.godot`. It covers untracked files, and the copied stat cache spares rehashing unchanged assets. Writing a receipt never changes it.
 - `receipt verify` fails with `no_receipt`, `stale` (the tree moved on) or `gate_failed`.
+- Further steps: `strict` when the baseline holds strict counts (a project at the profile is already held to it by `check`), `boot` when a main scene is set, and every non-native test entry.
+- Test entries run longest first by the seconds recorded in `.godot/godotkit/durations.json` (never-timed ones first), so a pool of `--jobs` finishes together; `godotkit test` uses the same order and results keep catalogue order.
+- AloneGodot worktree at HEAD (2026-11-13), baseline of `lint` and `strict`: 98 s with `--jobs 4`, 65 s of it tests (44 entries, 48,007 checks; 196 s of entry time, longest 43.6 s, so about 49 s is the floor at 4 jobs; the gain of longest-first ordering on a second run is UNTESTED). Two findings. Import rewrites 67 tracked files, because the committed `.import` files predate the current import. 15 entries fail, as under `godotkit test`: they raise expected errors with no `godotkit.json` allow-list, which `godot-init` (M1) writes.
 - Proven 2026-11-13 on real Godot: a fresh fixture fails `import` because its first import writes `main.gd.uid`; after committing it the gate passes, and a new file makes `verify` report `stale`.
 
 ### Language server (`godotkit lsp`)

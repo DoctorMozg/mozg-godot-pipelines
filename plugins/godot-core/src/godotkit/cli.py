@@ -58,6 +58,7 @@ def _parser() -> argparse.ArgumentParser:
     gate = commands.add_parser("gate", help="every pre-commit check in one run; writes a receipt")
     gate.add_argument("--project", type=Path, default=Path.cwd())
     gate.add_argument("--timeout", type=float, default=600.0, help="seconds per Godot run")
+    gate.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
 
     receipt = commands.add_parser("receipt", help="gate receipts")
     receipt_actions = receipt.add_subparsers(dest="action", required=True)

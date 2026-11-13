@@ -12,11 +12,13 @@ from godotkit.arch import CONFIG_FILE
 from godotkit.baseline import Baseline
 from godotkit.cmd_files import LINT_SUFFIXES, arch_findings, lint_findings
 from godotkit.external import ExternalLinters
-from godotkit.gates import ParseGate, judge_parse
+from godotkit.gates import BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.lint import Finding, project_sources
 from godotkit.receipts import Receipt, Step, now, tree_hash
 from godotkit.runner import GodotRunner
+from godotkit.strict import ProjectFile
+from godotkit.testing import EntryCatalog, SuiteRunner
 from godotkit.worktree import git
 
 log = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ log = logging.getLogger(__name__)
 class GateRequest:
     project: Path
     timeout_s: float = 600.0
+    jobs: int = 4
 
 
 class Gate:
@@ -35,10 +38,19 @@ class Gate:
         self._runner = runner
         self._project = request.project
         self._timeout_s = request.timeout_s
+        self._jobs = request.jobs
         self._known = Baseline.load(request.project)
 
     def run(self) -> Receipt:
-        steps: list[Callable[[], Step]] = [self._import, self._check, self._lint, self._arch]
+        steps: list[Callable[[], Step]] = [
+            self._import,
+            self._check,
+            self._strict,
+            self._lint,
+            self._arch,
+            self._boot,
+            self._test,
+        ]
         results = tuple(_timed(step) for step in steps)
         head = git(self._project, "rev-parse", "HEAD").strip()
         tree = tree_hash(self._project)
@@ -66,6 +78,46 @@ class Gate:
         if judged.baseline is not None:
             detail["baseline"] = judged.baseline
         return Step("check", "pass" if judged.ok else "fail", judged.reason, 0.0, detail)
+
+    def _strict(self) -> Step:
+        # Opt-in through the baseline: a project at the profile is already held to it by check.
+        if self._known is None or "strict" not in self._known.gates:
+            return Step("strict", "not_applicable", "no strict counts in the baseline", 0.0)
+        outcome = StrictGate(self._runner).run(self._project, self._timeout_s)
+        judged = judge_parse(outcome, self._known, "strict")
+        detail: dict[str, object] = {"baseline": judged.baseline}
+        return Step("strict", "pass" if judged.ok else "fail", judged.reason, 0.0, detail)
+
+    def _boot(self) -> Step:
+        settings = ProjectFile(self._project / "project.godot").values("application")
+        if not settings.get("run/main_scene"):
+            return Step("boot", "not_applicable", "no main scene", 0.0)
+        outcome = BootGate(self._runner).run(self._project, self._timeout_s)
+        detail: dict[str, object] = {"input": outcome.input_state, "counts": outcome.verdict.counts}
+        return Step("boot", "pass" if outcome.ok else "fail", outcome.reason, 0.0, detail)
+
+    def _test(self) -> Step:
+        entries = EntryCatalog(self._project).entries()
+        if not entries:
+            return Step("test", "not_applicable", "no test entries", 0.0)
+        results = SuiteRunner(self._runner, self._jobs, self._timeout_s).run(
+            self._project, entries, native=False
+        )
+        ran = [result for result in results if result.verdict is not None]
+        failed = [result.entry.name for result in ran if result.verdict and not result.verdict.ok]
+        checks = sum(
+            (result.verdict.summary or {}).get("checks", 0) for result in ran if result.verdict
+        )
+        detail: dict[str, object] = {
+            "ran": len(ran),
+            "skipped": len(results) - len(ran),
+            "checks": checks,
+            "failed": failed,
+            "seconds": {result.entry.name: round(result.duration_s, 3) for result in ran},
+        }
+        return Step(
+            "test", "fail" if failed else "pass", "test_failures" if failed else "ok", 0.0, detail
+        )
 
     def _lint(self) -> Step:
         files = project_sources(self._project, LINT_SUFFIXES)

@@ -31,6 +31,7 @@ DEFAULT_SUMMARIES = (
 
 
 SCENE_SUFFIXES = (".tscn", ".scn")
+DURATIONS_FILE = Path(".godot") / "godotkit" / "durations.json"
 
 
 @dataclass(frozen=True)
@@ -159,6 +160,37 @@ def select_affected(
     return tuple(entry for entry in entries if graph.reach(entry.path).touches(changed))
 
 
+class DurationStore:
+    """Seconds per entry from earlier runs; longest first lets a pool of N finish together."""
+
+    def __init__(self, project: Path) -> None:
+        self._path = project / DURATIONS_FILE
+
+    def load(self) -> dict[str, float]:
+        if not self._path.is_file():
+            return {}
+        raw = json.loads(self._path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or not all(isinstance(v, int | float) for v in raw.values()):
+            raise ValueError(f"{self._path} is not a map of entry names to seconds; delete it")
+        return {str(name): float(seconds) for name, seconds in raw.items()}
+
+    def order(self, entries: Sequence[SuiteEntry]) -> list[int]:
+        """Indices, longest known first; an entry never timed counts as the longest."""
+        known = self.load()
+        return sorted(
+            range(len(entries)), key=lambda index: -known.get(entries[index].name, float("inf"))
+        )
+
+    def record(self, results: Iterable[EntryResult]) -> None:
+        measured = {
+            result.entry.name: round(result.duration_s, 3) for result in results if result.run
+        }
+        if not measured:
+            return
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(json.dumps({**self.load(), **measured}, indent=2), encoding="utf-8")
+
+
 class SuiteRunner:
     def __init__(self, runner: GodotRunner, jobs: int, timeout_s: float) -> None:
         if jobs < 1:
@@ -171,8 +203,14 @@ class SuiteRunner:
         self, project: Path, entries: Sequence[SuiteEntry], native: bool
     ) -> tuple[EntryResult, ...]:
         # GodotRunner gives every run its own user data, so parallel runs never share saves.
+        store = DurationStore(project)
+        order = store.order(entries)
         with ThreadPoolExecutor(max_workers=self._jobs) as pool:
-            return tuple(pool.map(lambda entry: self._one(project, entry, native), entries))
+            ran = pool.map(lambda index: self._one(project, entries[index], native), order)
+            done = dict(zip(order, ran, strict=True))
+        results = tuple(done[index] for index in range(len(entries)))
+        store.record(results)
+        return results
 
     def _one(self, project: Path, entry: SuiteEntry, native: bool) -> EntryResult:
         if entry.native and not native:

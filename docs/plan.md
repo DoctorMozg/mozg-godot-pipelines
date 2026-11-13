@@ -98,6 +98,14 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
 - AloneGodot worktree at HEAD (2026-11-13), baseline of `lint` and `strict`: 98 s with `--jobs 4`, 65 s of it tests (44 entries, 48,007 checks; 196 s of entry time, longest 43.6 s, so about 49 s is the floor at 4 jobs; the gain of longest-first ordering on a second run is UNTESTED). Two findings. Import rewrites 67 tracked files, because the committed `.import` files predate the current import. 15 entries fail, as under `godotkit test`: they raise expected errors with no `godotkit.json` allow-list, which `godot-init` (M1) writes.
 - Proven 2026-11-13 on real Godot: a fresh fixture fails `import` because its first import writes `main.gd.uid`; after committing it the gate passes, and a new file makes `verify` report `stale`.
 
+### Hooks (`hooks/hooks.json`, `godotkit hook EVENT`)
+
+- Protocol: the hook reads the event JSON on stdin; when it has something to say it exits 2 with the message on stderr, which blocks a PreToolUse call and reaches the agent after a PostToolUse one.
+- `post-edit` (Edit, Write, MultiEdit on `.gd`, `.tscn`, `.tres` and shader files): lint findings the baseline does not cover, errors from a language server that is already running (it never starts one), and a warning once a script passes the line cap less 20 (`max_file_lines` from `architecture.json`, else 300).
+- `pre-edit`: in a linked worktree (a lane), edits of `project.godot`, the main scene and the project theme (`gui/theme/custom`), named by path or uid, are refused with a request path under `.mozg/requests/`. The main checkout is the orchestrator and edits them.
+- `pre-bash`: `git commit` of anything beyond docs needs a passing gate receipt for the current tree hash, and `SKIP=` or `--no-verify` are refused. A commit run from above the project folder is not seen (UNTESTED how often agents do that).
+- Measured on AloneGodot (2026-11-13), Python start included: `post-edit` and `pre-edit` 0.14 to 0.19 s on a 300-line script, a scene, a shader and `project.godot`; with a live language server the fixture's error arrives within 1 s. The commit guard costs one tree hash (9.3 s on the main checkout with 4,628 untracked files, under its 30 s timeout).
+
 ### Language server (`godotkit lsp`)
 
 - `lsp start` runs `godot --editor --headless --lsp-port P` in its own session, records pid and port in `.godot/godotkit-lsp.json`, reuses a live server, and sends one warm-up `initialize`, since the first one parses the workspace.

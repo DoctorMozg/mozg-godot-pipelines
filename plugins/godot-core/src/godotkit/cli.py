@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot
+from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot, hooks
 from godotkit.doctor import Doctor
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_SETUP, emit
@@ -60,6 +60,9 @@ def _parser() -> argparse.ArgumentParser:
     gate.add_argument("--timeout", type=float, default=600.0, help="seconds per Godot run")
     gate.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
     gate.add_argument("--base", default="HEAD", help="commit the reach metrics compare against")
+
+    hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
+    hook.add_argument("event", choices=sorted(hooks.HANDLERS))
 
     receipt = commands.add_parser("receipt", help="gate receipts")
     receipt_actions = receipt.add_subparsers(dest="action", required=True)
@@ -154,6 +157,8 @@ def main(argv: Sequence[str]) -> int:
     }
     if args.command in file_commands:
         return file_commands[args.command](args)
+    if args.command == "hook":
+        return hooks.run(args.event, sys.stdin.read())
     if args.command == "lsp":
         return cmd_godot.lsp(args, locator)
     if args.command == "baseline":

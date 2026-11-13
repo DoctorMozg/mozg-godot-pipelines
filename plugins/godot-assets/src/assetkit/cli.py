@@ -24,8 +24,9 @@ from assetkit.index import RegistryIndex
 from assetkit.promote import Promoter, PromoteRequest
 from assetkit.prune import STORE_ENV, BlobStore, Pruner, default_store
 from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
+from assetkit.review import NoteRequest, Review
 from assetkit.shipreport import ship_report
-from assetkit.status import DECISIONS, fold, next_status
+from assetkit.status import DECISIONS
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 ORIGINS = ("human", "generated", "licensed", "procedural")
@@ -123,6 +124,7 @@ class Commands:
     def __init__(self, registry: Registry, author: str) -> None:
         self._registry = registry
         self._author = author
+        self._review = Review(registry, author)
 
     def new(self, args: argparse.Namespace) -> dict[str, Json]:
         spec = AssetSpec(
@@ -153,36 +155,11 @@ class Commands:
         return {"version": self._registry.add_version(args.asset, spec)}
 
     def note(self, args: argparse.Namespace) -> dict[str, Json]:
-        records = self._registry.asset_records(args.asset)
-        if args.version and args.version not in {v["id"] for v in records.versions}:
-            raise Refused(f"{args.asset} has no version {args.version}")
-        if args.reply_to and args.reply_to not in {e["id"] for e in records.events}:
-            raise Refused(f"{args.asset} has no event {args.reply_to} to reply to")
-        fields: dict[str, Json] = {"type": "note", "body": args.body, "author": self._author}
-        fields |= {
-            k: v for k, v in (("version_id", args.version), ("reply_to", args.reply_to)) if v
-        }
-        return {"event": self._registry.add_event(args.asset, fields)}
+        request = NoteRequest(args.asset, args.body, args.version, args.reply_to)
+        return {"event": self._review.note(request)}
 
     def decide(self, args: argparse.Namespace) -> dict[str, Json]:
-        records = self._registry.asset_records(args.asset)
-        folded = fold(records.versions, records.events)
-        version = args.version or folded.current_version
-        if version is None:
-            raise Refused(f"{args.asset} has no version to decide on")
-        if version != folded.current_version:
-            raise Refused(f"{version} is not the current version {folded.current_version}")
-        if next_status(folded.status, args.decision) is None:
-            raise Refused(f"{args.asset} is {folded.status}, which takes no {args.decision}")
-        fields: dict[str, Json] = {
-            "type": "decision",
-            "decision": args.decision,
-            "version_id": version,
-            "author": self._author,
-        }
-        if args.body:
-            fields["body"] = args.body
-        return {"event": self._registry.add_event(args.asset, fields)}
+        return {"event": self._review.decide(args.asset, args.decision, args.version, args.body)}
 
     def status(self, args: argparse.Namespace) -> dict[str, Json]:
         written = None
@@ -254,14 +231,7 @@ class Commands:
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:
             raise Refused("--set needs an asset")
-        records = self._registry.asset_records(args.asset)
-        folded = fold(records.versions, records.events)
-        if next_status(folded.status, args.set) is None:
-            raise Refused(f"{args.asset} is {folded.status}, which cannot become {args.set}")
-        fields: dict[str, Json] = {"type": "status", "status": args.set, "author": self._author}
-        if args.body:
-            fields["body"] = args.body
-        return self._registry.add_event(args.asset, fields)
+        return self._review.set_status(args.asset, args.set, args.body)
 
 
 def main(argv: Sequence[str]) -> int:

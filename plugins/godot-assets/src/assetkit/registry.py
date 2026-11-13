@@ -143,6 +143,15 @@ class Registry:
             self._records(path.parent) for path in sorted(self.root.glob("assets/*/*/asset.json"))
         ]
 
+    def fingerprint(self) -> str:
+        """Changes whenever a record file is added or rewritten; reads no file contents."""
+        digest = hashlib.sha256()
+        for path in sorted(self.root.glob("assets/**/*.json")):
+            stat = path.stat()
+            relative = path.relative_to(self.root)
+            digest.update(f"{relative}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode())
+        return digest.hexdigest()
+
     def _records(self, folder: Path) -> AssetRecords:
         versions = tuple(_read(path) for path in sorted((folder / "versions").glob("*.json")))
         events = tuple(_read(path) for path in sorted((folder / "events").glob("*.json")))

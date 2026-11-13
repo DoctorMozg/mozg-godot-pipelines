@@ -5,7 +5,6 @@ It lives under .cache/mozg/, which ignores itself in git and which Godot skips a
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import sqlite3
@@ -47,7 +46,7 @@ class RegistryIndex:
 
     def refresh(self) -> IndexState:
         """Rebuilds the index when the record files differ from the ones it was built from."""
-        fingerprint = self._fingerprint()
+        fingerprint = self._registry.fingerprint()
         if self._stored_fingerprint() == fingerprint:
             return IndexState(self.path, rebuilt=False)
         self._rebuild(fingerprint)
@@ -57,16 +56,6 @@ class RegistryIndex:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         return connection
-
-    def _fingerprint(self) -> str:
-        digest = hashlib.sha256()
-        root = self._registry.root
-        for path in sorted(root.glob("assets/**/*.json")):
-            stat = path.stat()
-            digest.update(
-                f"{path.relative_to(root)}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode()
-            )
-        return digest.hexdigest()
 
     def _stored_fingerprint(self) -> str | None:
         if not self.path.is_file():

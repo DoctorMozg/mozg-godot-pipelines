@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -38,39 +39,54 @@ def _godotkit(*args: str) -> dict[str, Any]:
     return result
 
 
-@pytest.fixture(scope="module")
-def arena(tmp_path_factory: pytest.TempPathFactory) -> Path:
+@dataclass(frozen=True)
+class Bed:
+    folder: str
+    main_scene: str
+    entries: int
+    min_checks: int
+
+
+TESTBEDS = [
+    Bed("arena3d", "res://scenes/arena.tscn", entries=2, min_checks=11),
+    Bed("rts", "res://scenes/match.tscn", entries=1, min_checks=13),
+]
+
+
+@pytest.fixture(scope="module", params=TESTBEDS, ids=lambda bed: bed.folder)
+def testbed(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory) -> Bed:
+    bed: Bed = request.param
     # A copy keeps the import cache and the gates' override.cfg out of the repo.
-    copy = tmp_path_factory.mktemp("arena") / "arena3d"
+    copy = tmp_path_factory.mktemp(bed.folder) / bed.folder
     shutil.copytree(
-        REPO_ROOT / "testbeds" / "arena3d", copy, ignore=shutil.ignore_patterns(".godot")
+        REPO_ROOT / "testbeds" / bed.folder, copy, ignore=shutil.ignore_patterns(".godot")
     )
     # The gate names its receipt by a git tree; a repository with nothing committed is enough.
     subprocess.run(["git", "init", "-q", str(copy)], check=True)
-    return copy
+    return replace(bed, folder=str(copy))
 
 
 @pytest.mark.live_godot
-class TestArena3d:
-    def test_scripts_load_under_strict_profile(self, arena: Path) -> None:
-        result = _godotkit("check", "--strict", "--project", str(arena))
+class TestTestbeds:
+    def test_scripts_load_under_strict_profile(self, testbed: Bed) -> None:
+        result = _godotkit("check", "--strict", "--project", testbed.folder)
         assert result["ok"], result
         assert result["summary"]["failures"] == 0
 
-    def test_main_scene_boots_with_live_input(self, arena: Path) -> None:
-        result = _godotkit("boot", "--project", str(arena))
+    def test_main_scene_boots_with_live_input(self, testbed: Bed) -> None:
+        result = _godotkit("boot", "--project", testbed.folder)
         assert result["ok"], result
         assert result["input"] == "live"
-        assert result["probe"]["scene"] == "res://scenes/arena.tscn"
+        assert result["probe"]["scene"] == testbed.main_scene
 
-    def test_bot_wins_and_camera_collides(self, arena: Path) -> None:
-        result = _godotkit("test", "--project", str(arena), "--timeout", str(TIMEOUT_S))
+    def test_scripted_bots_pass_their_entries(self, testbed: Bed) -> None:
+        result = _godotkit("test", "--project", testbed.folder, "--timeout", str(TIMEOUT_S))
         assert result["ok"], result
-        assert result["summary"]["ran"] == 2
+        assert result["summary"]["ran"] == testbed.entries
         assert result["summary"]["failures"] == 0
-        assert result["summary"]["checks"] >= 11
+        assert result["summary"]["checks"] >= testbed.min_checks
 
-    def test_every_gate_step_passes(self, arena: Path) -> None:
-        result = _godotkit("gate", "--project", str(arena), "--timeout", str(TIMEOUT_S))
+    def test_every_gate_step_passes(self, testbed: Bed) -> None:
+        result = _godotkit("gate", "--project", testbed.folder, "--timeout", str(TIMEOUT_S))
         failed = [step["name"] for step in result["steps"] if step["status"] == "fail"]
         assert (result["ok"], failed) == (True, []), result

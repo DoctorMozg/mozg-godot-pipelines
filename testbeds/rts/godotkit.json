@@ -1,0 +1,13 @@
+{
+  "tests": {
+    "entries": [
+      {
+        "script": "res://tests/match_bot_test.gd",
+        "args": [
+          "--fixed-fps",
+          "60"
+        ]
+      }
+    ]
+  }
+}

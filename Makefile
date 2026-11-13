@@ -12,7 +12,7 @@ help:
 	@echo "  test       pytest per suite, side by side (live_claude and live_godot excluded)"
 	@echo "  test-godot pytest of the live_godot tests, which run a real Godot binary"
 	@echo "  validate   claude plugin validate --strict on the marketplace and every plugin"
-	@echo "  hooks      pre-commit on all tracked files"
+	@echo "  hooks      pre-commit on tracked and new (untracked, not ignored) files"
 	@echo "  static     lint + types + validate + hooks, in parallel"
 	@echo "  check      static, then test"
 
@@ -59,8 +59,9 @@ validate: validate/. $(PLUGINS:%=validate/%)
 validate/%:
 	claude plugin validate $* --strict
 
+# --all-files sees tracked files only; new files would skip the hooks until committed.
 hooks:
-	pre-commit run --all-files
+	git ls-files -z --cached --others --exclude-standard | xargs -0 pre-commit run --files
 
 static:
 	$(MAKE) -j -O lint types validate hooks

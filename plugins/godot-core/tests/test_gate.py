@@ -45,6 +45,32 @@ class TestTreeHash:
         (git_project / "new.gd").write_text("extends Node\n")
         assert tree_hash(git_project) != _head_tree(git_project)
 
+    def test_hashing_writes_no_objects_and_sees_deletions(self, git_project: Path) -> None:
+        objects = git_project / ".git" / "objects"
+        before = sorted(objects.rglob("*"))
+        (git_project / "new.gd").write_text("extends Node\n")
+        added = tree_hash(git_project)
+        assert sorted(objects.rglob("*")) == before
+        (git_project / "main.gd").unlink()
+        assert tree_hash(git_project) not in (added, _head_tree(git_project))
+
+    def test_project_below_the_repository_top_names_its_own_tree(
+        self, git_project: Path, tmp_path: Path
+    ) -> None:
+        top = tmp_path / "repo"
+        (top / "game").mkdir(parents=True)
+        (top / "README.md").write_text("top\n")
+        for name in ("project.godot", "main.gd"):
+            (top / "game" / name).write_text((git_project / name).read_text())
+        for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "c"]):
+            subprocess.run(["git", "-C", str(top), *args], check=True, env=GIT_ENV)
+        game = top / "game"
+        clean = tree_hash(game)
+        (top / "README.md").write_text("changed outside the project\n")
+        assert tree_hash(game) == clean
+        (game / "main.gd").write_text("extends Node2D\n")
+        assert tree_hash(game) != clean
+
 
 @pytest.mark.usefixtures("no_gdtoolkit")
 class TestGateCli:

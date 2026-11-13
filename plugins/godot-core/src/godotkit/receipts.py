@@ -5,10 +5,9 @@ Receipts live under .godot, which the tree hash leaves out, so writing one never
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
-import shutil
-import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,22 +47,30 @@ class Receipt:
 
 
 def tree_hash(project: Path) -> str:
-    """The git tree of the working copy, untracked files included, as `git write-tree` names it.
+    """Names the working copy's content, untracked files included, and writes nothing to git.
 
-    A copy of the real index keeps git's stat cache, so unchanged assets are not hashed again.
+    A clean copy is named by its HEAD tree; a changed one by that tree plus each changed blob.
     """
-    index = Path(git(project, "rev-parse", "--path-format=absolute", "--git-path", "index").strip())
+    base = git(project, "rev-parse", "HEAD:./").strip()
     prefix = git(project, "rev-parse", "--show-prefix").strip()
-    with tempfile.TemporaryDirectory(prefix="godotkit-index-") as scratch:
-        temp_index = Path(scratch) / "index"
-        if index.is_file():
-            shutil.copyfile(index, temp_index)
-        env = {"GIT_INDEX_FILE": str(temp_index)}
-        git(project, "add", "-A", "--", ".", env=env)
-        # Dropped after adding: a pathspec naming an ignored .godot makes `git add` fail.
-        git(project, "rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ".godot", env=env)
-        args = ["write-tree", f"--prefix={prefix}"] if prefix else ["write-tree"]
-        return git(project, *args, env=env).strip()
+    listed = git(
+        project, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames", "."
+    )
+    # Status paths start at the repository top; receipts and the import cache stay out.
+    paths = sorted(
+        relative
+        for entry in listed.split("\0")
+        if entry and not (relative := entry[3:].removeprefix(prefix)).startswith(".godot/")
+    )
+    if not paths:
+        return base
+    present = [path for path in paths if (project / path).is_file()]
+    # --stdin-paths reads paths from the repository top, whatever -C says.
+    absolute = "".join(f"{(project / path).resolve()}\n" for path in present)
+    blobs = git(project, "hash-object", "--stdin-paths", input=absolute).split()
+    named = dict(zip(present, blobs, strict=True))
+    lines = [base, *(f"{path}\0{named.get(path, 'deleted')}" for path in paths)]
+    return hashlib.sha1("\n".join(lines).encode(), usedforsecurity=False).hexdigest()
 
 
 class ReceiptStore:

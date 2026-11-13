@@ -38,13 +38,17 @@ class GitError(RuntimeError):
     pass
 
 
-def git(repo: Path, *args: str, env: Mapping[str, str] | None = None) -> str:
+def git(
+    repo: Path, *args: str, env: Mapping[str, str] | None = None, input: str | None = None
+) -> str:
     completed = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, **env} if env else None,
+        input=input,
+        # Without it `git status` may rewrite the index of a repository that is only read.
+        env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", **(env or {})},
     )
     if completed.returncode != 0:
         raise GitError(f"git {' '.join(args)} failed in {repo}: {completed.stderr.strip()}")

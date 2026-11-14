@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contracts:string",
+  "title": "string",
+  "description": "Source strings of one namespace, at i18n/src/<namespace>.json, keyed by the key code passes to tr(). The source of truth that Godot files are built from.",
+  "type": "object",
+  "required": [
+    "schema",
+    "namespace",
+    "strings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "string/1"
+    },
+    "namespace": {
+      "$ref": "#/$defs/namespace"
+    },
+    "patterns": {
+      "description": "Keys built at runtime, such as ACTIVITY_*_NAME; * stands for one or more key characters.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_.*-]+$"
+      }
+    },
+    "strings": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/source"
+      }
+    }
+  },
+  "$defs": {
+    "namespace": {
+      "description": "File name without .json: lowercase letters and digits, joined by _ or -.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$"
+    },
+    "source": {
+      "description": "One string: source for a plain string or forms for a plural one, never both.",
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "source"
+          ]
+        },
+        {
+          "required": [
+            "forms"
+          ]
+        }
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "forms": {
+          "description": "Plural forms in the locale's plural order, one per category.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "context": {
+          "description": "Second argument of tr(); msgctxt in PO.",
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "description": "Guidance for translators.",
+          "type": "string"
+        },
+        "max_chars": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_px": {
+          "description": "Widest rendering allowed with the theme font.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "placeholders": {
+          "description": "Placeholder name, such as current for {current}, to what it holds.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "markup": {
+          "enum": [
+            "none",
+            "bbcode"
+          ]
+        },
+        "screenshots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "dnt": {
+          "description": "Do not translate: every locale shows the source.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

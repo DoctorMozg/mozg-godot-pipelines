@@ -1,0 +1,16 @@
+{
+  "name": "godot-l10n",
+  "version": "0.1.0",
+  "description": "Localization for Godot: strings kept as records, built into PO files, checked for parity and leaks, translated in masked batches",
+  "author": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "localization",
+    "i18n",
+    "translation"
+  ]
+}

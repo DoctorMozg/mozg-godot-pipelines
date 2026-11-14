@@ -50,5 +50,8 @@
       "<YYYY-MM-DD>": "the date the report was written",
       "<slug>": "a short kebab-case name of the research question"
     }
+  },
+  "godot-l10n": {
+    "placeholders": {}
   }
 }

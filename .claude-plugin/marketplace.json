@@ -44,6 +44,18 @@
         "progression",
         "balance"
       ]
+    },
+    {
+      "name": "godot-l10n",
+      "source": "./plugins/godot-l10n",
+      "description": "Localization for Godot: strings kept as records, built into PO files, checked for parity and leaks, translated in masked batches",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "localization",
+        "i18n",
+        "translation"
+      ]
     }
   ]
 }

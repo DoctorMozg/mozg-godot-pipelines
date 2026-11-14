@@ -30,8 +30,9 @@ lint:
 # Each plugin is checked on its own: test and script module names repeat across plugins.
 types: types/tools $(PLUGINS:%=types/%)
 
+# Repo tests that compare two kits import both; plugins themselves never do.
 types/tools:
-	mypy --cache-dir .mypy_cache/tools tools tests
+	MYPYPATH=plugins/godot-assets/src:plugins/godot-l10n/src mypy --cache-dir .mypy_cache/tools tools tests
 
 types/plugins/%:
 	@plugin=plugins/$*; [ -d "$$plugin/src" ] || exit 0; extra=; \

@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from assetkit.hubserver import HubConfig, HubServer
 from assetkit.registry import Registry
-from assetkit_rig import Lane
+from assetkit_rig import Lane, write_strings
 
 TOKEN = "t" * 40
 
@@ -223,3 +223,33 @@ class TestRanges:
         assert (got, headers.get("Content-Range")) == (status, content_range)
         if body is not None:
             assert (payload, headers["Accept-Ranges"]) == (body, "bytes")
+
+
+class TestStrings:
+    def test_approve_a_translation_and_see_its_screenshot(
+        self, client: Client, registry: Registry
+    ) -> None:
+        write_strings(registry.project)
+        (registry.project / "shots").mkdir()
+        (registry.project / "shots" / "hud.png").write_bytes(b"png")
+        status, payload = client.post(
+            {"type": "decision", "item": "UI_EXIT@fr", "decision": "approve"}
+        )
+        assert (status, payload["event"]["item"]) == (201, "UI_EXIT@fr")
+        snapshot = client.call("GET", "/api/items", headers={"X-Hub-Token": TOKEN})[2]
+        states = {row["item"]: row["state"] for row in snapshot["strings"]}
+        assert states == {"UI_EXIT@fr": "reviewed", "UI_OPEN@fr": "stale"}
+        assert client.call("GET", f"/files/shots/hud.png?token={TOKEN}")[0] == 200
+
+    @pytest.mark.parametrize(
+        ("body", "status"),
+        [
+            ({"type": "note", "item": "UI_EXIT@fr", "body": "x"}, 400),
+            ({"type": "decision", "item": "UI_NEW@fr", "decision": "approve"}, 409),
+        ],
+    )
+    def test_refused_string_writes(
+        self, client: Client, registry: Registry, body: dict[str, str], status: int
+    ) -> None:
+        write_strings(registry.project)
+        assert client.post(body)[0] == status

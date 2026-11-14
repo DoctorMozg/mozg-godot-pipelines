@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contracts:string-translation",
+  "title": "string-translation",
+  "description": "Translations of one namespace into one locale, at i18n/locales/<locale>/<namespace>.json. Missing, stale and reviewed are computed, never stored.",
+  "type": "object",
+  "required": [
+    "schema",
+    "namespace",
+    "locale",
+    "strings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "string-translation/1"
+    },
+    "namespace": {
+      "description": "File name without .json: lowercase letters and digits, joined by _ or -.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+([_-][a-z0-9]+)*$"
+    },
+    "locale": {
+      "description": "Godot locale code, such as fr, pt_BR or sr_Latn.",
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(_[A-Z][a-z]{3})?(_[A-Z]{2}|_[0-9]{3})?$"
+    },
+    "strings": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/translation"
+      }
+    }
+  },
+  "$defs": {
+    "translation": {
+      "type": "object",
+      "required": [
+        "status",
+        "source_hash",
+        "by"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "required": [
+            "forms"
+          ]
+        }
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "forms": {
+          "description": "Plural forms in the locale's plural order, one per category.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "status": {
+          "description": "machine: written by a model; translated: by a person or imported.",
+          "enum": [
+            "machine",
+            "translated"
+          ]
+        },
+        "source_hash": {
+          "description": "What this text translates: the first 16 hex digits of the SHA-256 of the UTF-8 JSON of the source record's source, forms and context fields that are present, keys sorted, separators \", \" and \": \", non-ASCII unescaped (Python json.dumps(sort_keys=True, ensure_ascii=False)). A different hash makes the text stale.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "by": {
+          "type": "object",
+          "required": [
+            "kind",
+            "at"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "llm",
+                "human",
+                "import"
+              ]
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "at": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

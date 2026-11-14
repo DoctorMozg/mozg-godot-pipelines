@@ -129,6 +129,15 @@ class HubHandler(BaseHTTPRequestHandler):
 
     def _write(self, body: dict[str, Json]) -> dict[str, Json]:
         review = self.server.review
+        if body.get("item") is not None:
+            if body.get("type") != "decision":
+                raise BadRequest(
+                    "the hub writes only decisions on strings; notes come from l10nkit"
+                )
+            return self.server.data.strings.decide(
+                _text(body, "item"), _text(body, "decision"), _optional(body, "body"),
+                self.server.config.author,
+            )  # fmt: skip
         asset, kind = _text(body, "asset"), body.get("type")
         if kind == "decision":
             return review.decide(
@@ -238,7 +247,7 @@ class HubHandler(BaseHTTPRequestHandler):
         server, sent, idle = self.server, None, 0.0
         try:
             while not server.closing.is_set():
-                fingerprint = server.registry.fingerprint()
+                fingerprint = server.data.fingerprint()
                 if fingerprint != sent:
                     payload = json.dumps(server.data.snapshot(), ensure_ascii=False)
                     self.wfile.write(f"event: items\ndata: {payload}\n\n".encode())

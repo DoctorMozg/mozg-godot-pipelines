@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 from collections.abc import Mapping
 from urllib.parse import quote
@@ -10,6 +11,7 @@ from assetkit.contracts import Json
 from assetkit.prune import pruned_versions
 from assetkit.registry import AssetRecords, Registry
 from assetkit.status import fold
+from assetkit.strings import Strings
 
 # Python's table lacks these on some systems; the page picks a viewer by media type.
 for _type, _suffix in (
@@ -22,12 +24,16 @@ for _type, _suffix in (
 class HubData:
     def __init__(self, registry: Registry) -> None:
         self._registry = registry
+        self.strings = Strings(registry.project)
+
+    def fingerprint(self) -> str:
+        return self._registry.fingerprint() + self.strings.fingerprint()
 
     def snapshot(self) -> dict[str, Json]:
-        """Items newest-version first, with the fingerprint they were read at."""
-        fingerprint = self._registry.fingerprint()
+        """Items newest-version first and string rows, with the fingerprint they were read at."""
+        fingerprint = self.fingerprint()
         items = [_item(records) for records in self._registry.records()]
-        return {"fingerprint": fingerprint, "items": items}
+        return {"fingerprint": fingerprint, "items": items, "strings": self.strings.rows()}
 
     def files(self) -> dict[str, str]:
         """The project files the hub may serve, by project-relative path, with their sha256."""
@@ -38,6 +44,10 @@ class HubData:
                 for entry in version["files"]:
                     if entry["storage"] != "external" and not _moved_out(entry, version, pruned):
                         allowed[str(entry["path"])] = str(entry["sha256"])
+        project = self._registry.project
+        for shot in self.strings.screenshots():
+            if (project / shot).is_file():
+                allowed[shot] = hashlib.sha256((project / shot).read_bytes()).hexdigest()
         return allowed
 
 

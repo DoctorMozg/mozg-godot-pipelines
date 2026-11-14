@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import struct
 import zlib
 from collections.abc import Callable
@@ -12,6 +13,7 @@ from assetkit.contracts import Json
 from assetkit.godot import ImportRun
 from assetkit.promote import Promoter, PromoteRequest, Promotion
 from assetkit.registry import AssetSpec, Registry, VersionSpec
+from assetkit.strings import source_hash
 
 # Any: the JSON line an assetkit command printed.
 CliResult = tuple[int, dict[str, Any]]
@@ -84,3 +86,34 @@ class Lane:
         return Promoter(self.registry, importer).promote(
             PromoteRequest(self.asset, res_path, "tester")
         )
+
+
+def write_strings(project: Path) -> None:
+    """i18n records as l10nkit writes them: a fresh fr translation, a stale one, a missing one."""
+    hud: dict[str, dict[str, Json]] = {
+        "UI_EXIT": {"source": "Exit", "screenshots": ["shots/hud.png"]},
+        "UI_OPEN": {"source": "Open", "context": "door"},
+        "UI_NEW": {"source": "New"},
+    }
+    root = project / "i18n"
+    (root / "src").mkdir(parents=True)
+    (root / "locales" / "fr").mkdir(parents=True)
+    source = {"schema": "string/1", "namespace": "hud", "strings": hud}
+    (root / "src" / "hud.json").write_text(json.dumps(source))
+    by = {"kind": "llm", "model": "m", "at": "2026-11-14T09:00:00Z"}
+    strings = {
+        "UI_EXIT": {
+            "text": "Quitter",
+            "status": "machine",
+            "source_hash": source_hash(hud["UI_EXIT"]),
+            "by": by,
+        },
+        "UI_OPEN": {"text": "Ouvert", "status": "machine", "source_hash": "0" * 16, "by": by},
+    }
+    catalog = {
+        "schema": "string-translation/1",
+        "namespace": "hud",
+        "locale": "fr",
+        "strings": strings,
+    }
+    (root / "locales" / "fr" / "hud.json").write_text(json.dumps(catalog))

@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from l10nkit.contracts import Json
 from l10nkit.store import Store, source_hash
 
 AT = "2026-11-14T10:00:00Z"
+# Any: the JSON line a command printed.
+CliRunner = Callable[..., tuple[int, dict[str, Any]]]
 
 
 class StoreRig:

@@ -44,9 +44,11 @@ def _parser() -> argparse.ArgumentParser:
     simulate.add_argument("--seed", type=int, default=0)
     simulate.add_argument("--out", type=Path, help="write the full report here as JSON")
     render = commands.add_parser(
-        "render", parents=[shared], help="draw the graph as SVG for the review hub"
+        "render", parents=[shared], help="draw the graph and charts as SVG for the review hub"
     )
     render.add_argument("--out", type=Path, required=True, help="folder for the SVGs and manifest")
+    render.add_argument("--runs", type=_positive, default=1000, help="simulated runs per terminal")
+    render.add_argument("--seed", type=int, default=0)
     return parser
 
 
@@ -99,7 +101,9 @@ def main(argv: Sequence[str]) -> int:
         if args.command == "analyze":
             payload, code = report(root, args.out, lambda d: ProgressionAnalysis(d).run())
         elif args.command == "render":
-            payload, code = report(root, None, lambda d: _rendered(Renderer(d).write(args.out)))
+            payload, code = report(
+                root, None, lambda d: _rendered(Renderer(d, args.runs, args.seed).write(args.out))
+            )
         elif args.command == "simulate":
             payload, code = report(
                 root, args.out, lambda d: CampaignSimulation(d, args.runs, args.seed).run()

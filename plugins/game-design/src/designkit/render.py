@@ -12,11 +12,14 @@ from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 from xml.sax.saxutils import escape, quoteattr
 
+from designkit.charts import DurationChart, GridChart, PacingChart
 from designkit.contracts import Json
 from designkit.design import Design, Node
 from designkit.graph import ProgressionAnalysis
+from designkit.simulate import CampaignSimulation
 
 log = logging.getLogger(__name__)
 MANIFEST = "render.json"
@@ -146,15 +149,28 @@ class GraphDrawing:
         )
 
 
+class _View(Protocol):
+    def svg(self) -> str: ...
+
+
 class Renderer:
-    def __init__(self, design: Design) -> None:
+    def __init__(self, design: Design, runs: int, seed: int) -> None:
         self._design = design
+        self._simulation = CampaignSimulation(design, runs, seed)
 
     def write(self, out: Path) -> dict[str, Json]:
         """Writes every view and the manifest into `out`; returns the manifest."""
         out.mkdir(parents=True, exist_ok=True)
         analysis = ProgressionAnalysis(self._design).run()
-        views = [("graph.svg", "graph", "Progression graph", GraphDrawing(self._design, analysis))]
+        simulation = self._simulation.run()
+        views: list[tuple[str, str, str, _View]] = [
+            ("graph.svg", "graph", "Progression graph", GraphDrawing(self._design, analysis)),
+            ("duration.svg", "chart", "Run duration", DurationChart(simulation)),
+            ("pacing.svg", "chart", "Unlock pacing", PacingChart(self._design, analysis)),
+            ("coverage.svg", "chart", "Playstyle coverage", GridChart.coverage(analysis)),
+        ]
+        if self._design.pools:
+            views.append(("economy.svg", "chart", "Pool levels", GridChart.economy(simulation)))
         items: list[Json] = []
         for name, kind, title, view in views:
             (out / name).write_text(view.svg(), encoding="utf-8")

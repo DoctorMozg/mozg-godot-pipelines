@@ -45,3 +45,69 @@ class DesignBuilder:
     def write(path: Path, record: object) -> Path:
         path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
         return path
+
+
+STAGES = (
+    "crash_repair", "daily_survival", "capacity_investigation", "first_commitments",
+    "distinct_paths", "consequences", "hidden_combinations", "final_preparation", "endings",
+)  # fmt: skip
+# The radio route to ending E01 of AloneGodot's demos/progression-data.js at 78b719d: ids,
+# kinds, stages, edges and hours as recorded (research hours = RP / 10). Planted: a
+# boundary/signal_r loop that locks ending E07, and a beacon that nothing uses.
+ALONE_ROUTE: tuple[tuple[str, str, int, tuple[str, ...], float | None, tuple[str, ...]], ...] = (
+    ("start", "Start", 0, (), None, ()),
+    ("manual", "Knowledge", 0, ("start",), None, ()),
+    ("places", "Place", 0, ("start",), None, ()),
+    ("seal", "Project", 0, ("start", "manual"), 2, ()),
+    ("solar_guidance", "Research", 0, ("seal", "manual"), 0.5, ()),
+    ("oxygen_guidance", "Research", 0, ("seal", "manual"), 0.5, ()),
+    ("purifier_guidance", "Research", 0, ("seal", "manual"), 0.5, ()),
+    ("solar", "Device", 0, ("seal", "solar_guidance", "places"), 3, ()),
+    ("oxygen", "Device", 0, ("solar", "oxygen_guidance"), 2, ()),
+    ("purifier", "Device", 0, ("oxygen", "purifier_guidance"), 2, ()),
+    ("stable", "Project", 0, ("purifier",), None, ()),
+    ("C01", "Discovery", 0, ("stable",), None, ()),
+    ("C01_A", "Decision", 0, ("C01",), 2, ()),
+    ("C01_B", "Decision", 0, ("C01",), 3, ()),
+    ("wreck", "Location", 1, ("stable",), None, ()),
+    ("salvage", "Project", 1, ("wreck",), 4, ()),
+    ("pressure", "Research", 1, ("salvage", "manual"), 6, ("improviser",)),
+    ("radio_r", "Research", 2, ("salvage", "pressure"), 8, ("broker",)),
+    ("radio", "Device", 2, ("radio_r",), 4, ("broker",)),
+    ("broadcast", "Project", 2, ("radio",), 2, ()),
+    ("contractor", "Contact", 3, ("broadcast",), None, ()),
+    ("terms", "Research", 3, ("contractor",), 8, ("broker",)),
+    ("cargo", "Project", 4, ("terms", "salvage"), 12, ()),
+    ("E01", "Ending", 8, ("offer_c",), 2, ()),
+    ("beacon", "Device", 2, ("radio",), 3, ("broker",)),
+    ("boundary", "Project", 6, ("signal_r", "terms"), 4, ("broker",)),
+    ("signal_r", "Research", 6, ("boundary",), 6, ()),
+    ("E07", "Ending", 8, ("boundary",), 4, ()),
+)
+
+
+def alone_route(builder: DesignBuilder) -> None:
+    builder.frame(
+        title="AloneGodot radio route",
+        stages=[{"id": s, "title": s.replace("_", " ").capitalize()} for s in STAGES],
+        playstyles=[
+            {"id": "broker", "title": "Broker"},
+            {"id": "improviser", "title": "Improviser"},
+        ],
+        terminal_kinds=["Ending", "Failure"],
+    )
+    for node_id, kind, stage, requires, hours, playstyles in ALONE_ROUTE:
+        fields: dict[str, object] = {
+            "kind": kind,
+            "stage": STAGES[stage],
+            "requires": list(requires),
+        }
+        if hours is not None:
+            fields["hours"] = hours
+        if playstyles:
+            fields["playstyles"] = list(playstyles)
+        builder.node(node_id, **fields)
+    builder.node("C01_done", stage=STAGES[0], any=["C01_A", "C01_B"])
+    # Really any of R1D_done or R5D_done, whose episode chains start at C01_done; cut here.
+    builder.node("offer_c", kind="Project", stage=STAGES[5], requires=["cargo"],
+                 any=["C01_done"], hours=2)  # fmt: skip

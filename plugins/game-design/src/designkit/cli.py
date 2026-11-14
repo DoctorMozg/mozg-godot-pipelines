@@ -14,6 +14,7 @@ from pathlib import Path
 
 from designkit.contracts import ContractError, Json
 from designkit.design import DesignLoader, Finding
+from designkit.graph import ProgressionAnalysis
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 SHOWN_FINDINGS = 40
@@ -30,6 +31,10 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "validate", parents=[shared], help="check schemas, file names and references"
     )
+    analyze = commands.add_parser(
+        "analyze", parents=[shared], help="reachability, dead ends, depth, coverage and pacing"
+    )
+    analyze.add_argument("--out", type=Path, help="write the full report here as JSON")
     return parser
 
 
@@ -38,6 +43,21 @@ def validate(root: Path) -> tuple[dict[str, Json], int]:
     nodes = len(loaded.design.nodes) if loaded.design else 0
     payload = {"nodes": nodes, **_summary(loaded.findings)}
     return payload, EXIT_FAILED if loaded.errors else EXIT_OK
+
+
+def analyze(root: Path, out: Path | None) -> tuple[dict[str, Json], int]:
+    loaded = DesignLoader(root).load()
+    if loaded.design is None or loaded.errors:
+        # A dropped node would show up as a false unreachable or dead end; fix the data first.
+        return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
+    report = ProgressionAnalysis(loaded.design).run()
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        log.info("wrote the report to %s", out)
+    findings: list[Json] = report["findings"]
+    report["findings"] = findings[:SHOWN_FINDINGS]
+    return report, EXIT_FAILED if report["errors"] else EXIT_OK
 
 
 def main(argv: Sequence[str]) -> int:
@@ -54,7 +74,10 @@ def main(argv: Sequence[str]) -> int:
             EXIT_REFUSED,
         )
     try:
-        payload, code = validate(root)
+        if args.command == "analyze":
+            payload, code = analyze(root, args.out)
+        else:
+            payload, code = validate(root)
     except ContractError as error:
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP

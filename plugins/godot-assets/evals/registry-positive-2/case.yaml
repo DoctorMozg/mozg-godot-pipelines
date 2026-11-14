@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: registry-positive-2
+description: "Held-out phrasing: the store's AI disclosure question."
+tags: [asset-registry, positive]
+runs: 3
+execution:
+  prompt: >-
+    Steam's content survey asks which art and audio in my Godot game was made with AI. Which of the assets we ship were generated, according to our records?
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?asset-registry"'

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: hub-positive-2
+description: "Held-out phrasing: listen to sound effects and leave notes."
+tags: [review-hub, positive]
+runs: 3
+execution:
+  prompt: >-
+    I want to go over this week's new sound effects for the game, listen for clicks at the loop points and leave notes for the sound designer before anything goes into the build.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?review-hub"'

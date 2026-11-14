@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: hub-positive-1
+description: "Literal: show pending asset candidates for approval."
+tags: [review-hub, positive]
+runs: 3
+execution:
+  prompt: >-
+    Show me the asset candidates waiting for review in my Godot project, in the browser, so I can approve them or send them back for a retake.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?review-hub"'

@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: registry-negative-1
+description: "Near-miss: judging assets in the browser belongs to review-hub."
+tags: [asset-registry, negative]
+runs: 3
+execution:
+  prompt: >-
+    Open the review page for my Godot project's assets so I can look at the new door textures in my browser and approve or reject them.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?asset-registry"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?review-hub"'

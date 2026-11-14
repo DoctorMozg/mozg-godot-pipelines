@@ -12,7 +12,8 @@ from typing import TypedDict
 
 from godotkit.actions import Act, Recording
 from godotkit.display import NativeDisplay
-from godotkit.gates import GD_DIR, probe_override
+from godotkit.gates import CLASS_CACHE, GD_DIR, probe_override
+from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest
 
@@ -66,11 +67,16 @@ class ReplayOutcome:
 
 
 class ReplayProbe:
-    def __init__(self, runner: GodotRunner) -> None:
+    def __init__(self, runner: GodotRunner, importer: ProjectImporter | None = None) -> None:
         self._runner = runner
+        self._importer = importer or ProjectImporter(runner)
 
     def run(self, request: ReplayRequest) -> ReplayOutcome:
         _validate(request)
+        # Without the class cache every class_name reference fails to parse.
+        if not (request.project / CLASS_CACHE).is_file():
+            log.info("no class cache in %s: importing before the replay", request.project)
+            self._importer.run(ImportRequest(request.project, request.timeout_s))
         traces: list[RunTrace] = []
         for number in range(1, request.runs + 1):
             trace = self._once(request)
@@ -145,11 +151,11 @@ def _validate(request: ReplayRequest) -> None:
 def _run_failure(trace: RunTrace) -> str | None:
     if trace.verdict.reason in ("timeout", "crash"):
         return trace.verdict.reason
+    if not trace.verdict.ok:
+        return trace.verdict.reason
     if trace.frames is None:
-        return "no_replay_report" if trace.verdict.ok else trace.verdict.reason
-    if not trace.state:
-        return "no_state"
-    return None if trace.verdict.ok else trace.verdict.reason
+        return "no_replay_report"
+    return None if trace.state else "no_state"
 
 
 def _divergence(traces: list[RunTrace], recording: Recording | None) -> Divergence | None:

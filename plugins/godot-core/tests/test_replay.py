@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from godotkit.actions import Recording
+from godotkit.gates import CLASS_CACHE
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.replay import ReplayProbe, ReplayRequest
@@ -52,6 +53,13 @@ def _hashes(*values: str) -> str:
     )
 
 
+def _imported(project: Path) -> Path:
+    """Gives the project a class cache, so the replay starts no import run of its own."""
+    (project / CLASS_CACHE).parent.mkdir()
+    (project / CLASS_CACHE).write_text("")
+    return project
+
+
 def _counting_godot(fake_godot: FakeGodotFactory, tmp_path: Path) -> GodotBinary:
     """A fake whose second run reaches another hash at frame 20, as a leaked random would."""
     counter = tmp_path / "runs"
@@ -86,7 +94,7 @@ class TestVerdict:
             f'cat "${{cfg#--godotkit-replay=}}" >> {seen}; echo >> {seen}'
         )
         godot = fake_godot(_hashes("a", "b") + REPORT, shell=shell)
-        assert self._replay(godot, make_project(HEALTHY_SCRIPT)) == ("ok", None)
+        assert self._replay(godot, _imported(make_project(HEALTHY_SCRIPT))) == ("ok", None)
         runs = seen.read_text().splitlines()
         assert len(runs) == 4
         assert "--fixed-fps 60 -- --godotkit-replay=" in runs[0]
@@ -96,7 +104,7 @@ class TestVerdict:
         self, fake_godot: FakeGodotFactory, make_project: ProjectFactory, tmp_path: Path
     ) -> None:
         godot = _counting_godot(fake_godot, tmp_path)
-        reason, divergence = self._replay(godot, make_project(HEALTHY_SCRIPT))
+        reason, divergence = self._replay(godot, _imported(make_project(HEALTHY_SCRIPT)))
         assert reason == "diverged"
         assert divergence == {"frame": 20, "expected": "run1", "got": "run2", "against": "diverged"}
 
@@ -118,6 +126,12 @@ class TestVerdict:
             (_hashes("a"), "no_replay_report"),
             ('GODOTKIT_REPLAY {"frames": 20, "hashes": 0, "state": ""}\n', "no_state"),
             ("SCRIPT ERROR: boom\n   at: _ready (res://main.gd:3)\n" + REPORT, "script_error"),
+            # A parse error leaves no state node; the error is the cause worth naming.
+            (
+                "SCRIPT ERROR: Parse Error: x\n   at: GDScript::reload (res://main.gd:1)\n"
+                'GODOTKIT_REPLAY {"frames": 20, "hashes": 0, "state": ""}\n',
+                "parse_error",
+            ),
         ],
     )
     def test_a_run_without_a_report_state_or_clean_log_fails(
@@ -142,6 +156,14 @@ class TestVerdict:
         assert recording.hashes == {10: "a", 20: "b"}
         with pytest.raises(ValueError, match="never replaces"):
             self._replay(godot, project, record_to=target)
+
+    def test_a_project_without_a_class_cache_is_imported_first(
+        self, fake_godot: FakeGodotFactory, make_project: ProjectFactory, tmp_path: Path
+    ) -> None:
+        seen = tmp_path / "seen"
+        godot = fake_godot(_hashes("a", "b") + REPORT, shell=f'echo "$*" >> {seen}')
+        assert self._replay(godot, make_project(HEALTHY_SCRIPT))[0] == "ok"
+        assert "--import" in seen.read_text().splitlines()[0]
 
 
 class TestCli:

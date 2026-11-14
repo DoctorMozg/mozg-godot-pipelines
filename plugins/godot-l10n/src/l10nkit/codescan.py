@@ -15,7 +15,8 @@ from pathlib import Path
 from l10nkit.check import PLACEHOLDER, Finding
 
 log = logging.getLogger(__name__)
-SKIPPED_DIRS = frozenset({".godot", ".git", "addons", "i18n"})
+# Test code never ships, so its labels and sentinels need no translation.
+SKIPPED_DIRS = frozenset({".godot", ".git", "addons", "i18n", "test", "tests"})
 LITERAL = re.compile(r'[&^]?"((?:[^"\\\n]|\\.)*)"')
 TR_CALL = re.compile(r"\b(a?tr(?:_n)?)\(")
 GD_TEXT = re.compile(
@@ -26,6 +27,8 @@ GD_TEXT = re.compile(
 TSCN_TEXT = re.compile(r'^((?:[a-z_]+_)?text|title|(?:popup/)?item_\d+/text) = "', re.MULTILINE)
 INPUT_NODES = frozenset({"LineEdit", "TextEdit", "CodeEdit"})
 LETTER = re.compile(r"[^\W\d_]")
+FORMAT_LITERAL = re.compile(r'"([A-Za-z0-9_.%-]*%[sd][A-Za-z0-9_.%-]*)"\s*%')
+FORMAT_SPEC = re.compile(r"%[-+ 0#]*\d*(?:\.\d+)?[sdif]")
 OPT_OUT = "NO_TRANSLATE"
 
 
@@ -101,6 +104,11 @@ class CodeScan:
                 continue
             for call in TR_CALL.finditer(line):
                 self._call(f"{where}:{number}", line[call.end() :], result)
+            # A key format outside tr(), such as StringName("MONTH_%d" % m), builds keys too.
+            for literal in FORMAT_LITERAL.findall(line):
+                derived = _derived(literal)
+                if any(pattern_regex(derived).fullmatch(k) for k in self._keys):
+                    self._dynamic_use(f"{where}:{number}", derived, result)
             for literal in GD_TEXT.findall(line):
                 self._hardcoded(f"{where}:{number}", literal, result)
 
@@ -113,14 +121,18 @@ class CodeScan:
                 result.findings.append(Finding("error", "unknown_key", where, f"no key {key!r}"))
             return
         if argument and stripped[argument.end() :].lstrip().startswith("%"):
-            derived = re.sub(
-                r"\*+", "*", re.sub(r"%[-+ 0#]*\d*(?:\.\d+)?[sdif]", "*", argument.group(1))
-            )
-            if not any(covers(p, derived) for p in self._patterns):
-                detail = f"builds keys like {derived}; declare a pattern that covers it"
-                result.findings.append(Finding("warning", "undeclared_dynamic", where, detail))
+            self._dynamic_use(where, _derived(argument.group(1)), result)
             return
         result.opaque_calls += 1
+
+    def _dynamic_use(self, where: str, derived: str, result: ScanResult) -> None:
+        if any(covers(p, derived) for p in self._patterns):
+            return
+        finding = Finding(
+            "warning", "undeclared_dynamic", where, f"builds keys like {derived}; declare a pattern"
+        )
+        if finding not in result.findings:
+            result.findings.append(finding)
 
     def _scene(self, where: str, text: str, result: ScanResult) -> None:
         # A node is judged at its end: auto_translate_mode may come before or after its text.
@@ -145,9 +157,13 @@ class CodeScan:
 
     def _hardcoded(self, where: str, literal: str, result: ScanResult) -> None:
         # "%d/%d" or "{a}: {b}" carries no words of its own.
-        words = PLACEHOLDER.sub("", literal)
+        words = re.sub(r"\\.", "", PLACEHOLDER.sub("", literal))
         if literal in self._keys or self._dynamic(literal) or not LETTER.search(words):
             return
         result.findings.append(
             Finding("error", "hardcoded", where, f"{literal[:60]!r} skips translation")
         )
+
+
+def _derived(literal: str) -> str:
+    return re.sub(r"\*+", "*", FORMAT_SPEC.sub("*", literal))

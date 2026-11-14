@@ -19,6 +19,7 @@ func _ready() -> void:
 \t$Hp.text = "%d/%d" % [hp, max_hp]
 \t$Key.text = "UI_TITLE"
 \t$Debug.text = "FPS counter"  # NO_TRANSLATE
+\t$Lines.text = "\\n"
 """
 SCENE = """[gd_scene format=3]
 
@@ -69,9 +70,12 @@ class TestKeys:
         rig.add("UI_LEFTOVER")
         with (project / "ui" / "hud.gd").open("a") as script:
             script.write('\t$A.text = tr("UI_NOPE")\n\t$B.text = tr("%s%s_TITLE" % [a, b])\n')
+            script.write(
+                '\tvar card := StringName("CARD_%s" % id)\n\tvar n := "%d of %d" % [a, b]\n'
+            )
         assert _scan(rig, project) == [
-            ("unknown_key", "ui/hud.gd:12"), ("undeclared_dynamic", "ui/hud.gd:13"),
-            ("unused_key", "UI_LEFTOVER"),
+            ("unknown_key", "ui/hud.gd:13"), ("undeclared_dynamic", "ui/hud.gd:14"),
+            ("undeclared_dynamic", "ui/hud.gd:15"), ("unused_key", "UI_LEFTOVER"),
         ]  # fmt: skip
 
     @pytest.mark.parametrize(
@@ -89,13 +93,25 @@ class TestHardcoded:
         with (project / "ui" / "hud.tscn").open("a") as scene:
             scene.write('\n[node name="Tip" type="Button" parent="."]\ntooltip_text = "Click me"\n')
         assert _scan(rig, project) == [
-            ("hardcoded", "ui/hud.gd:12"), ("hardcoded", "ui/hud.gd:13"),
+            ("hardcoded", "ui/hud.gd:13"), ("hardcoded", "ui/hud.gd:14"),
             ("hardcoded", "ui/hud.tscn:16"),
         ]  # fmt: skip
 
     def test_ignored_folders(self, rig: StoreRig, project: Path) -> None:
-        for folder in ("addons/tool", "tools/raw"):
+        for folder in ("addons/tool", "tools/raw", "tests"):
             (project / folder).mkdir(parents=True)
             (project / folder / "x.gd").write_text('func f() -> void:\n\t$L.text = "Hello"\n')
         (project / "tools" / ".gdignore").touch()
         assert _scan(rig, project) == []
+
+
+class TestPatternCommand:
+    def test_add_and_remove(self, rig: StoreRig, run_cli: CliRunner) -> None:
+        rig.add("CARD_DOOR")
+        added = run_cli("pattern", "--ns", "game", "--add", "CARD_*", "--add", "ITEM_*")[1]
+        assert added["patterns"] == ["CARD_*", "ITEM_*"]
+        assert run_cli("pattern", "--ns", "game", "--remove", "ITEM_*")[1]["patterns"] == ["CARD_*"]
+        assert run_cli("pattern", "--ns", "game", "--remove", "NOPE_*")[1]["detail"] == (
+            "game declares no pattern ['NOPE_*']"
+        )
+        assert run_cli("pattern", "--ns", "game", "--add", "BAD %s")[0] == 3

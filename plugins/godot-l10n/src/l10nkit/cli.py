@@ -56,6 +56,12 @@ def _parser() -> argparse.ArgumentParser:
     build = commands.add_parser("build", help="write the Godot translation files into i18n/build")
     build.add_argument("--format", choices=("po", "csv"), default="po", help="csv needs Godot 4.6+")
     build.add_argument("--register", action="store_true", help="list the PO files in project.godot")
+    pattern = commands.add_parser("pattern", help="declare or drop a pattern of runtime-built keys")
+    pattern.add_argument("--ns", required=True)
+    pattern.add_argument(
+        "--add", action="append", default=[], metavar="PATTERN", help="e.g. ITEM_*_NAME"
+    )
+    pattern.add_argument("--remove", action="append", default=[], metavar="PATTERN")
     check = commands.add_parser("check", help="parity, plural, length and release checks")
     check.add_argument("--ship", action="append", default=[], help="locale that must be complete")
     status = commands.add_parser("status", help="coverage per locale")
@@ -129,6 +135,16 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
         if args.command == "import":
             return CsvImport(store).run(path, args.ns or path.stem)
         return CsvExport(store).run(args.ns, path)
+    if args.command == "pattern":
+        namespace = store.namespaces().get(args.ns)
+        if namespace is None:
+            raise StoreError(f"no namespace {args.ns!r}")
+        if unknown := sorted(set(args.remove) - set(namespace.patterns)):
+            raise StoreError(f"{args.ns} declares no pattern {unknown}")
+        kept = [p for p in namespace.patterns if p not in args.remove]
+        namespace.patterns = sorted(set(kept) | set(args.add))
+        store.save(namespace)
+        return {"namespace": args.ns, "patterns": namespace.patterns}
     if args.command == "check":
         findings, states = StoreCheck(store, PluralRules.load(), args.ship).run()
         namespaces = store.namespaces().values()

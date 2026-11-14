@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from l10nkit.contracts import ContractError, Json
+from l10nkit.csvio import CsvExport, CsvImport
 from l10nkit.status import STATES, Coverage, key_state
 from l10nkit.store import Store, StoreError
 
@@ -39,6 +40,12 @@ def _parser() -> argparse.ArgumentParser:
     listing.add_argument("--ns")
     listing.add_argument("--locale")
     listing.add_argument("--state", choices=STATES, help="only strings in this state")
+    imports = commands.add_parser("import", help="add the strings of a Godot translation CSV")
+    imports.add_argument("file", type=Path)
+    imports.add_argument("--ns", help="namespace; default the file name")
+    export = commands.add_parser("export", help="write one namespace as a Godot translation CSV")
+    export.add_argument("--ns", required=True)
+    export.add_argument("--out", type=Path, required=True)
     status = commands.add_parser("status", help="coverage per locale")
     status.add_argument("--locale", action="append", default=[])
     return parser
@@ -103,6 +110,13 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
         return {"key": args.key}
     if args.command == "remove":
         return {"key": args.key, "locales": list(store.remove(args.key))}
+    if args.command in ("import", "export"):
+        path: Path = args.file if args.command == "import" else args.out
+        if path.suffix.lower() != ".csv":
+            raise StoreError(f"{path}: only Godot translation CSV is supported")
+        if args.command == "import":
+            return CsvImport(store).run(path, args.ns or path.stem)
+        return CsvExport(store).run(args.ns, path)
     if args.command == "list":
         if args.state and not args.locale:
             raise StoreError("--state needs --locale")

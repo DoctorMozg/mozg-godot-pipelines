@@ -141,6 +141,14 @@ class TestShotRefusals:
             scene_stem(scene)
 
 
+def test_a_run_that_opens_no_display_names_that_cause() -> None:
+    errors = (
+        "ERROR: X11 Display is not available",
+        "ERROR: Unable to create DisplayServer, all display drivers failed.",
+    )
+    assert ScriptRun(False, errors, "", timed_out=False).reason.startswith("display_unreachable")
+
+
 class TestViewportSize:
     def test_project_size_or_godot_default(self, tmp_path: Path) -> None:
         project = tmp_path / "project.godot"

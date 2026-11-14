@@ -129,4 +129,5 @@ The locale (`ru`, `pt_BR`) and optionally one namespace; without one, every name
 - **`"reason": "refused"` on export**: unknown namespace, or the source locale was asked for; nothing is written.
 - **`the source changed since the export`**: the string was reworded meanwhile; export a fresh batch for those keys.
 - **The judge returns no JSON or edits a file**: discard its output and dispatch one new judge; if that fails too, report QA as not run.
+- **`display_unreachable`** from `l10nkit shot`: Godot found no display; under Codex rerun the shot outside the sandbox (ask for the approval).
 - **No glossary or style guide** (`glossary` empty, `style` null): translate without them and suggest the owner start `i18n/glossary.json` with the game's proper nouns.

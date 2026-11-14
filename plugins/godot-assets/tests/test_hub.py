@@ -81,6 +81,15 @@ class TestLifecycle:
         assert (started["reused"], started["pid"] != dead["pid"]) == (False, True)
 
 
+def test_serve_inside_the_codex_sandbox_is_refused(
+    run_cli: CliRunner, project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CODEX_SANDBOX_NETWORK_DISABLED", "1")
+    code, payload = run_cli("hub", "serve")
+    assert (code, payload["reason"]) == (2, "sandboxed_network")
+    assert not (project / ".cache" / "mozg" / "hub.json").exists()
+
+
 class TestSessionStartHook:
     def test_names_the_running_hub_of_the_project(
         self, project: Path, monkeypatch: pytest.MonkeyPatch

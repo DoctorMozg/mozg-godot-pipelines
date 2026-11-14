@@ -120,5 +120,6 @@ What to test (a script, a class, a reported bug) or the failing entry's path. Th
 
 - **`no_godot`**: run `godotkit doctor` and ask for the binary path or `GODOT_BIN`; don't write the test as passing.
 - **`refused`** on a malformed `godotkit.json`: fix the field the `detail` names; never delete the file to get past it.
+- **`display_unreachable`**: Godot found no display it could connect to. Codex's sandbox always blocks the X11 socket, so rerun that one command outside the sandbox (ask for the approval); headless steps run fine inside it.
 - **An entry times out**: rerun it alone with `--log-dir`. A wait on a signal that never fires is a test bug; a busy loop is a code bug.
 - **No harness and no test folder**: create `tests/` with the summary-line entry above, and say in the report that the project had no tests.

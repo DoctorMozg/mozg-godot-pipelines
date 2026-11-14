@@ -98,6 +98,7 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
 ## Error Handling
 
 - **`hub`** (exit 1): the server did not start; read `.cache/mozg/hub.log`, then retry once. A stale `hub.json` is replaced on start.
+- **`sandboxed_network`** (exit 2): Codex's sandbox hides localhost from the browser. Run `hub serve` outside the sandbox (ask for the approval), or offer `hub build`.
 - **Page shows offline**: the server stopped or the token is wrong; run `hub serve` again and give the owner the new URL.
 - **A click is refused on the page**: the message names the rule, such as a decision on a final asset or on a stale version; tell the owner, don't work around it.
 - **No browser at hand**: give the URL anyway, or offer `hub build` and the `assetkit decide` command for the owner to run.

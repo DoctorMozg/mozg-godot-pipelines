@@ -28,11 +28,25 @@ PUSH_ERROR_LOG = """ERROR: Invalid health rules.
        [0] configure (res://scripts/health_pool.gd:39)
 Health: 3 checks, 0 failures.
 """
+# Real Godot 4.7.2 output of a native run inside the Codex workspace-write sandbox (2026-11-14).
+NO_DISPLAY_LOG = """ERROR: X11 Display is not available
+   at: DisplayServerX11 (platform/linuxbsd/x11/display_server_x11.cpp:6943)
+ERROR: Can't connect to a Wayland display.
+   at: init (platform/linuxbsd/wayland/wayland_thread.cpp:5589)
+ERROR: Unable to create DisplayServer, all display drivers failed.
+   at: setup2 (main/main.cpp:3390)
+WARNING: 6 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+"""
 ENGINE_ERROR_LOG = (
     'ERROR: Condition "(header & 0xFF) >= Variant::VARIANT_MAX" is true. '
     "Returning: ERR_INVALID_DATA\n"
     "   at: decode_variant (core/io/marshalls.cpp:195)\n"
 )
+
+
+def test_a_run_that_opens_no_display_names_that_cause() -> None:
+    verdict = LogJudge().judge(NO_DISPLAY_LOG, exit_code=1, timed_out=False)
+    assert (verdict.ok, verdict.reason) == (False, "display_unreachable")
 
 
 class TestPushError:

@@ -22,6 +22,8 @@ PATH_NAMES = ("godot", "godot4", "Godot")
 # Large enough that no requested window size is clamped by the virtual screen.
 XVFB_SCREEN = "-screen 0 3840x2160x24"
 _ERROR_LINE = re.compile(r"^(?:SCRIPT )?ERROR: .*$", re.M)
+# Godot 4.7.2 when no display driver connects, as inside the Codex sandbox (probed 2026-11-14).
+NO_DISPLAY_SERVER = "Unable to create DisplayServer"
 
 
 class GodotMissing(RuntimeError):
@@ -52,7 +54,13 @@ class ScriptRun:
 
     @property
     def reason(self) -> str:
-        return "timed out" if self.timed_out else "; ".join(self.errors[:3]) or "no summary line"
+        if self.timed_out:
+            return "timed out"
+        if any(NO_DISPLAY_SERVER in line for line in self.errors):
+            return (
+                "display_unreachable: Godot opened no display; a sandbox such as Codex's blocks it"
+            )
+        return "; ".join(self.errors[:3]) or "no summary line"
 
 
 class Runner(Protocol):

@@ -41,6 +41,10 @@ class Refused(Exception):
     """The registry state does not allow the request; the message says why."""
 
 
+class NetworkSandboxed(Exception):
+    """This process is cut off from the network, so no browser on the machine could reach a hub."""
+
+
 def _parser() -> argparse.ArgumentParser:
     shared = argparse.ArgumentParser(add_help=False)
     shared.add_argument("--project", type=Path, default=Path.cwd())
@@ -284,6 +288,12 @@ class Commands:
             return {"page": str(build_static(self._registry, args.out))}
         if args.action == "stop":
             return {"stopped": control.stop()}
+        # Codex sets this in a sandbox whose network namespace hides localhost from the host.
+        if os.environ.get("CODEX_SANDBOX_NETWORK_DISABLED") == "1":
+            raise NetworkSandboxed(
+                "the Codex sandbox hides this hub from the browser; run `assetkit hub serve` "
+                "outside it, or open a static `assetkit hub build`"
+            )
         if args.foreground:
             control.serve(self._author)
             return {"stopped": True}
@@ -317,6 +327,11 @@ def main(argv: Sequence[str]) -> int:
         payload = getattr(commands, args.command.replace("-", "_"))(args)
     except HubError as error:
         return _emit({"cmd": name, "ok": False, "reason": "hub", "detail": str(error)}, EXIT_FAILED)
+    except NetworkSandboxed as error:
+        return _emit(
+            {"cmd": name, "ok": False, "reason": "sandboxed_network", "detail": str(error)},
+            EXIT_SETUP,
+        )
     except GodotMissing as error:
         return _emit(
             {"cmd": name, "ok": False, "reason": "no_godot", "detail": str(error)}, EXIT_SETUP

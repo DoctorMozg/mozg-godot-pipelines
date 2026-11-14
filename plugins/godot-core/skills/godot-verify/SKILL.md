@@ -104,4 +104,5 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
 - **Not a git repository**: `gate` and `receipt` need git for the tree hash. Run `check`, `test` and `boot` instead, and say the change has no receipt.
 - **`tool_failed` or a step timing out**: report the step and its detail. Raise `--timeout` once for a slow project; a second timeout is a hang to investigate, not to retry.
 - **`refused`** (exit 3): the input was wrong (a missing project, a malformed `godotkit.json` or baseline); fix the input the `detail` names.
+- **`display_unreachable`**: Godot found no display it could connect to. Codex's sandbox always blocks the X11 socket, so rerun that one command outside the sandbox (ask for the approval); headless steps run fine inside it.
 - **Churn the change did not cause, and nobody can answer**: leave those files alone, report the gate as failed on `import` with the list, and stop.

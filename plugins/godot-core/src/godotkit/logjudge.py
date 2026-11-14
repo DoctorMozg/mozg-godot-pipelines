@@ -32,6 +32,8 @@ _SEVERITY = [
 ]
 # An ERROR raised by the project's own push_error, not by the engine.
 _PUSH_ERROR_LOCATION = "push_error (core/variant/variant_utility.cpp"
+# Godot 4.7.2 when no display driver connects, as inside the Codex sandbox (probed 2026-11-14).
+_NO_DISPLAY_SERVER = "Unable to create DisplayServer"
 
 
 @dataclass(frozen=True)
@@ -126,6 +128,8 @@ class LogJudge:
         kinds = {issue.kind for issue in issues} - self._tolerate
         if "crash" in kinds:
             return "crash"
+        if any(_NO_DISPLAY_SERVER in issue.line for issue in issues):
+            return "display_unreachable"
         if exit_code not in (0, None):
             return "exit_code"
         worst = next((kind for kind in _SEVERITY if kind in kinds), None)

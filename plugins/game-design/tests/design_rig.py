@@ -41,6 +41,18 @@ class DesignBuilder:
         }
         return self.write(self.root / "progression" / f"{node_id}.json", record)
 
+    def hazard(self, hazard_id: str, **fields: object) -> Path:
+        (self.root / "hazards").mkdir(exist_ok=True)
+        record = {
+            "schema": "hazard/1",
+            "id": hazard_id,
+            "title": hazard_id.title(),
+            "after": "start",
+            "every_hours": 10,
+            **fields,
+        }
+        return self.write(self.root / "hazards" / f"{hazard_id}.json", record)
+
     @staticmethod
     def write(path: Path, record: object) -> Path:
         path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

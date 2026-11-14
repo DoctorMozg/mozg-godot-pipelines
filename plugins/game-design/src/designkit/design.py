@@ -1,4 +1,4 @@
-"""Loads design data (design.json plus one file per progression node) and checks it.
+"""Loads design data (design.json, one file per progression node and per hazard) and checks it.
 
 Checks here are structural: schema, file names and references. Graph questions such as
 reachability belong to the analysis.
@@ -19,6 +19,7 @@ from designkit.contracts import Contract, Json
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "data" / "schemas"
 DESIGN_FILE = "design.json"
 NODE_DIR = "progression"
+HAZARD_DIR = "hazards"
 log = logging.getLogger(__name__)
 
 Level = Literal["error", "warning"]
@@ -43,6 +44,24 @@ class Hours:
 
 
 @dataclass(frozen=True)
+class Pool:
+    id: str
+    start: float
+    upkeep_per_hour: float
+
+
+@dataclass(frozen=True)
+class Hazard:
+    id: str
+    after: str
+    every_hours: float
+    chance: float = 1.0
+    once: bool = False
+    lost_hours: Hours | None = None
+    cost: Mapping[str, float] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Node:
     id: str
     title: str
@@ -52,6 +71,8 @@ class Node:
     any_of: tuple[str, ...] = ()
     playstyles: tuple[str, ...] = ()
     hours: Hours | None = None
+    cost: Mapping[str, float] = field(default_factory=dict)
+    produces: Mapping[str, float] = field(default_factory=dict)
     leaf: bool = False
 
     @property
@@ -66,7 +87,10 @@ class Design:
     playstyles: tuple[str, ...]
     terminal_kinds: frozenset[str]
     max_gap_hours: float | None
+    run_hours: tuple[float, float] | None
+    pools: Mapping[str, Pool]
     nodes: Mapping[str, Node]
+    hazards: Mapping[str, Hazard]
 
     def is_terminal(self, node: Node) -> bool:
         return node.kind in self.terminal_kinds
@@ -89,6 +113,7 @@ class DesignLoader:
         self._root = root
         self._design_contract = Contract.load("design", schema_dir)
         self._node_contract = Contract.load("progression-node", schema_dir)
+        self._hazard_contract = Contract.load("hazard", schema_dir)
 
     def load(self) -> Loaded:
         """Reads everything and reports each problem; a node with a problem stays out."""
@@ -98,48 +123,52 @@ class DesignLoader:
             return Loaded(None, findings)
         stages = [str(s["id"]) for s in frame["stages"]]
         playstyles = [str(p["id"]) for p in frame["playstyles"]]
-        for name, ids in (("stage", stages), ("playstyle", playstyles)):
+        pools = [_pool(record) for record in frame.get("pools", [])]
+        names = (("stage", stages), ("playstyle", playstyles), ("pool", [p.id for p in pools]))
+        for name, ids in names:
             for duplicate in sorted({i for i in ids if ids.count(i) > 1}):
                 findings.append(
                     Finding("error", "duplicate_id", DESIGN_FILE, f"{name} {duplicate!r} twice")
                 )
-        nodes = self._nodes(set(stages), set(playstyles), findings)
+        known = _Known(set(stages), set(playstyles), {p.id for p in pools})
+        nodes = self._nodes(known, findings)
+        hazards = self._hazards(nodes, known, findings)
         targets: Mapping[str, Json] = frame.get("targets", {})
         gap = targets.get("max_gap_hours")
+        band: Mapping[str, Json] | None = targets.get("run_hours")
+        run_hours = (float(band["min"]), float(band["max"])) if band else None
+        if run_hours and run_hours[0] > run_hours[1]:
+            detail = "run_hours needs min <= max"
+            findings.append(Finding("error", "band_order", DESIGN_FILE, detail))
         design = Design(
             title=str(frame["title"]),
             stages=tuple(stages),
             playstyles=tuple(playstyles),
             terminal_kinds=frozenset(frame["terminal_kinds"]),
             max_gap_hours=float(gap) if gap is not None else None,
+            run_hours=run_hours,
+            pools={p.id: p for p in pools},
             nodes=nodes,
+            hazards=hazards,
         )
-        log.info("loaded %d nodes with %d findings", len(nodes), len(findings))
+        log.info(
+            "loaded %d nodes and %d hazards with %d findings",
+            len(nodes), len(hazards), len(findings),
+        )  # fmt: skip
         return Loaded(design, sorted(findings, key=lambda f: (f.where, f.rule, f.detail)))
 
-    def _nodes(
-        self, stages: set[str], playstyles: set[str], findings: list[Finding]
-    ) -> dict[str, Node]:
+    def _nodes(self, known: _Known, findings: list[Finding]) -> dict[str, Node]:
         folder = self._root / NODE_DIR
-        files = sorted(folder.glob("*.json")) if folder.is_dir() else []
-        if not files:
+        if not (folder.is_dir() and any(folder.glob("*.json"))):
             findings.append(Finding("error", "no_nodes", NODE_DIR, f"no node files in {folder}"))
+        records = self._entities(NODE_DIR, self._node_contract, findings)
         parsed: dict[str, Node] = {}
         folded: dict[str, list[str]] = defaultdict(list)
-        for path in files:
-            record = self._read(path, self._node_contract, findings)
-            if record is None:
-                continue
+        for record in records:
             node = _node(record)
-            where = f"{NODE_DIR}/{path.name}"
-            if node.id != path.stem:
-                findings.append(
-                    Finding("error", "file_name", where, f"id {node.id!r} must match the file name")
-                )
-                continue
             # Ids are file names, so two that differ only in case collide on macOS and Windows.
             folded[node.id.casefold()].append(node.id)
-            problems = _own_problems(node, stages, playstyles)
+            problems = _own_problems(node, known)
             findings += [Finding("error", rule, node.id, detail) for rule, detail in problems]
             if not problems:
                 parsed[node.id] = node
@@ -155,6 +184,37 @@ class DesignLoader:
                         Finding("error", "unknown_node", node.id, f"needs {parent!r}, not a node")
                     )
         return parsed
+
+    def _hazards(
+        self, nodes: Mapping[str, Node], known: _Known, findings: list[Finding]
+    ) -> dict[str, Hazard]:
+        parsed: dict[str, Hazard] = {}
+        for record in self._entities(HAZARD_DIR, self._hazard_contract, findings):
+            hazard = _hazard(record)
+            problems = _hazard_problems(hazard, known)
+            if hazard.after not in nodes:
+                problems.append(("unknown_node", f"after {hazard.after!r}, not a node"))
+            findings += [Finding("error", rule, hazard.id, detail) for rule, detail in problems]
+            if not problems:
+                parsed[hazard.id] = hazard
+        return parsed
+
+    def _entities(
+        self, folder_name: str, contract: Contract, findings: list[Finding]
+    ) -> list[dict[str, Json]]:
+        """Records of a one-file-per-entity folder whose id matches their file name."""
+        folder = self._root / folder_name
+        records: list[dict[str, Json]] = []
+        for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+            record = self._read(path, contract, findings)
+            if record is None:
+                continue
+            if record["id"] != path.stem:
+                detail = f"id {record['id']!r} must match the file name"
+                findings.append(Finding("error", "file_name", f"{folder_name}/{path.name}", detail))
+                continue
+            records.append(record)
+        return records
 
     def _read(
         self, path: Path, contract: Contract, findings: list[Finding]
@@ -178,6 +238,30 @@ def _hours(value: Json) -> Hours | None:
     return Hours(float(value), float(value), float(value))
 
 
+def _amounts(value: Json) -> dict[str, float]:
+    return {str(pool): float(amount) for pool, amount in (value or {}).items()}
+
+
+def _pool(record: Mapping[str, Json]) -> Pool:
+    return Pool(
+        id=str(record["id"]),
+        start=float(record.get("start", 0)),
+        upkeep_per_hour=float(record.get("upkeep_per_hour", 0)),
+    )
+
+
+def _hazard(record: Mapping[str, Json]) -> Hazard:
+    return Hazard(
+        id=str(record["id"]),
+        after=str(record["after"]),
+        every_hours=float(record["every_hours"]),
+        chance=float(record.get("chance", 1)),
+        once=bool(record.get("once", False)),
+        lost_hours=_hours(record.get("lost_hours")),
+        cost=_amounts(record.get("cost")),
+    )
+
+
 def _node(record: Mapping[str, Json]) -> Node:
     return Node(
         id=str(record["id"]),
@@ -188,19 +272,55 @@ def _node(record: Mapping[str, Json]) -> Node:
         any_of=tuple(record.get("any", [])),
         playstyles=tuple(record.get("playstyles", [])),
         hours=_hours(record.get("hours")),
+        cost=_amounts(record.get("cost")),
+        produces=_amounts(record.get("produces")),
         leaf=bool(record.get("leaf", False)),
     )
 
 
-def _own_problems(node: Node, stages: set[str], playstyles: set[str]) -> list[tuple[str, str]]:
+@dataclass(frozen=True)
+class _Known:
+    """Ids design.json declares, which node and hazard files may name."""
+
+    stages: set[str]
+    playstyles: set[str]
+    pools: set[str]
+
+
+def _own_problems(node: Node, known: _Known) -> list[tuple[str, str]]:
     problems: list[tuple[str, str]] = []
-    if node.stage not in stages:
+    if node.stage not in known.stages:
         problems.append(("unknown_stage", f"stage {node.stage!r} is not in design.json"))
     for name in node.playstyles:
-        if name not in playstyles:
+        if name not in known.playstyles:
             problems.append(("unknown_playstyle", f"playstyle {name!r} is not in design.json"))
     if node.id in node.parents:
         problems.append(("self_reference", "the node requires itself"))
-    if node.hours and not node.hours.low <= node.hours.mode <= node.hours.high:
-        problems.append(("hours_order", "hours need min <= mode <= max"))
+    problems += _hours_problems("hours", node.hours)
+    problems += _pool_problems({**node.cost, **node.produces}, known)
     return problems
+
+
+def _hazard_problems(hazard: Hazard, known: _Known) -> list[tuple[str, str]]:
+    problems = _hours_problems("lost_hours", hazard.lost_hours)
+    problems += _pool_problems(hazard.cost, known)
+    if hazard.chance > 1:
+        problems.append(("chance_range", f"chance {hazard.chance:g} is above 1"))
+    if hazard.every_hours == 0 and not hazard.once:
+        # It would strike again at the same moment forever.
+        problems.append(("every_hours", "a recurring hazard needs every_hours above 0"))
+    return problems
+
+
+def _hours_problems(name: str, hours: Hours | None) -> list[tuple[str, str]]:
+    if hours and not hours.low <= hours.mode <= hours.high:
+        return [("hours_order", f"{name} need min <= mode <= max")]
+    return []
+
+
+def _pool_problems(amounts: Mapping[str, float], known: _Known) -> list[tuple[str, str]]:
+    return [
+        ("unknown_pool", f"pool {pool!r} is not in design.json")
+        for pool in sorted(amounts)
+        if pool not in known.pools
+    ]

@@ -43,6 +43,13 @@
         "minLength": 1
       }
     },
+    "pools": {
+      "description": "Resources the economy tracks; node costs and yields name them by id.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pool"
+      }
+    },
     "targets": {
       "type": "object",
       "additionalProperties": false,
@@ -51,6 +58,25 @@
           "description": "Longest wait between two unlocks before analyze reports a pacing gap.",
           "type": "number",
           "minimum": 0
+        },
+        "run_hours": {
+          "description": "Band one player's run to a terminal node should fall in, in the unit of node hours.",
+          "type": "object",
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
         }
       }
     }
@@ -74,6 +100,34 @@
         },
         "description": {
           "type": "string"
+        }
+      }
+    },
+    "pool": {
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "description": "Amount at the start of a run.",
+          "type": "number",
+          "minimum": 0
+        },
+        "upkeep_per_hour": {
+          "description": "Amount the run consumes every hour, such as oxygen or food.",
+          "type": "number",
+          "minimum": 0
         }
       }
     }

@@ -10,7 +10,7 @@ import jsonschema
 import pytest
 from design_rig import CliRunner, DesignBuilder
 from designkit.contracts import Contract
-from designkit.design import SCHEMA_DIR, DesignLoader, Hours
+from designkit.design import SCHEMA_DIR, DesignLoader, Hazard, Hours, Pool
 
 
 def rules(builder: DesignBuilder) -> list[tuple[str, str]]:
@@ -18,7 +18,7 @@ def rules(builder: DesignBuilder) -> list[tuple[str, str]]:
 
 
 class TestSchemas:
-    @pytest.mark.parametrize("name", ["design", "progression-node"])
+    @pytest.mark.parametrize("name", ["design", "progression-node", "hazard"])
     def test_schema_is_valid_draft_2020_12(self, name: str) -> None:
         schema = json.loads((SCHEMA_DIR / f"{name}.schema.json").read_text(encoding="utf-8"))
         jsonschema.Draft202012Validator.check_schema(schema)
@@ -103,6 +103,71 @@ class TestLoad:
 
     def test_no_nodes_is_an_error(self, design: DesignBuilder) -> None:
         assert rules(design) == [("no_nodes", "progression")]
+
+
+class TestEconomyAndHazards:
+    @pytest.fixture
+    def pooled(self, design: DesignBuilder) -> DesignBuilder:
+        design.frame(
+            pools=[{"id": "scrap", "title": "Scrap", "start": 5},
+                   {"id": "oxygen", "title": "Oxygen", "upkeep_per_hour": 0.5}],
+            targets={"run_hours": {"min": 7, "max": 8}},
+        )  # fmt: skip
+        design.node("start", produces={"oxygen": 1})
+        return design
+
+    def test_pools_costs_and_hazards_load(self, pooled: DesignBuilder) -> None:
+        pooled.node("lab", requires=["start"], cost={"scrap": 2})
+        pooled.hazard("leak", after="lab", every_hours=96, lost_hours={"min": 1, "mode": 2,
+                      "max": 3}, cost={"oxygen": 1}, chance=0.5)  # fmt: skip
+        loaded = DesignLoader(pooled.root).load()
+        assert loaded.findings == []
+        assert loaded.design is not None
+        assert loaded.design.run_hours == (7, 8)
+        assert loaded.design.pools["oxygen"] == Pool("oxygen", 0, 0.5)
+        assert (loaded.design.nodes["lab"].cost, loaded.design.nodes["start"].produces) == (
+            {"scrap": 2}, {"oxygen": 1}
+        )  # fmt: skip
+        assert loaded.design.hazards["leak"] == Hazard(
+            "leak", "lab", 96, 0.5, False, Hours(1, 2, 3), {"oxygen": 1}
+        )
+
+    def test_unknown_pools_and_after_node(self, pooled: DesignBuilder) -> None:
+        pooled.node("lab", cost={"gold": 1}, produces={"mana": 1})
+        pooled.hazard("quake", after="ghost", cost={"gold": 1})
+        assert rules(pooled) == [
+            ("unknown_pool", "lab"),
+            ("unknown_pool", "lab"),
+            ("unknown_node", "quake"),
+            ("unknown_pool", "quake"),
+        ]
+
+    def test_hazard_ranges(self, pooled: DesignBuilder) -> None:
+        pooled.hazard("flare", chance=1.5)
+        pooled.hazard("drip", every_hours=0)
+        pooled.hazard("crash", every_hours=0, once=True, lost_hours={"min": 2, "mode": 1,
+                      "max": 3})  # fmt: skip
+        assert rules(pooled) == [
+            ("hours_order", "crash"),
+            ("every_hours", "drip"),
+            ("chance_range", "flare"),
+        ]
+
+    def test_hazard_file_name_and_schema(self, pooled: DesignBuilder) -> None:
+        pooled.hazard("dust").rename(pooled.root / "hazards" / "storm.json")
+        pooled.hazard("flare", every_hours=-1)
+        assert rules(pooled) == [
+            ("schema", "hazards/flare.json"),
+            ("file_name", "hazards/storm.json"),
+        ]
+
+    def test_band_order_and_duplicate_pool(self, design: DesignBuilder) -> None:
+        design.frame(
+            pools=[{"id": "scrap", "title": "Scrap"}, {"id": "scrap", "title": "Again"}],
+            targets={"run_hours": {"min": 9, "max": 8}},
+        )
+        design.node("start")
+        assert rules(design) == [("band_order", "design.json"), ("duplicate_id", "design.json")]
 
 
 class TestCli:

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:hazard",
+  "title": "hazard",
+  "description": "Something that interrupts a run, at design/hazards/<id>.json: when it can strike and the time and pool amounts it costs.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "after",
+    "every_hours"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "hazard/1"
+    },
+    "id": {
+      "description": "Equals the file name without .json.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "after": {
+      "description": "Id of the progression node whose completion makes the hazard possible.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]+([_.-][A-Za-z0-9]+)*$"
+    },
+    "every_hours": {
+      "description": "Hours between chances to strike, counted from when the after node is done.",
+      "type": "number",
+      "minimum": 0
+    },
+    "chance": {
+      "description": "Probability that each chance strikes, 0 to 1; 1, the default, is deterministic.",
+      "type": "number",
+      "minimum": 0
+    },
+    "once": {
+      "description": "Strikes at most once per run.",
+      "type": "boolean"
+    },
+    "lost_hours": {
+      "description": "Time a strike costs: one estimate, or min, mode and max.",
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "object",
+          "required": [
+            "min",
+            "mode",
+            "max"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "type": "number",
+              "minimum": 0
+            },
+            "mode": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "cost": {
+      "description": "Pool amounts a strike takes.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

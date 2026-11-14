@@ -89,6 +89,22 @@
         }
       ]
     },
+    "cost": {
+      "description": "Pool amounts paid when the node starts.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "produces": {
+      "description": "Pool amounts gained every hour once the node is done.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
     "leaf": {
       "description": "Leads nowhere on purpose, such as a side reward; not reported as a dead end.",
       "type": "boolean"

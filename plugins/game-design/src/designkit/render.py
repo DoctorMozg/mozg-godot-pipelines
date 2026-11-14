@@ -1,6 +1,6 @@
 """Draws design data as standalone SVG files for the review hub, plus a manifest to register them.
 
-The output is byte-stable for the same data, so re-rendering unchanged data adds no new version.
+The output is byte-stable for the same data, so an unchanged view keeps its sha256.
 Every node of the graph is a group with `data-node`, which the hub turns into node=<id> notes.
 """
 

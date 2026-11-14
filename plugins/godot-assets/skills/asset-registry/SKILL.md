@@ -42,7 +42,9 @@ An asset id (such as `door-mc5b`) or the file at hand. Without one, run `assetki
    assetkit new --project P --family props --kind image --title "Cargo door" --license CC0-1.0 [--ship]
    ```
 
-   `--kind` is one of image, sprite_frames, model, audio, video, ui, font, shader, text, other. Mark `--ship` only for assets the player sees or hears in the build.
+   `--kind` is one of image, sprite_frames, model, audio, video, ui, font, shader, text, graph, chart, other. Mark `--ship` only for assets the player sees or hears in the build.
+
+   Design views come from `designkit render --out DIR`, whose `render.json` names each SVG's kind and title. Register them with `--origin procedural`, and skip a view whose sha256 equals its current version's: the registry keeps identical files as new versions.
 
 1. Stage the candidate file under `registry/staging/<asset id>/`, then add a version that says how it was made:
 

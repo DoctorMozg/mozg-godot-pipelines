@@ -66,8 +66,8 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
 ## Techniques
 
 - Keys on a focused card: A approves, R and N focus the note box, J and K move between cards. A note's `[n]` label highlights its box on the picture.
-- Viewers by kind: image with region boxes; sprite frames with step, play and onion skin; UI captures as one tab per resolution; video and audio with Mark time; audio adds a waveform, the loop seam jump and A/B against the previous version. Models show as a download link; 3D preview is deferred.
-- A box drawn on the current version, plus a note, becomes a region note; on a clip, Mark time does the same with `t=`.
+- Viewers by kind: image with region boxes; sprite frames with step, play and onion skin; UI captures as one tab per resolution; video and audio with Mark time; audio adds a waveform, the loop seam jump and A/B against the previous version. Models show as a download link; 3D preview is deferred. A `graph` shows a design graph inline; `chart` shows as an image.
+- A box drawn on the current version, plus a note, becomes a region note; on a clip, Mark time does the same with `t=`, and on a graph a clicked node with `node=<id>`.
 - `assetkit hub build --project P [--out DIR]` writes a read-only static page under `.cache/mozg/hub/`. It shows decisions but writes none; use it to share a snapshot.
 - `hub serve --foreground` keeps the server in this process for debugging; `.cache/mozg/hub.log` holds its log.
 - The status filter sits in the URL hash, so `#token=...&status=retake` opens on retakes.

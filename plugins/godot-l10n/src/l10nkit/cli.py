@@ -10,6 +10,7 @@ from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
+from l10nkit import hooks
 from l10nkit.batch import BatchApply, BatchExport
 from l10nkit.check import StoreCheck
 from l10nkit.codescan import CodeScan
@@ -86,6 +87,8 @@ def _parser() -> argparse.ArgumentParser:
     pattern.add_argument("--remove", action="append", default=[], metavar="PATTERN")
     check = commands.add_parser("check", help="parity, plural, length and release checks")
     check.add_argument("--ship", action="append", default=[], help="locale that must be complete")
+    hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
+    hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     status = commands.add_parser("status", help="coverage per locale")
     status.add_argument("--locale", action="append", default=[])
     return parser
@@ -226,6 +229,8 @@ def main(argv: Sequence[str]) -> int:
         format="l10nkit: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "hook":
+        return hooks.run(args.event, sys.stdin.read())
     try:
         payload = run(args)
     except StoreError as error:

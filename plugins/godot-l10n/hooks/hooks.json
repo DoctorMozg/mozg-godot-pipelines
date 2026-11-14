@@ -1,0 +1,17 @@
+{
+  "description": "Strings and translations change through l10nkit only; build/ is regenerated, never edited",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/l10nkit\" hook pre-edit",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

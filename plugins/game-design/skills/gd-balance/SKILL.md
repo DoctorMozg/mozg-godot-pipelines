@@ -86,6 +86,8 @@ A goal ("7-8 hours", "oxygen runs out before E03"), a number id, or "initial qua
 - When a rule changes a number's meaning, such as a per-day rate becoming two fixed draws, recompute it from the rule, with the derivation in `source`.
 - A seed and run count held fixed make before and after comparable; raise `--runs` only to steady a result near the band edge.
 - Bind the simulation input too: a number bound only to game files can drift from what `simulate` measured.
+- `"model"` in `design/design.json` picks what `simulate` reports. `combat` gives closed-form duels and encounters from `design/units` and `design/encounters`, the same for every seed. `rts` gives an economy timeline from `design/economy.json` and equal-spend counters of costed units, with a `dominant` warning for a unit that wins or ties every pairing. `analyze` and `render` serve only `campaign`.
+- Know a model's error before tuning by it: on the test beds the combat model matches the player's health exactly, while the rts economy runs 20% under the measured ore, so a smaller change there is inside its error.
 
 ## Common Rationalizations
 

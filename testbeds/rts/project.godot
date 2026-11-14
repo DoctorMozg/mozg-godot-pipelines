@@ -10,6 +10,12 @@ config/features=PackedStringArray("4.7")
 
 common/physics_ticks_per_second=60
 
+[navigation]
+
+; Background map syncs land a frame late in some runs, which shifts a replay by one tick.
+world/map_use_async_iterations=false
+world/region_use_async_iterations=false
+
 [debug]
 
 gdscript/warnings/untyped_declaration=2

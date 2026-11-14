@@ -17,6 +17,7 @@ var ticks: int = 0
 
 
 func _ready() -> void:
+	add_to_group(&"playtest_state")
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = seed_value
 	enemy.position = Vector3(rng.randf_range(-6.0, 6.0), 1.0, rng.randf_range(-7.0, -3.0))
@@ -40,6 +41,15 @@ func use_controller(controller: PlayerController) -> void:
 func summary() -> String:
 	return "arena seed=%d result=%s ticks=%d player_health=%d enemy_health=%d" % [
 		seed_value, result, ticks, player.health, enemy.health]
+
+
+# What godotkit replay compares between runs: every value the fight's outcome depends on.
+func state_hash() -> String:
+	var context: HashingContext = HashingContext.new()
+	context.start(HashingContext.HASH_SHA256)
+	context.update(var_to_bytes([ticks, result, player.global_transform, player.velocity,
+		player.health, enemy.global_transform, enemy.health]))
+	return context.finish().hex_encode()
 
 
 func _on_enemy_died() -> void:

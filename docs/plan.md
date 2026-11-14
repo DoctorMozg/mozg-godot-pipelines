@@ -160,6 +160,13 @@ Research: `docs/research/20-shader-writing.md`, `21-shader-verification.md`.
 - Cost: GPU timings from llvmpipe/lavapipe are not shader cost; timing gates run only on real hardware, while draw calls and pipeline-compilation counters are gated anywhere.
 - The checkable rules of research 20 ship as a skill reference (`shader-rules.md`).
 
+### Determinism replay (`godotkit replay`)
+
+- Each run is its own Godot process under `--fixed-fps 60` with an injected autoload. At the start of physics frame n, before any game node, the probe hashes the state of the first node in group `playtest_state` (its `state_hash() -> String`) every `--every` frames, then presses that frame's actions as `InputEventAction` and flushes the input buffer, so the game reads them on the same frame.
+- The actions file `godotkit-actions/1` (`godotkit/actions.py`) is JSONL: a header (`schema`, `scene`, `frames`, `every`), press rows `{"f", "action", "pressed", "strength"}` and hash rows `{"f", "hash"}`. `--record FILE` writes the action changes polled each frame and the hashes of one run, and never replaces a file; a replay of it must reach the same hashes (`mismatch` otherwise), and runs must agree with each other (`diverged`). The play bridge (P4) writes the same file.
+- Found on the RTS bed (4.7.2, 2026-11-15): with async navigation map iterations, the first synced frame came one frame later in 1 of 6 processes, which shifts every recorded press by one tick; the match's outcome was the same. With `navigation/world/map_use_async_iterations=false` and `region_use_async_iterations=false`, 12 of 12 runs agreed.
+- A person records natively without `--fixed-fps`, so play runs in real time (UNTESTED: no human recording yet).
+
 ### LLM playtesting (`godotkit play`)
 
 Research: `docs/research/35-llm-game-agents.md`, `36-godot-play-bridge.md`, `37-llm-playtest-method.md`.
@@ -411,14 +418,14 @@ Rehearsed 2026-11-14 on a throwaway local clone of AloneGodot `78b719d`; report 
 
 Each probe runs headless where possible, prints one summary line and is judged by `godotkit` like the other gates. Research: 23, 24, 25, 28, 34.
 
-| #   | Milestone                                                                                                             | verify                                                                                                                                    |
-| --- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| P1  | Determinism: fixed-tick replay of recorded inputs gives the same state hash                                           | arena and RTS replays match; a seeded random leak fixture fails                                                                           |
-| P2  | Scale: units at N = 100, 500, 2,000 report frame time, draw calls, navigation time                                    | RTS budget table in the receipt; a fixture without MultiMesh breaks the budget                                                            |
-| P3  | Feel: input-to-response frames, camera clipping, stuck detection                                                      | arena fixture with a one-frame input delay is reported                                                                                    |
-| P4  | `play` bridge: lockstep NDJSON over loopback TCP, catalogue groups, input with held frames, replay of `actions.jsonl` | bridge self-test fixture: a held action stays pressed N frames, a click on a Button emits `pressed`; a replay reaches the same state hash |
-| P5  | Scenario and finding schemas, oracles, stuck detector, claim checker, cost accounting; findings into the hub          | scenario lint rejects a goal without a success predicate; a planted invariant break becomes a confirmed `bug`; duplicates merge           |
-| P6  | Skills `godot-playtest` (llm_stepped) and `godot-bot` (scripted_bot); pilot on AloneGodot UI, arena and RTS test beds | pilot runs end with summary lines; measured cost per scenario replaces the estimate; evals pass                                           |
+| #   | Milestone                                                                                                             | verify                                                                                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | Determinism: fixed-tick replay of recorded inputs gives the same state hash                                           | done: `godotkit replay`; arena (a 9-press walk, 600 frames, 0.27 s a run) and RTS (3,100 frames, 1.0 s) agree over 3 runs; an unseeded `randf()` fixture diverges at the first checkpoint; a moved press is a `mismatch` (2026-11-15) |
+| P2  | Scale: units at N = 100, 500, 2,000 report frame time, draw calls, navigation time                                    | RTS budget table in the receipt; a fixture without MultiMesh breaks the budget                                                                                                                                                        |
+| P3  | Feel: input-to-response frames, camera clipping, stuck detection                                                      | arena fixture with a one-frame input delay is reported                                                                                                                                                                                |
+| P4  | `play` bridge: lockstep NDJSON over loopback TCP, catalogue groups, input with held frames, replay of `actions.jsonl` | bridge self-test fixture: a held action stays pressed N frames, a click on a Button emits `pressed`; a replay reaches the same state hash                                                                                             |
+| P5  | Scenario and finding schemas, oracles, stuck detector, claim checker, cost accounting; findings into the hub          | scenario lint rejects a goal without a success predicate; a planted invariant break becomes a confirmed `bug`; duplicates merge                                                                                                       |
+| P6  | Skills `godot-playtest` (llm_stepped) and `godot-bot` (scripted_bot); pilot on AloneGodot UI, arena and RTS test beds | pilot runs end with summary lines; measured cost per scenario replaces the estimate; evals pass                                                                                                                                       |
 
 ### Phase D–G — outlines (detailed when reached)
 

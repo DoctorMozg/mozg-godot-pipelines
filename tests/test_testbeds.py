@@ -45,11 +45,13 @@ class Bed:
     main_scene: str
     entries: int
     min_checks: int
+    # godotkit replay arguments: the arena replays a walk, the rts its whole bot match.
+    replay: tuple[str, ...]
 
 
 TESTBEDS = [
-    Bed("arena3d", "res://scenes/arena.tscn", entries=2, min_checks=11),
-    Bed("rts", "res://scenes/match.tscn", entries=1, min_checks=13),
+    Bed("arena3d", "res://scenes/arena.tscn", 2, 11, ("--actions", "replays/walk.jsonl")),
+    Bed("rts", "res://scenes/match.tscn", 1, 13, ("--frames", "3100", "--every", "300")),
 ]
 
 
@@ -90,3 +92,10 @@ class TestTestbeds:
         result = _godotkit("gate", "--project", testbed.folder, "--timeout", str(TIMEOUT_S))
         failed = [step["name"] for step in result["steps"] if step["status"] == "fail"]
         assert (result["ok"], failed) == (True, []), result
+
+    def test_separate_runs_replay_to_the_same_state_hashes(self, testbed: Bed) -> None:
+        folder = Path(testbed.folder)
+        replay = [str(folder / arg) if arg.endswith(".jsonl") else arg for arg in testbed.replay]
+        result = _godotkit("replay", "--project", testbed.folder, "--runs", "3", *replay)
+        assert result["ok"], result
+        assert all(run["hashes"] >= 10 for run in result["runs"])

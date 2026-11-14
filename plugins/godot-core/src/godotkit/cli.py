@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot, hooks
+from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot, cmd_play, hooks
 from godotkit.doctor import Doctor
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_SETUP, emit
@@ -91,6 +91,8 @@ def _parser() -> argparse.ArgumentParser:
         "--layout-only", action="store_true", help="headless: rects only, no PNG, no display"
     )
     shot.add_argument("--timeout", type=float, default=120.0)
+
+    cmd_play.add_parser(commands, NATIVE_HELP)
 
     test = commands.add_parser("test", help="run the test entries, all or those a change affects")
     test.add_argument("--project", type=Path, default=Path.cwd())
@@ -195,6 +197,7 @@ def main(argv: Sequence[str]) -> int:
         "run": cmd_godot.run,
         "test": cmd_godot.test,
         "shot": cmd_godot.shot,
+        "replay": cmd_play.replay,
         "gate": cmd_gate.gate,
     }
     return handlers[args.command](args, runner)

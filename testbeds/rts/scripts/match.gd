@@ -14,6 +14,7 @@ var sim: MatchSim
 
 
 func _ready() -> void:
+	add_to_group(&"playtest_state")
 	for view: MultiMeshInstance3D in _teams:
 		view.multimesh.instance_count = units_per_team
 		view.multimesh.visible_instance_count = 0
@@ -52,6 +53,11 @@ func _process(_delta: float) -> void:
 		counts[t] += 1
 	for t: int in 2:
 		_teams[t].multimesh.visible_instance_count = counts[t]
+
+
+# The navigation map syncs a few ticks after start; the match exists only after that.
+func state_hash() -> String:
+	return sim.state_hash() if sim else "navigation-pending"
 
 
 func summary() -> String:

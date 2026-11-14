@@ -90,6 +90,7 @@ What to test (a script, a class, a reported bug) or the failing entry's path. Th
 - Seed every random source in a test (`seed(<n>)`, a seeded `RandomNumberGenerator`), so a failure repeats.
 - A scene added to `root` during `_initialize` gets `_ready` only on the first frame, so its `@onready` fields are still null there. Add scenes from the first `_physics_process` tick, and keep the tick that calls `quit()` reachable even when a check errors; an entry that never quits only ends at the timeout.
 - An entry that plays out physics takes `"args": ["--fixed-fps", "60"]` in `godotkit.json`: each frame then advances one tick without waiting on the clock (600 ticks in about 2 ms headless on 4.7.2, measured 2026-11-14).
+- Determinism across processes: give the scene's root `state_hash() -> String` in group `playtest_state`, then `godotkit replay --frames N` runs it twice and names the first checkpoint whose hashes differ; `--record FILE` saves the action changes and hashes for later `--actions FILE` replays. Async navigation map iterations shift the first synced frame by one in some runs (`navigation/world/map_use_async_iterations=false` fixes it, 4.7.2, 2026-11-15).
 - Entries run longest first across `--jobs`, from the durations recorded in `.godot/godotkit/durations.json`.
 - Check a nullable result before using it and count the miss as a failure; a null dereference stops the script before its summary line.
 

@@ -8,9 +8,10 @@ from pathlib import Path
 import pytest
 from godotkit.actions import Recording
 from godotkit.locate import GodotBinary
+from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.replay import ReplayProbe, ReplayRequest
 from godotkit.runner import GodotRunner
-from godotkit_rig import HEALTHY_SCRIPT, FakeGodotFactory, ProjectFactory
+from godotkit_rig import HEALTHY_SCRIPT, CliRunner, FakeGodotFactory, ProjectFactory
 
 HEADER = '{"schema": "godotkit-actions/1", "frames": 20, "every": 10}\n'
 WALK = (
@@ -18,6 +19,30 @@ WALK = (
     '{"f": 6, "action": "walk", "pressed": false, "strength": 0}\n'
 )
 REPORT = 'GODOTKIT_REPLAY {"frames": 20, "hashes": 2, "state": "/root/Main"}\n'
+# Walks while the action is held; the leak variant adds an unseeded randf() every frame.
+STATE_SCRIPT = """extends Node
+
+var value: float = 0.0
+var walked: int = 0
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	add_to_group(&"playtest_state")
+	_rng.seed = 7
+	InputMap.add_action(&"walk")
+
+
+func _physics_process(_delta: float) -> void:
+	value += _rng.randf()
+	if Input.is_action_pressed(&"walk"):
+		walked += 1
+
+
+func state_hash() -> String:
+	return "%d %.6f" % [walked, value]
+"""
+LEAKY_SCRIPT = STATE_SCRIPT.replace("_rng.randf()", "randf()")
 
 
 def _hashes(*values: str) -> str:
@@ -117,3 +142,75 @@ class TestVerdict:
         assert recording.hashes == {10: "a", 20: "b"}
         with pytest.raises(ValueError, match="never replaces"):
             self._replay(godot, project, record_to=target)
+
+
+class TestCli:
+    def test_the_recording_header_sets_frames_and_checkpoints(
+        self,
+        fake_godot: FakeGodotFactory,
+        make_project: ProjectFactory,
+        run_cli: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        path = tmp_path / "walk.jsonl"
+        path.write_text(HEADER + WALK)
+        args = ["replay", "--project", str(make_project(HEALTHY_SCRIPT)), "--actions", str(path)]
+        code, payload = run_cli(args, fake_godot(_hashes("a", "b") + REPORT))
+        assert (code, payload["reason"]) == (EXIT_OK, "ok")
+        assert (payload["frames"], payload["every"]) == (20, 10)
+
+    def test_an_unreadable_actions_file_is_refused(
+        self,
+        fake_godot: FakeGodotFactory,
+        make_project: ProjectFactory,
+        run_cli: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        args = ["replay", "--project", str(make_project(HEALTHY_SCRIPT))]
+        code, payload = run_cli([*args, "--actions", str(tmp_path / "none.jsonl")], fake_godot())
+        assert (code, payload["reason"]) == (EXIT_REFUSED, "refused")
+
+
+@pytest.mark.live_godot
+class TestRealGodot:
+    def _replay(
+        self, run_cli: CliRunner, godot: GodotBinary, project: Path, *extra: str
+    ) -> dict[str, object]:
+        args = ["replay", "--project", str(project), "--frames", "20", "--every", "5", *extra]
+        return run_cli(args, godot)[1]
+
+    def test_an_unseeded_random_parts_two_runs_at_the_first_checkpoint(
+        self, real_godot: GodotBinary, make_project: ProjectFactory, run_cli: CliRunner
+    ) -> None:
+        payload = self._replay(run_cli, real_godot, make_project(LEAKY_SCRIPT))
+        assert payload["reason"] == "diverged"
+        assert payload["divergence"]["frame"] == 5  # type: ignore[index]
+
+    def test_a_recording_replays_to_its_hashes_and_catches_a_moved_press(
+        self,
+        real_godot: GodotBinary,
+        make_project: ProjectFactory,
+        run_cli: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        project = make_project(STATE_SCRIPT)
+        script = tmp_path / "walk.jsonl"
+        script.write_text(HEADER + WALK)
+        recorded = tmp_path / "rec.jsonl"
+        made = self._replay(
+            run_cli, real_godot, project, "--actions", str(script), "--record", str(recorded)
+        )
+        assert made["reason"] == "ok", made
+        rows = [json.loads(line) for line in recorded.read_text().splitlines()[1:]]
+        # Pressed on frame 3, released on 6: three walked frames by the first checkpoint.
+        assert next(row["hash"] for row in rows if row.get("f") == 5).startswith("3 ")
+        code, payload = run_cli(
+            ["replay", "--project", str(project), "--actions", str(recorded)], real_godot
+        )
+        assert (code, payload["reason"]) == (EXIT_OK, "ok")
+        recorded.write_text(recorded.read_text().replace('"f": 6, "action"', '"f": 7, "action"'))
+        code, payload = run_cli(
+            ["replay", "--project", str(project), "--actions", str(recorded)], real_godot
+        )
+        assert (code, payload["reason"]) == (EXIT_FAILED, "mismatch")
+        assert payload["divergence"]["frame"] == 10  # type: ignore[index]

@@ -1,0 +1,9 @@
+{"schema": "godotkit-actions/1", "scene": "res://scenes/arena.tscn", "frames": 600, "every": 60}
+{"f": 10, "action": "move_forward", "pressed": true}
+{"f": 90, "action": "move_left", "pressed": true}
+{"f": 150, "action": "move_forward", "pressed": false, "strength": 0}
+{"f": 200, "action": "attack", "pressed": true}
+{"f": 201, "action": "attack", "pressed": false, "strength": 0}
+{"f": 260, "action": "move_left", "pressed": false, "strength": 0}
+{"f": 260, "action": "move_back", "pressed": true}
+{"f": 400, "action": "move_back", "pressed": false, "strength": 0}

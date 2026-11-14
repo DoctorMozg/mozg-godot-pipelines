@@ -95,7 +95,7 @@ Research: `docs/research/17-gdscript-strict-typing.md`, `18-gdscript-architectur
 - AloneGodot (2026-11-13): working tree 0.35 s, a commit 0.25 s. HEAD against HEAD~30: median 62, p90 250 to 251, max 1,346 to 1,463, one entry (`smoke.gd`) may load anything. The max is `card_resources_test.gd`, whose built paths cover whole art folders; the next entry reaches 253.
 - Further steps: `strict` when the baseline holds strict counts (a project at the profile is already held to it by `check`), `boot` when a main scene is set, and every non-native test entry.
 - Test entries run longest first by the seconds recorded in `.godot/godotkit/durations.json` (never-timed ones first), so a pool of `--jobs` finishes together; `godotkit test` uses the same order and results keep catalogue order.
-- AloneGodot worktree at HEAD (2026-11-13), baseline of `lint` and `strict`: 98 s with `--jobs 4`, 65 s of it tests (44 entries, 48,007 checks; 196 s of entry time, longest 43.6 s, so about 49 s is the floor at 4 jobs; the gain of longest-first ordering on a second run is UNTESTED). Two findings. Import rewrites 67 tracked files, because the committed `.import` files predate the current import. 15 entries fail, as under `godotkit test`: they raise expected errors with no `godotkit.json` allow-list, which `godot-init` (M1) writes.
+- AloneGodot worktree at HEAD (2026-11-13), baseline of `lint` and `strict`: 98 s with `--jobs 4`, 65 s of it tests (44 entries, 48,007 checks; 196 s of entry time, longest 43.6 s, so about 49 s is the floor at 4 jobs; the gain of longest-first ordering on a second run is UNTESTED). Two findings. Import rewrites 67 tracked files, because the committed `.import` files predate the current import. 15 entries fail, as under `godotkit test`: they raise expected errors with no `godotkit.json` allow-list, which `godot-init` (M1) writes. By `78b719d` (2026-11-14) import churn is 0 and the suite has 68 entries; the adopted gate takes 99 to 119 s (`docs/migration-rehearsal.md`).
 - Proven 2026-11-13 on real Godot: a fresh fixture fails `import` because its first import writes `main.gd.uid`; after committing it the gate passes, and a new file makes `verify` report `stale`.
 
 ### Hooks (`hooks/hooks.json`, `godotkit hook EVENT`)
@@ -397,14 +397,15 @@ The same Claude-format plugins run in Codex: no `.codex-plugin/`, no renderer. E
 
 ### Phase M — migration of an existing project
 
-Rehearsed on a scratch worktree of AloneGodot; applying it to AloneGodot itself is a separate task for its owner.
+Rehearsed 2026-11-14 on a throwaway local clone of AloneGodot `78b719d`; report and kit findings in `docs/migration-rehearsal.md`. Applying it to AloneGodot itself is a separate task for its owner.
 
-| #   | Milestone                                                                                                                                             | verify                                                                                       |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| M1  | `godot-init` on an existing project: `godotkit.json`, `architecture.json` describing the current graph, `baseline write`, `doctor` report of blockers | AloneGodot worktree: gates pass on unchanged code; the blocker report lists the known issues |
-| M2  | Hooks, gates and receipts on; only new code must be clean                                                                                             | a new untyped function fails, old code passes                                                |
-| M3  | Imports for real: asset manifests → registry, CSV → string store, design data → JSON                                                                  | round trips give identical files; the hub shows the imported items                           |
-| M4  | Clean-up lanes shrink the baseline one module at a time                                                                                               | the baseline count drops and no gate regresses                                               |
+| #   | Milestone                                                                                                                                             | verify                                                                                             |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| M1  | `godot-init` on an existing project: `godotkit.json`, `architecture.json` describing the current graph, `baseline write`, `doctor` report of blockers | done: gate passed on unchanged code in 102 s (54 entries, 14 native skipped, 118,064 checks)       |
+| M2  | Hooks, gates and receipts on; only new code must be clean                                                                                             | done: an untyped function failed `check` and `strict` and its commit was refused; typed, it passed |
+| M3  | Imports for real: asset manifests → registry, CSV → string store, design data → JSON                                                                  | done: 256 strings identical in content, sorted by key; hub lists 318 assets; design `sync` 23/23   |
+| M4  | Clean-up lanes shrink the baseline one module at a time                                                                                               | done: two lanes took lint 499 → 485; lane gates and the merged gate (119 s) passed                 |
+| M5  | Report and kit fixes                                                                                                                                  | done: K1, K2, K9 in `e6f1bc5`, K8 in `5843704`; K3, K5, K6, K7, K10 open                           |
 
 ### Phase P — gameplay probes
 

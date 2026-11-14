@@ -17,6 +17,7 @@ from designkit.design import Design, DesignLoader, Finding
 from designkit.graph import ProgressionAnalysis
 from designkit.render import Renderer
 from designkit.simulate import CampaignSimulation
+from designkit.sync import DriftCheck
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 SHOWN_FINDINGS = 40
@@ -43,6 +44,9 @@ def _parser() -> argparse.ArgumentParser:
     simulate.add_argument("--runs", type=_positive, default=1000, help="runs per terminal node")
     simulate.add_argument("--seed", type=int, default=0)
     simulate.add_argument("--out", type=Path, help="write the full report here as JSON")
+    commands.add_parser(
+        "sync", parents=[shared], help="balance numbers against their copies in files and docs"
+    )
     render = commands.add_parser(
         "render", parents=[shared], help="draw the graph and charts as SVG for the review hub"
     )
@@ -100,6 +104,9 @@ def main(argv: Sequence[str]) -> int:
     try:
         if args.command == "analyze":
             payload, code = report(root, args.out, lambda d: ProgressionAnalysis(d).run())
+        elif args.command == "sync":
+            project = args.project.resolve()
+            payload, code = report(root, None, lambda d: DriftCheck(d, project).run())
         elif args.command == "render":
             payload, code = report(
                 root, None, lambda d: _rendered(Renderer(d, args.runs, args.seed).write(args.out))

@@ -6,12 +6,22 @@ import json
 from pathlib import Path
 from typing import Any, Protocol
 
+from designkit.design import Design, DesignLoader
+
 # Any: the JSON line a designkit command printed.
 CliResult = tuple[int, dict[str, Any]]
 
 
 class CliRunner(Protocol):
     def __call__(self, *args: str) -> CliResult: ...
+
+
+def load(builder: DesignBuilder) -> Design:
+    """The builder's design, which the test expects to load without a finding."""
+    loaded = DesignLoader(builder.root).load()
+    assert loaded.findings == []
+    assert loaded.design is not None
+    return loaded.design
 
 
 class DesignBuilder:

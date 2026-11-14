@@ -46,8 +46,8 @@ class ProgressionAnalysis:
                 self._children[parent].append(node.id)
 
     def run(self) -> dict[str, Json]:
-        hours = self._schedule(_mode)
-        steps = self._schedule(lambda n: 1.0)
+        hours = self.schedule(mode_hours)
+        steps = self.schedule(lambda n: 1.0)
         depth = {node_id: int(done) - 1 for node_id, done in steps.finish.items()}
         findings = (
             self._unreachable(hours) + self._cycles(hours) + self._dead_ends()
@@ -67,7 +67,7 @@ class ProgressionAnalysis:
             "terminals": self._terminals(hours, depth),
         }
 
-    def _schedule(self, weight: Callable[[Node], float]) -> Schedule:
+    def schedule(self, weight: Callable[[Node], float]) -> Schedule:
         # Dijkstra over an AND-OR graph: a node starts when its last required parent and its
         # first optional parent are done, so weights must not be negative.
         waiting = {n.id: len(set(n.requires)) for n in self._nodes.values()}
@@ -158,7 +158,7 @@ class ProgressionAnalysis:
         if limit is None:
             return []
         starts = sorted(
-            (done - _mode(self._nodes[node_id]), node_id)
+            (done - mode_hours(self._nodes[node_id]), node_id)
             for node_id, done in schedule.finish.items()
         )
         found: list[Finding] = []
@@ -196,7 +196,7 @@ class ProgressionAnalysis:
         ]
 
 
-def _mode(node: Node) -> float:
+def mode_hours(node: Node) -> float:
     return node.hours.mode if node.hours else 0.0
 
 

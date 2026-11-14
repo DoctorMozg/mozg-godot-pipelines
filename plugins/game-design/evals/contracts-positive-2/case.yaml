@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: contracts-positive-2
+description: "Indirect: can a designed feature be built yet."
+tags: [gd-contracts, positive]
+runs: 3
+execution:
+  prompt: >-
+    Can the coding agent start on the solar flare episode yet, or is something still undecided in its design?
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-contracts"'

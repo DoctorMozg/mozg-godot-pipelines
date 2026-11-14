@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: contracts-positive-1
+description: "Literal: write a feature contract with open fields."
+tags: [gd-contracts, positive]
+runs: 3
+execution:
+  prompt: >-
+    Write the design contract for the dust storm hazard: trigger, warning, consequence, resolution and save/load. Mark whatever I haven't decided as open.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-contracts"'

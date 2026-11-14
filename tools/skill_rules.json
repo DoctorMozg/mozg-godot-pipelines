@@ -37,7 +37,16 @@
       "<topic>": "a canon topic id, such as survival",
       "<document>": "the path of a topic's owning document",
       "<status>": "agreed, baseline, open or deferred",
-      "<what changed>": "the change made to a canon topic"
+      "<what changed>": "the change made to a canon topic",
+      "<contract id>": "a contract id, such as pressure_leak",
+      "<fields>": "contract fields still OPEN or missing",
+      "<count>": "a number of tests",
+      "<verdict>": "complete or gaps",
+      "<n>": "a count of findings",
+      "<rule or sheet question>": "a designkit rule or a review sheet question",
+      "<where>": "a node, file and line, or record the finding names",
+      "<one-line detail>": "what is wrong, in one line",
+      "<skill>": "the skill that closes the finding"
     }
   }
 }

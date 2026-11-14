@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: review-positive-2
+description: "Indirect: duration target and stale numbers after a rule change."
+tags: [gd-review, positive]
+runs: 3
+execution:
+  prompt: >-
+    After yesterday's rule changes, check whether the campaign still lands in the 7-8 hour target and whether any numbers in the docs are now stale.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-review"'

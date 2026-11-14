@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: contracts-negative-1
+description: "Near-miss: a completeness audit belongs to gd-review."
+tags: [gd-contracts, negative]
+runs: 3
+execution:
+  prompt: >-
+    Is our game design document complete now? Check the whole design for anything missing before we start the next milestone.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-contracts"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-review"'

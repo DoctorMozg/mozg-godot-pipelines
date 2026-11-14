@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: review-negative-1
+description: "Near-miss: asking the owner open questions belongs to gd-interview."
+tags: [gd-review, negative]
+runs: 3
+execution:
+  prompt: >-
+    There are still open questions about the endings. Ask me them one batch at a time with your recommendation for each.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-review"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-interview"'

@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from l10nkit.check import StoreCheck
+from l10nkit.codescan import CodeScan
 from l10nkit.contracts import ContractError, Json
 from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
@@ -130,10 +131,15 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
         return CsvExport(store).run(args.ns, path)
     if args.command == "check":
         findings, states = StoreCheck(store, PluralRules.load(), args.ship).run()
+        namespaces = store.namespaces().values()
+        keys = {key for n in namespaces for key in n.strings}
+        scan = CodeScan(args.project, keys, [p for n in namespaces for p in n.patterns]).run()
+        findings += scan.findings
         errors = sum(f.level == "error" for f in findings)
         return {
             "errors": errors, "warnings": len(findings) - errors,
             "rules": dict(sorted(Counter(f.rule for f in findings).items())), "states": states,
+            "files": scan.files, "unchecked_tr_calls": scan.opaque_calls,
             "findings": [f.as_json() for f in findings[:SHOWN_FINDINGS]],
         }  # fmt: skip
     if args.command == "build":

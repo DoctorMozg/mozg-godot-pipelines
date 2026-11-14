@@ -15,6 +15,7 @@ from pathlib import Path
 from designkit.contracts import ContractError, Json
 from designkit.design import Design, DesignLoader, Finding
 from designkit.graph import ProgressionAnalysis
+from designkit.render import Renderer
 from designkit.simulate import CampaignSimulation
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -42,6 +43,10 @@ def _parser() -> argparse.ArgumentParser:
     simulate.add_argument("--runs", type=_positive, default=1000, help="runs per terminal node")
     simulate.add_argument("--seed", type=int, default=0)
     simulate.add_argument("--out", type=Path, help="write the full report here as JSON")
+    render = commands.add_parser(
+        "render", parents=[shared], help="draw the graph as SVG for the review hub"
+    )
+    render.add_argument("--out", type=Path, required=True, help="folder for the SVGs and manifest")
     return parser
 
 
@@ -93,6 +98,8 @@ def main(argv: Sequence[str]) -> int:
     try:
         if args.command == "analyze":
             payload, code = report(root, args.out, lambda d: ProgressionAnalysis(d).run())
+        elif args.command == "render":
+            payload, code = report(root, None, lambda d: _rendered(Renderer(d).write(args.out)))
         elif args.command == "simulate":
             payload, code = report(
                 root, args.out, lambda d: CampaignSimulation(d, args.runs, args.seed).run()
@@ -107,6 +114,10 @@ def main(argv: Sequence[str]) -> int:
             {"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP
         )
     return _emit({"cmd": args.command, "ok": code == EXIT_OK, **payload}, code)
+
+
+def _rendered(manifest: dict[str, Json]) -> dict[str, Json]:
+    return {**manifest, "errors": 0, "findings": []}
 
 
 def _summary(findings: list[Finding]) -> dict[str, Json]:

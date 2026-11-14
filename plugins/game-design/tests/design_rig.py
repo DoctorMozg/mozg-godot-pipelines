@@ -77,6 +77,40 @@ class DesignBuilder:
         }
         return self.write(self.root / "balance" / f"{number_id}.json", record)
 
+    def canon(self, *topics: tuple[str, str]) -> Path:
+        """design/canon.json with (topic id, owner doc) pairs."""
+        listed = [{"id": t, "title": t.title(), "owner": o, "status": "agreed"} for t, o in topics]
+        return self.write(self.root / "canon.json", {"schema": "canon/1", "topics": listed})
+
+    def decision(self, decision_id: str, **fields: object) -> Path:
+        (self.root / "decisions").mkdir(exist_ok=True)
+        record = {
+            "schema": "decision/1",
+            "id": decision_id,
+            "date": "2026-11-14",
+            "topic": "survival",
+            "question": "How often does the colonist breathe?",
+            "options": [{"label": "Every 2 h"}, {"label": "06:00 and 18:00"}],
+            "status": "agreed",
+            "chosen": "Every 2 h",
+            **fields,
+        }
+        # None drops a default field, such as chosen on an open decision.
+        record = {k: v for k, v in record.items() if v is not None}
+        return self.write(self.root / "decisions" / f"{decision_id}.json", record)
+
+    def contract(self, contract_id: str, **fields: object) -> Path:
+        (self.root / "contracts").mkdir(exist_ok=True)
+        record = {
+            "schema": "contract/1",
+            "id": contract_id,
+            "title": contract_id.replace("_", " "),
+            "kind": "hazard",
+            "fields": {},
+            **fields,
+        }
+        return self.write(self.root / "contracts" / f"{contract_id}.json", record)
+
     def project_file(self, relative: str, text: str) -> Path:
         """A file of the game project around the design folder."""
         path = self.root.parent / relative

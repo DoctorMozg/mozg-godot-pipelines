@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: interview-negative-1
+description: "Near-miss: two docs disagree on who owns the rule belongs to gd-canon."
+tags: [gd-interview, negative]
+runs: 3
+execution:
+  prompt: >-
+    My GDD says oxygen drains every two hours but the campaign rules doc says twice a day. Which of the two documents is authoritative for survival rules?
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-interview"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-canon"'

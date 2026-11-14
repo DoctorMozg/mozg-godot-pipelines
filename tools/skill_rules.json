@@ -26,6 +26,18 @@
     }
   },
   "game-design": {
-    "placeholders": {}
+    "placeholders": {
+      "<question>": "a design question as the owner sees it",
+      "<option>": "one answer option, concrete enough to build",
+      "<reason>": "why a recommendation or an N/A holds",
+      "<consequence>": "what changes in the game with the answer",
+      "<decision id>": "a decision record id, such as 0042-oxygen-schedule",
+      "<chosen, or open>": "the chosen label, or open when unanswered",
+      "<ids, or nothing>": "decision ids a record supersedes, or nothing",
+      "<topic>": "a canon topic id, such as survival",
+      "<document>": "the path of a topic's owning document",
+      "<status>": "agreed, baseline, open or deferred",
+      "<what changed>": "the change made to a canon topic"
+    }
   }
 }

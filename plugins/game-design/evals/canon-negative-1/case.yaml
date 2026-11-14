@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: canon-negative-1
+description: "Near-miss: a feature ready to build belongs to gd-contracts."
+tags: [gd-canon, negative]
+runs: 3
+execution:
+  prompt: >-
+    The pressure leak hazard is fully designed now. Prepare it so a coder can implement it in Godot with exact rules and tests.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-canon"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-contracts"'

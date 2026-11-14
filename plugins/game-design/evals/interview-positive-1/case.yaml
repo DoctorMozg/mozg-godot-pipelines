@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: interview-positive-1
+description: "Literal: interview the owner on a design topic."
+tags: [gd-interview, positive]
+runs: 3
+execution:
+  prompt: >-
+    Let's settle how endings work in my Godot survival game. Ask me the open design questions as a numbered list with your recommendations, and record what I answer.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-interview"'

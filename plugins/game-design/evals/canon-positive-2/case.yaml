@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: canon-positive-2
+description: "Indirect: a new design area needs an owning document."
+tags: [gd-canon, positive]
+runs: 3
+execution:
+  prompt: >-
+    We're adding a weather system to the game design. Set it up so there is exactly one document that owns the weather rules.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-canon"'

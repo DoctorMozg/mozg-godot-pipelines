@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: translate-negative-1
+description: "Near-miss: rewording English source text belongs to l10n-strings."
+tags: [l10n-translate, negative]
+runs: 3
+execution:
+  prompt: >-
+    The English tutorial line "Drag cards to combine" is outdated. Change it to "Drag an activity onto the timeline" everywhere it is used.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-translate"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-strings"'

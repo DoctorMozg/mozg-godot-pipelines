@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: translate-positive-1
+description: "Literal: translate the game into a new language."
+tags: [l10n-translate, positive]
+runs: 3
+execution:
+  prompt: >-
+    Translate all of the game's strings into Japanese.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-translate"'

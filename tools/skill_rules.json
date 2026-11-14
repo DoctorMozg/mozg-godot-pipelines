@@ -52,6 +52,20 @@
     }
   },
   "godot-l10n": {
-    "placeholders": {}
+    "placeholders": {
+      "<model id>": "the id of the model that wrote the text, such as claude-opus-5-5",
+      "<locale>": "a locale code, such as ru or pt_BR",
+      "<namespace>": "a namespace, the file name under i18n/src",
+      "<key>": "a string key, such as UI_EXIT",
+      "<text>": "the source text of a string",
+      "<batch file>": "a batch JSON path under .cache/mozg/l10n/",
+      "<finding>": "one QA finding: category, severity and detail",
+      "<context>": "the tr() context: who speaks or where the text shows",
+      "<note>": "guidance for translators: what the text is and what each placeholder holds",
+      "<n>": "a count from a l10nkit JSON line",
+      "<rule>": "the rule of a finding, such as hardcoded or placeholders",
+      "<where>": "where a finding is: file:line or KEY@locale",
+      "<detail>": "the detail text of a finding"
+    }
   }
 }

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: translate-positive-2
+description: "Rework: translations flagged in review notes and stale after rewording."
+tags: [l10n-translate, positive]
+runs: 3
+execution:
+  prompt: >-
+    I reworded the tutorial texts last week and left review notes on a few French lines. Redo the French translations that are stale or flagged.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-translate"'

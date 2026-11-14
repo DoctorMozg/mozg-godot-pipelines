@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: strings-negative-1
+description: "Near-miss: filling a locale's missing strings belongs to l10n-translate."
+tags: [l10n-strings, negative]
+runs: 3
+execution:
+  prompt: >-
+    The German locale is missing about forty strings since the last UI update. Translate them so German is complete again.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-strings"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-translate"'

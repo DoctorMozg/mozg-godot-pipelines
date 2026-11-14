@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: strings-positive-2
+description: "Symptom: a label stays English after switching the language."
+tags: [l10n-strings, positive]
+runs: 3
+execution:
+  prompt: >-
+    When I switch the game to Russian, the inventory title and a few tooltips still show English text. Find every string that skips translation and fix it.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?l10n-strings"'

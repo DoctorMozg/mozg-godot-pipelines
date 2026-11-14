@@ -46,7 +46,9 @@
       "<rule or sheet question>": "a designkit rule or a review sheet question",
       "<where>": "a node, file and line, or record the finding names",
       "<one-line detail>": "what is wrong, in one line",
-      "<skill>": "the skill that closes the finding"
+      "<skill>": "the skill that closes the finding",
+      "<YYYY-MM-DD>": "the date the report was written",
+      "<slug>": "a short kebab-case name of the research question"
     }
   }
 }

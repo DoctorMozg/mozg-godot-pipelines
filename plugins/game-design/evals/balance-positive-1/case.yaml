@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: balance-positive-1
+description: "Literal: tune numbers to hit the duration target."
+tags: [gd-balance, positive]
+runs: 3
+execution:
+  prompt: >-
+    The campaign runs too long. Adjust the balance numbers so a single playthrough lands in the 7-8 hour band.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?gd-balance"'

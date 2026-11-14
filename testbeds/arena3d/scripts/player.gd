@@ -4,14 +4,11 @@ extends CharacterBody3D
 
 signal died
 
-const SPEED: float = 5.0
-const REACH: float = 1.8
-const ATTACK_COOLDOWN: float = 0.4
-const DAMAGE: int = 1
+const STATS: UnitStats = preload("res://data/player.tres")
 const MOVING_SPEED: float = 0.1
 
 @export var controller: PlayerController
-@export var health: int = 100
+var health: int = STATS.health
 
 var _cooldown: float = 0.0
 
@@ -22,8 +19,8 @@ func _physics_process(delta: float) -> void:
 	if health <= 0 or controller == null:
 		return
 	var intent: Intent = controller.next_intent(self)
-	velocity.x = intent.move.x * SPEED
-	velocity.z = intent.move.y * SPEED
+	velocity.x = intent.move.x * STATS.speed
+	velocity.z = intent.move.y * STATS.speed
 	if not is_on_floor():
 		velocity += get_gravity() * delta
 	move_and_slide()
@@ -36,7 +33,7 @@ func _physics_process(delta: float) -> void:
 
 
 func in_reach(enemy: Enemy) -> bool:
-	return enemy.alive() and global_position.distance_to(enemy.global_position) <= REACH
+	return enemy.alive() and global_position.distance_to(enemy.global_position) <= STATS.reach
 
 
 func take_hit(amount: int) -> void:
@@ -52,9 +49,9 @@ func animation_state() -> StringName:
 
 
 func _attack() -> void:
-	_cooldown = ATTACK_COOLDOWN
+	_cooldown = STATS.attack_cooldown
 	_playback.start(&"attack")
 	for node: Node in get_tree().get_nodes_in_group(&"enemies"):
 		var enemy: Enemy = node as Enemy
 		if enemy != null and in_reach(enemy):
-			enemy.take_hit(DAMAGE)
+			enemy.take_hit(STATS.damage)

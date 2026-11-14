@@ -4,12 +4,9 @@ extends CharacterBody3D
 
 signal died
 
-const SPEED: float = 3.0
-const REACH: float = 1.4
-const ATTACK_COOLDOWN: float = 1.0
-const DAMAGE: int = 10
+const STATS: UnitStats = preload("res://data/enemy.tres")
 
-@export var health: int = 3
+var health: int = STATS.health
 
 var target: Player
 var _cooldown: float = 0.0
@@ -20,8 +17,8 @@ func _physics_process(delta: float) -> void:
 		return
 	var offset: Vector3 = target.global_position - global_position
 	offset.y = 0.0
-	var close: bool = offset.length() <= REACH
-	var chase: Vector3 = Vector3.ZERO if close else offset.normalized() * SPEED
+	var close: bool = offset.length() <= STATS.reach
+	var chase: Vector3 = Vector3.ZERO if close else offset.normalized() * STATS.speed
 	velocity.x = chase.x
 	velocity.z = chase.z
 	if not is_on_floor():
@@ -29,8 +26,8 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_cooldown = maxf(_cooldown - delta, 0.0)
 	if close and _cooldown == 0.0:
-		_cooldown = ATTACK_COOLDOWN
-		target.take_hit(DAMAGE)
+		_cooldown = STATS.attack_cooldown
+		target.take_hit(STATS.damage)
 
 
 func alive() -> bool:

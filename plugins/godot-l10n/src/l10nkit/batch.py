@@ -17,6 +17,7 @@ from pathlib import Path
 
 from l10nkit.check import translation_findings
 from l10nkit.contracts import Json
+from l10nkit.events import EventLog
 from l10nkit.po import PluralRules
 from l10nkit.status import key_state
 from l10nkit.store import Store, StoreError, source_hash
@@ -67,12 +68,18 @@ class BatchExport:
             raise StoreError(f"{locale} is the source locale")
         catalog = self._store.catalog(locale, namespace).strings
         memory = self._memory(locale)
+        notes: dict[str, list[Json]] = {}
+        for event in EventLog(self._store).events():
+            if event["type"] == "note" and event["item"].endswith(f"@{locale}"):
+                notes.setdefault(event["item"].partition("@")[0], []).append(event["body"])
         items: list[Json] = []
         for key, record in source.strings.items():
             if key_state(record, catalog.get(key)) in states and (
                 limit is None or len(items) < limit
             ):
                 items.append(self._item(key, record, catalog.get(key), memory))
+                if key in notes:
+                    items[-1]["review_notes"] = notes[key]
                 if "forms" in record:
                     items[-1]["plural_count"] = self._rules.count(locale)
         sources = " ".join(json.dumps(item, ensure_ascii=False) for item in items).lower()

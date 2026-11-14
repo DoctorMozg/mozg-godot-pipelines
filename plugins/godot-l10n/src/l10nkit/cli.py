@@ -16,6 +16,7 @@ from l10nkit.codescan import CodeScan
 from l10nkit.contracts import ContractError, Json
 from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
+from l10nkit.events import EventLog
 from l10nkit.godot_project import ProjectSettings
 from l10nkit.po import RES_BUILD, PluralRules, PoBuild
 from l10nkit.status import STATES, Coverage, key_state
@@ -71,6 +72,12 @@ def _parser() -> argparse.ArgumentParser:
     apply.add_argument("file", type=Path)
     apply.add_argument("--kind", choices=("llm", "human"), default="llm")
     apply.add_argument("--model", help="model id; required for --kind llm")
+    note = commands.add_parser("note", help="add a note on KEY@locale, such as a QA finding")
+    note.add_argument("item", metavar="KEY@LOCALE")
+    note.add_argument("--body", required=True)
+    note.add_argument("--author", required=True)
+    notes = commands.add_parser("notes", help="notes and decisions, of one KEY@locale or all")
+    notes.add_argument("item", nargs="?", metavar="KEY@LOCALE")
     pattern = commands.add_parser("pattern", help="declare or drop a pattern of runtime-built keys")
     pattern.add_argument("--ns", required=True)
     pattern.add_argument(
@@ -167,6 +174,11 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
             "items": len(batch["items"]),
             "glossary": len(batch["glossary"]),
         }
+    if args.command == "note":
+        return {"event": EventLog(store).note(args.item, args.body, args.author)}
+    if args.command == "notes":
+        found = EventLog(store).events(args.item)
+        return {"count": len(found), "events": found}
     if args.command == "pattern":
         namespace = store.namespaces().get(args.ns)
         if namespace is None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from collections import Counter
 from collections.abc import Sequence
@@ -18,7 +19,9 @@ from l10nkit.contracts import ContractError, Json
 from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
 from l10nkit.events import EventLog
+from l10nkit.godot import GodotMissing, GodotRunner, find_godot
 from l10nkit.godot_project import ProjectSettings
+from l10nkit.measure import Measure, MeasureFailed
 from l10nkit.po import RES_BUILD, PluralRules, PoBuild
 from l10nkit.status import STATES, Coverage, key_state
 from l10nkit.store import Store, StoreError
@@ -87,6 +90,11 @@ def _parser() -> argparse.ArgumentParser:
     pattern.add_argument("--remove", action="append", default=[], metavar="PATTERN")
     check = commands.add_parser("check", help="parity, plural, length and release checks")
     check.add_argument("--ship", action="append", default=[], help="locale that must be complete")
+    measure = commands.add_parser("measure", help="max_px and font coverage, measured in Godot")
+    measure.add_argument("--locale", action="append", default=[])
+    measure.add_argument("--theme", default="", help="res:// theme; default the project theme")
+    measure.add_argument("--font-size", type=int, default=0, help="default the theme's size")
+    measure.add_argument("--timeout", type=float, default=120.0, help="seconds")
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     status = commands.add_parser("status", help="coverage per locale")
@@ -205,6 +213,15 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
             "files": scan.files, "unchecked_tr_calls": scan.opaque_calls,
             "findings": [f.as_json() for f in findings[:SHOWN_FINDINGS]],
         }  # fmt: skip
+    if args.command == "measure":
+        runner = GodotRunner(find_godot(os.environ), args.timeout)
+        problems, summary = Measure(store, runner).run(args.locale, args.theme, args.font_size)
+        errors = sum(p.level == "error" for p in problems)
+        return {
+            **summary, "errors": errors,
+            "rules": dict(sorted(Counter(p.rule for p in problems).items())),
+            "findings": [p.as_json() for p in problems],
+        }  # fmt: skip
     if args.command == "build":
         if args.format == "csv":
             if args.register:
@@ -238,7 +255,12 @@ def main(argv: Sequence[str]) -> int:
             {"cmd": args.command, "ok": False, "reason": "refused", "detail": str(error)},
             EXIT_REFUSED,
         )
-    except ContractError as error:
+    except MeasureFailed as error:
+        return _emit(
+            {"cmd": args.command, "ok": False, "reason": "godot_failed", "detail": str(error)},
+            EXIT_FAILED,
+        )
+    except (ContractError, GodotMissing) as error:
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP
         )

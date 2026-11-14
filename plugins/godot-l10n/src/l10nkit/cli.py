@@ -19,10 +19,11 @@ from l10nkit.contracts import ContractError, Json
 from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
 from l10nkit.events import EventLog
-from l10nkit.godot import GodotMissing, GodotRunner, find_godot
+from l10nkit.godot import GodotMissing, GodotRunFailed, GodotRunner, find_godot
 from l10nkit.godot_project import ProjectSettings
-from l10nkit.measure import Measure, MeasureFailed
+from l10nkit.measure import Measure
 from l10nkit.po import RES_BUILD, PluralRules, PoBuild
+from l10nkit.pseudo import PseudoRun
 from l10nkit.status import STATES, Coverage, key_state
 from l10nkit.store import Store, StoreError
 
@@ -95,6 +96,13 @@ def _parser() -> argparse.ArgumentParser:
     measure.add_argument("--theme", default="", help="res:// theme; default the project theme")
     measure.add_argument("--font-size", type=int, default=0, help="default the theme's size")
     measure.add_argument("--timeout", type=float, default=120.0, help="seconds")
+    pseudo = commands.add_parser("pseudo", help="a scene in the pseudo locale: leaks and overflow")
+    pseudo.add_argument("--scene", required=True, help="res:// path of the scene to show")
+    pseudo.add_argument(
+        "--size", action="append", default=[], help="WIDTHxHEIGHT; default the project's"
+    )
+    pseudo.add_argument("--frames", type=int, default=3, help="frames to wait before reading")
+    pseudo.add_argument("--timeout", type=float, default=120.0, help="seconds")
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     status = commands.add_parser("status", help="coverage per locale")
@@ -222,6 +230,18 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
             "rules": dict(sorted(Counter(p.rule for p in problems).items())),
             "findings": [p.as_json() for p in problems],
         }  # fmt: skip
+    if args.command == "pseudo":
+        runner = GodotRunner(find_godot(os.environ), args.timeout)
+        if not (args.project / ".godot").is_dir():
+            done = runner.import_project(args.project)
+            if not done.ok:
+                raise GodotRunFailed(f"import failed: {done.reason}")
+        problems = PseudoRun(store, runner).run(args.scene, _sizes(args.size), args.frames)
+        return {
+            "scene": args.scene, "errors": sum(p.level == "error" for p in problems),
+            "rules": dict(sorted(Counter(p.rule for p in problems).items())),
+            "findings": [p.as_json() for p in problems[:SHOWN_FINDINGS]],
+        }  # fmt: skip
     if args.command == "build":
         if args.format == "csv":
             if args.register:
@@ -237,6 +257,16 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
             raise StoreError("--state needs --locale")
         return _listing(store, args)
     return Coverage(store).run(args.locale)
+
+
+def _sizes(given: Sequence[str]) -> list[tuple[int, int]]:
+    sizes = []
+    for size in given:
+        width, _, height = size.partition("x")
+        if not (width.isdigit() and height.isdigit()):
+            raise StoreError(f"--size takes WIDTHxHEIGHT, got {size!r}")
+        sizes.append((int(width), int(height)))
+    return sizes
 
 
 def main(argv: Sequence[str]) -> int:
@@ -255,7 +285,7 @@ def main(argv: Sequence[str]) -> int:
             {"cmd": args.command, "ok": False, "reason": "refused", "detail": str(error)},
             EXIT_REFUSED,
         )
-    except MeasureFailed as error:
+    except GodotRunFailed as error:
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "godot_failed", "detail": str(error)},
             EXIT_FAILED,

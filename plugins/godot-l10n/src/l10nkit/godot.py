@@ -15,6 +15,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 log = logging.getLogger(__name__)
 PATH_NAMES = ("godot", "godot4", "Godot")
@@ -25,12 +26,24 @@ class GodotMissing(RuntimeError):
     """No usable Godot binary; the message says where it looked."""
 
 
+class GodotRunFailed(RuntimeError):
+    """A Godot script did not finish; the message carries its error lines."""
+
+
 @dataclass(frozen=True)
 class ScriptRun:
     ok: bool
     errors: tuple[str, ...]
     output: str
     timed_out: bool
+
+    @property
+    def reason(self) -> str:
+        return "timed out" if self.timed_out else "; ".join(self.errors[:3]) or "no summary line"
+
+
+class Runner(Protocol):
+    def script(self, project: Path, script: Path, args: Sequence[str], done: str) -> ScriptRun: ...
 
 
 def find_godot(env: Mapping[str, str]) -> Path:

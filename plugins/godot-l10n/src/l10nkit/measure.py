@@ -11,11 +11,10 @@ import logging
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Protocol
 
 from l10nkit.check import BBCODE, Finding
 from l10nkit.contracts import Json
-from l10nkit.godot import ScriptRun
+from l10nkit.godot import GodotRunFailed, Runner
 from l10nkit.status import key_state
 from l10nkit.store import Store, StoreError
 
@@ -23,14 +22,6 @@ log = logging.getLogger(__name__)
 SCRIPT = Path(__file__).resolve().parents[2] / "data" / "measure.gd"
 DONE = "L10N_MEASURE done"
 SHOWN_CHARACTERS = 40
-
-
-class Runner(Protocol):
-    def script(self, project: Path, script: Path, args: Sequence[str], done: str) -> ScriptRun: ...
-
-
-class MeasureFailed(RuntimeError):
-    """Godot did not finish the measure script; the message carries its error lines."""
 
 
 class Measure:
@@ -50,10 +41,7 @@ class Measure:
             project = self._store.root.parent
             done = self._runner.script(project, SCRIPT, [str(given), str(taken)], DONE)
             if not done.ok:
-                reason = (
-                    "timed out" if done.timed_out else "; ".join(done.errors[:3]) or "no summary"
-                )
-                raise MeasureFailed(f"measure script failed: {reason}")
+                raise GodotRunFailed(f"measure script failed: {done.reason}")
             result = json.loads(taken.read_text(encoding="utf-8"))
         findings = _overflows(result["widths"], limits, texts) + _gaps(result["missing"])
         log.info("measured %d texts in %s locales", len(texts), len(chosen))

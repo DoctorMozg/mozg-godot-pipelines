@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 from l10n_rig import CliRunner, StoreRig
-from l10nkit.godot import ScriptRun
-from l10nkit.measure import Measure, MeasureFailed
+from l10nkit.godot import GodotRunFailed, ScriptRun
+from l10nkit.measure import Measure
 
 KNOWN_GODOT = Path("/home/drmozg/Tools/Godot_v4.7.2-stable_linux.x86_64")
 PX_PER_CHARACTER = 10
@@ -63,7 +63,7 @@ class TestMeasure:
         assert Measure(store.store, FakeRunner()).run(["ru"], "", 0)[0] == []
 
     def test_failed_run_is_refused(self, store: StoreRig) -> None:
-        with pytest.raises(MeasureFailed, match="ERROR: boom"):
+        with pytest.raises(GodotRunFailed, match="ERROR: boom"):
             Measure(store.store, FakeRunner(ok=False)).run([], "", 0)
 
 

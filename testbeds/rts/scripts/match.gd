@@ -55,6 +55,6 @@ func _process(_delta: float) -> void:
 
 
 func summary() -> String:
-	return "rts seed=%d winner=%d ticks=%d peak_units=%d base_health=%d/%d hash=%s" % [
+	return "rts seed=%d winner=%d ticks=%d peak_units=%d base_health=%d/%d mined=%d@%d hash=%s" % [
 		seed_value, sim.winner, sim.tick, sim.peak, sim.base_health[0], sim.base_health[1],
-		sim.state_hash().left(12)]
+		sim.mined_early, MatchSim.MINED_BY_TICK, sim.state_hash().left(12)]

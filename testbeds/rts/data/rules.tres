@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MatchRules" format=3]
+
+[ext_resource type="Script" path="res://scripts/match_rules.gd" id="1_rules"]
+
+[resource]
+script = ExtResource("1_rules")
+start_workers = 30
+soldier_cost = 20
+train_ticks = 6
+base_health = 3000
+carry = 5
+mine_ticks = 40
+attack_range = 1.5
+attack_cooldown = 30
+damage = 10
+worker_speed = 0.12
+soldier_speed = 0.1
+worker_health = 40
+soldier_health = 100

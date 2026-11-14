@@ -7,30 +7,23 @@ enum Order { GATHER, MINE, RETURN, RALLY, ATTACK }
 enum Route { TO_FIELD, TO_BASE, TO_ENEMY }
 
 const BASES: Array[Vector3] = [Vector3(-24, 0, -24), Vector3(24, 0, 24)]
-const START_WORKERS: int = 30
-const SOLDIER_COST: int = 20
-const TRAIN_TICKS: int = 6
-const BASE_HEALTH: int = 3000
-const CARRY: int = 5
-const MINE_TICKS: int = 40
+const RULES: MatchRules = preload("res://data/rules.tres")
+# The summary reports ore mined up to this tick, before fights reach the workers.
+const MINED_BY_TICK: int = 600
 # Engage range and grid cell are one value, so a 3x3 cell scan covers every enemy in range;
 # each team has its own grid, so a scan walks enemies only.
 const CELL: float = 8.0
 const GRID: int = 8
 const HALF_GRID: int = 4
 const RETARGET_TICKS: int = 10
-const ATTACK_RANGE: float = 1.5
-const ATTACK_COOLDOWN: int = 30
-const DAMAGE: int = 10
-const SPEED: Array[float] = [0.12, 0.1]
-const HEALTH: Array[int] = [40, 100]
 
 var tick: int = 0
 var winner: int = -1
 var peak: int = 0
 var units_per_team: int
-var base_health: Array[int] = [BASE_HEALTH, BASE_HEALTH]
+var base_health: Array[int] = [RULES.base_health, RULES.base_health]
 var ore: Array[int] = [0, 0]
+var mined_early: int = 0
 var pos: PackedVector3Array
 var team: PackedInt32Array
 var kind: PackedInt32Array
@@ -64,7 +57,7 @@ func _init(seed_value: int, per_team: int, find_path: Callable) -> void:
 		_routes.append(_path(find_path, _rally[t], BASES[1 - t]))
 		_bots.append(TeamBot.new(_rng.randi_range(20, 60)))
 		for i: int in per_team:
-			if i < START_WORKERS:
+			if i < RULES.start_workers:
 				_spawn(t, Kind.WORKER, base, Order.GATHER)
 			else:
 				_spawn(t, Kind.SOLDIER, _rally[t], Order.RALLY)
@@ -94,7 +87,7 @@ func alive(t: int) -> int:
 
 
 func train(t: int) -> void:
-	ore[t] -= SOLDIER_COST
+	ore[t] -= RULES.soldier_cost
 	_spawn(t, Kind.SOLDIER, _rally[t], Order.RALLY)
 
 
@@ -131,7 +124,7 @@ func _spawn(t: int, k: Kind, at: Vector3, first: Order) -> void:
 	_offset.append(jitter)
 	team.append(t)
 	kind.append(k)
-	health.append(HEALTH[k])
+	health.append(RULES.worker_health if k == Kind.WORKER else RULES.soldier_health)
 	_order.append(first)
 	_cooldown.append(0)
 	_target.append(-1)
@@ -152,14 +145,16 @@ func _work(i: int) -> void:
 		Order.GATHER:
 			if _advance(i):
 				_order[i] = Order.MINE
-				_cooldown[i] = MINE_TICKS
+				_cooldown[i] = RULES.mine_ticks
 		Order.MINE:
 			_cooldown[i] -= 1
 			if _cooldown[i] <= 0:
 				_go(i, Order.RETURN, Route.TO_BASE)
 		Order.RETURN:
 			if _advance(i):
-				ore[team[i]] += CARRY
+				ore[team[i]] += RULES.carry
+				if tick <= MINED_BY_TICK:
+					mined_early += RULES.carry
 				_go(i, Order.GATHER, Route.TO_FIELD)
 
 
@@ -172,18 +167,18 @@ func _fight(i: int) -> void:
 		_target[i] = enemy
 	if enemy != -1:
 		var gap: Vector3 = pos[enemy] - pos[i]
-		if gap.length() > ATTACK_RANGE:
-			pos[i] += gap.normalized() * SPEED[Kind.SOLDIER]
+		if gap.length() > RULES.attack_range:
+			pos[i] += gap.normalized() * RULES.soldier_speed
 		elif _cooldown[i] == 0:
-			_cooldown[i] = ATTACK_COOLDOWN
+			_cooldown[i] = RULES.attack_cooldown
 			_hit(enemy)
 	elif _order[i] == Order.ATTACK and _advance(i) and _cooldown[i] == 0:
-		_cooldown[i] = ATTACK_COOLDOWN
-		base_health[1 - team[i]] = maxi(base_health[1 - team[i]] - DAMAGE, 0)
+		_cooldown[i] = RULES.attack_cooldown
+		base_health[1 - team[i]] = maxi(base_health[1 - team[i]] - RULES.damage, 0)
 
 
 func _hit(j: int) -> void:
-	health[j] = maxi(health[j] - DAMAGE, 0)
+	health[j] = maxi(health[j] - RULES.damage, 0)
 	if health[j] == 0:
 		_alive[team[j]] -= 1
 
@@ -194,7 +189,7 @@ func _advance(i: int) -> bool:
 		return true
 	var gap: Vector3 = route[_waypoint[i]] + _offset[i] - pos[i]
 	gap.y = 0.0
-	var speed: float = SPEED[kind[i]]
+	var speed: float = RULES.worker_speed if kind[i] == Kind.WORKER else RULES.soldier_speed
 	if gap.length() > speed:
 		pos[i] += gap.normalized() * speed
 		return false

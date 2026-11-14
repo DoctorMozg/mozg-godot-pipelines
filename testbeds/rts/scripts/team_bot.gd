@@ -13,7 +13,7 @@ func _init(size: int) -> void:
 
 func think(sim: MatchSim, t: int) -> void:
 	var room: bool = sim.alive(t) < sim.units_per_team
-	if room and sim.ore[t] >= MatchSim.SOLDIER_COST and sim.tick % MatchSim.TRAIN_TICKS == 0:
+	if room and sim.ore[t] >= MatchSim.RULES.soldier_cost and sim.tick % MatchSim.RULES.train_ticks == 0:
 		sim.train(t)
 	if sim.tick % WAVE_CHECK_TICKS == 0:
 		var rallied: PackedInt32Array = sim.rallied(t)

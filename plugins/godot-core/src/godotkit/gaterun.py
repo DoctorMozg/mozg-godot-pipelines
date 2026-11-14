@@ -13,12 +13,14 @@ from godotkit.baseline import Baseline
 from godotkit.cmd_files import LINT_SUFFIXES, arch_findings, lint_findings
 from godotkit.depgraph import DependencyGraph
 from godotkit.external import ExternalLinters
+from godotkit.feel import FeelConfig, FeelProbe
 from godotkit.gates import BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.lint import Finding, project_sources
 from godotkit.perf import PerfConfig, ScaleProbe
 from godotkit.reach import compare, reach_stats
 from godotkit.receipts import Receipt, Step, now, tree_hash
+from godotkit.replay import ReplayProbe
 from godotkit.runner import GodotRunner
 from godotkit.strict import ProjectFile
 from godotkit.testing import EntryCatalog, SuiteRunner, failure_note
@@ -56,6 +58,7 @@ class Gate:
             self._boot,
             self._test,
             self._perf,
+            self._feel,
         ]
         results = tuple(_timed(step) for step in steps)
         head = head_commit(self._project)
@@ -155,6 +158,18 @@ class Gate:
             "unmeasured": list(outcome.unmeasured),
         }
         return Step("perf", "pass" if outcome.ok else "fail", outcome.reason, 0.0, detail)
+
+    def _feel(self) -> Step:
+        try:
+            config = FeelConfig.read(self._project)
+        except (OSError, ValueError) as error:
+            return Step("feel", "fail", "refused", 0.0, {"error": str(error)})
+        if config is None:
+            return Step("feel", "not_applicable", "no feel section in godotkit.json", 0.0)
+        probe = FeelProbe(ReplayProbe(self._runner))
+        outcome = probe.run(self._project, config, self._timeout_s, None)
+        detail: dict[str, object] = {"report": outcome.report, "breaches": list(outcome.breaches)}
+        return Step("feel", "pass" if outcome.ok else "fail", outcome.reason, 0.0, detail)
 
     def _lint(self) -> Step:
         files = project_sources(self._project, LINT_SUFFIXES)

@@ -16,5 +16,24 @@
         ]
       }
     ]
+  },
+  "feel": {
+    "subject": "Player",
+    "actions": [
+      "move_forward",
+      "attack"
+    ],
+    "move": [
+      "move_forward",
+      "move_back",
+      "move_left",
+      "move_right"
+    ],
+    "walk": "replays/feel.jsonl",
+    "budget": {
+      "input_frames": 0,
+      "camera_clip_frames": 0,
+      "stuck_frames": 5
+    }
   }
 }

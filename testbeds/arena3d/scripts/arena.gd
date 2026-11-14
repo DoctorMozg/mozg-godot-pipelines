@@ -43,12 +43,12 @@ func summary() -> String:
 		seed_value, result, ticks, player.health, enemy.health]
 
 
-# What godotkit replay compares between runs: every value the fight's outcome depends on.
+# What godotkit replay compares between runs: the fight's outcome and what the player sees.
 func state_hash() -> String:
 	var context: HashingContext = HashingContext.new()
 	context.start(HashingContext.HASH_SHA256)
 	context.update(var_to_bytes([ticks, result, player.global_transform, player.velocity,
-		player.health, enemy.global_transform, enemy.health]))
+		player.health, player.animation_state(), enemy.global_transform, enemy.health]))
 	return context.finish().hex_encode()
 
 

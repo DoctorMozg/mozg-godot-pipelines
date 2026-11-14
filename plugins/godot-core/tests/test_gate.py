@@ -141,6 +141,7 @@ class TestGateCli:
             ("boot", "pass"),
             ("test", "not_applicable"),
             ("perf", "not_applicable"),
+            ("feel", "not_applicable"),
         ]
         code, payload = run_cli(["receipt", "verify", *args], fake_godot())
         assert (code, payload["reason"]) == (0, "ok")

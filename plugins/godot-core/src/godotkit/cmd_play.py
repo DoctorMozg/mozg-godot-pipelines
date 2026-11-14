@@ -1,4 +1,4 @@
-"""Commands that play a scene on fixed physics frames: replay and perf."""
+"""Commands that play a scene on fixed physics frames: replay, perf and feel."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from godotkit.actions import Recording
 from godotkit.cmd_godot import native_display
 from godotkit.display import NoDisplay
+from godotkit.feel import FeelConfig, FeelProbe
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_SETUP, MAX_ISSUES_SHOWN, emit
 from godotkit.perf import PerfConfig, ScaleProbe
 from godotkit.replay import ReplayProbe, ReplayRequest, RunTrace
@@ -92,6 +93,33 @@ def perf(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if outcome.ok else EXIT_FAILED
 
 
+def feel(args: argparse.Namespace, runner: GodotRunner) -> int:
+    try:
+        config = FeelConfig.read(args.project.resolve())
+        if config is None:
+            raise ValueError("godotkit.json has no 'feel' section with subject and budget")
+        display = native_display(args.native)
+    except (OSError, ValueError) as error:
+        emit({"cmd": "feel", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    except NoDisplay as error:
+        emit({"cmd": "feel", "ok": False, "reason": "no_display", "detail": str(error)})
+        return EXIT_SETUP
+    probe = FeelProbe(ReplayProbe(runner))
+    outcome = probe.run(args.project.resolve(), config, args.timeout, display)
+    emit(
+        {
+            "cmd": "feel",
+            "ok": outcome.ok,
+            "reason": outcome.reason,
+            "report": outcome.report,
+            "budget": config.budget,
+            "breaches": list(outcome.breaches),
+        }
+    )
+    return EXIT_OK if outcome.ok else EXIT_FAILED
+
+
 def add_parser(
     commands: argparse._SubParsersAction[argparse.ArgumentParser], native_help: str
 ) -> None:
@@ -123,6 +151,13 @@ def add_parser(
     perf_cmd.add_argument("--sizes", help="comma-separated sizes instead of the configured ones")
     perf_cmd.add_argument("--native", action="store_true", help=native_help + "; adds draw calls")
     perf_cmd.add_argument("--timeout", type=float, default=300.0, help="seconds per size")
+
+    feel_cmd = commands.add_parser(
+        "feel", help="input latency, camera clipping and stuck spans against godotkit.json"
+    )
+    feel_cmd.add_argument("--project", type=Path, default=Path.cwd())
+    feel_cmd.add_argument("--native", action="store_true", help=native_help)
+    feel_cmd.add_argument("--timeout", type=float, default=120.0, help="seconds per run")
 
 
 def _trace(trace: RunTrace) -> dict[str, object]:

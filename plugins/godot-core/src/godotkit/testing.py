@@ -32,7 +32,7 @@ DEFAULT_SUMMARIES = (
 
 
 SCENE_SUFFIXES = (".tscn", ".scn")
-TOP_KEYS = frozenset({"tests", "perf"})
+TOP_KEYS = frozenset({"tests", "perf", "feel"})
 TEST_KEYS = frozenset({"roots", "allow", "allow_push_error", "entries"})
 ENTRY_KEYS = frozenset(
     {"script", "scene", "args", "native", "summary", "allow", "allow_push_error"}

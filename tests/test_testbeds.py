@@ -49,10 +49,14 @@ class Bed:
     replay: tuple[str, ...]
     # Rows of the gate's perf table; 0 where godotkit.json sets no budget.
     perf_rows: int = 0
+    # Whether godotkit.json sets a feel budget, so the gate's feel step runs.
+    feel: bool = False
 
 
 TESTBEDS = [
-    Bed("arena3d", "res://scenes/arena.tscn", 2, 11, ("--actions", "replays/walk.jsonl")),
+    Bed(
+        "arena3d", "res://scenes/arena.tscn", 2, 11, ("--actions", "replays/walk.jsonl"), feel=True
+    ),
     Bed("rts", "res://scenes/match.tscn", 1, 13, ("--frames", "3100", "--every", "300"), 2),
 ]
 
@@ -96,6 +100,8 @@ class TestTestbeds:
         assert (result["ok"], failed) == (True, []), result
         perf = next(step for step in result["steps"] if step["name"] == "perf")
         assert len(perf.get("detail", {}).get("table", [])) == testbed.perf_rows, perf
+        feel = next(step for step in result["steps"] if step["name"] == "feel")
+        assert feel["status"] == ("pass" if testbed.feel else "not_applicable"), feel
 
     def test_separate_runs_replay_to_the_same_state_hashes(self, testbed: Bed) -> None:
         folder = Path(testbed.folder)
@@ -103,3 +109,46 @@ class TestTestbeds:
         result = _godotkit("replay", "--project", testbed.folder, "--runs", "3", *replay)
         assert result["ok"], result
         assert all(run["hashes"] >= 10 for run in result["runs"])
+
+
+def _arena_copy(tmp_path: Path) -> Path:
+    copy = tmp_path / "arena3d"
+    shutil.copytree(
+        REPO_ROOT / "testbeds" / "arena3d", copy, ignore=shutil.ignore_patterns(".godot")
+    )
+    return copy
+
+
+@pytest.mark.live_godot
+class TestFeelFaults:
+    def test_a_controller_one_frame_late_is_reported_for_every_action(self, tmp_path: Path) -> None:
+        arena = _arena_copy(tmp_path)
+        script = arena / "scripts" / "human_controller.gd"
+        text = script.read_text()
+        text = text.replace(
+            "var _attack_queued: bool = false\n",
+            "var _attack_queued: bool = false\nvar _late: Intent = Intent.new()\n",
+        )
+        script.write_text(
+            text.replace(
+                "\t_attack_queued = false\n\treturn intent\n",
+                "\t_attack_queued = false\n\tvar late: Intent = _late\n"
+                "\t_late = intent\n\treturn late\n",
+            )
+        )
+        result = _godotkit("feel", "--project", str(arena))
+        assert result["reason"] == "over_budget", result
+        assert result["report"]["input_frames"] == {"move_forward": 1, "attack": 1}
+
+    def test_a_spring_arm_that_ignores_walls_clips_against_one(self, tmp_path: Path) -> None:
+        arena = _arena_copy(tmp_path)
+        player = arena / "scenes" / "player.tscn"
+        player.write_text(
+            player.read_text().replace("collision_mask = 1\n", "collision_mask = 0\n")
+        )
+        walk = '{"schema": "godotkit-actions/1", "frames": 240}\n'
+        walk += '{"f": 10, "action": "move_back", "pressed": true}\n'
+        (arena / "replays" / "feel.jsonl").write_text(walk)
+        result = _godotkit("feel", "--project", str(arena))
+        metrics = {breach["metric"] for breach in result["breaches"]}
+        assert metrics == {"camera_clip_frames", "stuck_frames"}, result

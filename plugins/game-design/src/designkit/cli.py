@@ -9,12 +9,13 @@ import argparse
 import json
 import logging
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from designkit.contracts import ContractError, Json
-from designkit.design import DesignLoader, Finding
+from designkit.design import Design, DesignLoader, Finding
 from designkit.graph import ProgressionAnalysis
+from designkit.simulate import CampaignSimulation
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 SHOWN_FINDINGS = 40
@@ -35,7 +36,20 @@ def _parser() -> argparse.ArgumentParser:
         "analyze", parents=[shared], help="reachability, dead ends, depth, coverage and pacing"
     )
     analyze.add_argument("--out", type=Path, help="write the full report here as JSON")
+    simulate = commands.add_parser(
+        "simulate", parents=[shared], help="seeded runs to each ending: duration, pools, hazards"
+    )
+    simulate.add_argument("--runs", type=_positive, default=1000, help="runs per terminal node")
+    simulate.add_argument("--seed", type=int, default=0)
+    simulate.add_argument("--out", type=Path, help="write the full report here as JSON")
     return parser
+
+
+def _positive(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"needs a number of at least 1, got {value}")
+    return value
 
 
 def validate(root: Path) -> tuple[dict[str, Json], int]:
@@ -45,19 +59,22 @@ def validate(root: Path) -> tuple[dict[str, Json], int]:
     return payload, EXIT_FAILED if loaded.errors else EXIT_OK
 
 
-def analyze(root: Path, out: Path | None) -> tuple[dict[str, Json], int]:
+def report(
+    root: Path, out: Path | None, build: Callable[[Design], dict[str, Json]]
+) -> tuple[dict[str, Json], int]:
+    """Runs analyze or simulate on valid data, writing the full report to `out` if given."""
     loaded = DesignLoader(root).load()
     if loaded.design is None or loaded.errors:
         # A dropped node would show up as a false unreachable or dead end; fix the data first.
         return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
-    report = ProgressionAnalysis(loaded.design).run()
+    result = build(loaded.design)
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         log.info("wrote the report to %s", out)
-    findings: list[Json] = report["findings"]
-    report["findings"] = findings[:SHOWN_FINDINGS]
-    return report, EXIT_FAILED if report["errors"] else EXIT_OK
+    findings: list[Json] = result["findings"]
+    result["findings"] = findings[:SHOWN_FINDINGS]
+    return result, EXIT_FAILED if result["errors"] else EXIT_OK
 
 
 def main(argv: Sequence[str]) -> int:
@@ -75,7 +92,14 @@ def main(argv: Sequence[str]) -> int:
         )
     try:
         if args.command == "analyze":
-            payload, code = analyze(root, args.out)
+            payload, code = report(root, args.out, lambda d: ProgressionAnalysis(d).run())
+        elif args.command == "simulate":
+            payload, code = report(
+                root, args.out, lambda d: CampaignSimulation(d, args.runs, args.seed).run()
+            )
+            # The route of every terminal is in --out; the line stays short.
+            for terminal in payload.get("terminals", []):
+                terminal.pop("route", None)
         else:
             payload, code = validate(root)
     except ContractError as error:

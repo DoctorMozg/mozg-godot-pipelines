@@ -44,6 +44,18 @@ class Hours:
 
 
 @dataclass(frozen=True)
+class Band:
+    """Hours a run to a terminal node should take; `kinds` limits it to some terminal kinds."""
+
+    low: float
+    high: float
+    kinds: frozenset[str] | None = None
+
+    def judges(self, node: Node) -> bool:
+        return self.kinds is None or node.kind in self.kinds
+
+
+@dataclass(frozen=True)
 class Pool:
     id: str
     start: float
@@ -87,7 +99,7 @@ class Design:
     playstyles: tuple[str, ...]
     terminal_kinds: frozenset[str]
     max_gap_hours: float | None
-    run_hours: tuple[float, float] | None
+    run_hours: Band | None
     pools: Mapping[str, Pool]
     nodes: Mapping[str, Node]
     hazards: Mapping[str, Hazard]
@@ -135,11 +147,7 @@ class DesignLoader:
         hazards = self._hazards(nodes, known, findings)
         targets: Mapping[str, Json] = frame.get("targets", {})
         gap = targets.get("max_gap_hours")
-        band: Mapping[str, Json] | None = targets.get("run_hours")
-        run_hours = (float(band["min"]), float(band["max"])) if band else None
-        if run_hours and run_hours[0] > run_hours[1]:
-            detail = "run_hours needs min <= max"
-            findings.append(Finding("error", "band_order", DESIGN_FILE, detail))
+        run_hours = _band(targets.get("run_hours"), frame["terminal_kinds"], findings)
         design = Design(
             title=str(frame["title"]),
             stages=tuple(stages),
@@ -236,6 +244,19 @@ def _hours(value: Json) -> Hours | None:
     if isinstance(value, dict):
         return Hours(float(value["min"]), float(value["mode"]), float(value["max"]))
     return Hours(float(value), float(value), float(value))
+
+
+def _band(value: Json, terminal_kinds: list[str], findings: list[Finding]) -> Band | None:
+    if value is None:
+        return None
+    kinds = frozenset(value["kinds"]) if "kinds" in value else None
+    band = Band(float(value["min"]), float(value["max"]), kinds)
+    if band.low > band.high:
+        findings.append(Finding("error", "band_order", DESIGN_FILE, "run_hours needs min <= max"))
+    for kind in sorted((kinds or set()) - set(terminal_kinds)):
+        detail = f"run_hours judges kind {kind!r}, which is not a terminal kind"
+        findings.append(Finding("error", "unknown_kind", DESIGN_FILE, detail))
+    return band
 
 
 def _amounts(value: Json) -> dict[str, float]:

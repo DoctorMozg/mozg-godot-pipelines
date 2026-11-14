@@ -10,7 +10,7 @@ import jsonschema
 import pytest
 from design_rig import CliRunner, DesignBuilder
 from designkit.contracts import Contract
-from designkit.design import SCHEMA_DIR, DesignLoader, Hazard, Hours, Pool
+from designkit.design import SCHEMA_DIR, Band, DesignLoader, Hazard, Hours, Pool
 
 
 def rules(builder: DesignBuilder) -> list[tuple[str, str]]:
@@ -123,7 +123,7 @@ class TestEconomyAndHazards:
         loaded = DesignLoader(pooled.root).load()
         assert loaded.findings == []
         assert loaded.design is not None
-        assert loaded.design.run_hours == (7, 8)
+        assert loaded.design.run_hours == Band(7, 8)
         assert loaded.design.pools["oxygen"] == Pool("oxygen", 0, 0.5)
         assert (loaded.design.nodes["lab"].cost, loaded.design.nodes["start"].produces) == (
             {"scrap": 2}, {"oxygen": 1}
@@ -161,13 +161,17 @@ class TestEconomyAndHazards:
             ("file_name", "hazards/storm.json"),
         ]
 
-    def test_band_order_and_duplicate_pool(self, design: DesignBuilder) -> None:
+    def test_band_order_kinds_and_duplicate_pool(self, design: DesignBuilder) -> None:
         design.frame(
             pools=[{"id": "scrap", "title": "Scrap"}, {"id": "scrap", "title": "Again"}],
-            targets={"run_hours": {"min": 9, "max": 8}},
+            targets={"run_hours": {"min": 9, "max": 8, "kinds": ["Ending", "Epilogue"]}},
         )
         design.node("start")
-        assert rules(design) == [("band_order", "design.json"), ("duplicate_id", "design.json")]
+        assert rules(design) == [
+            ("band_order", "design.json"),
+            ("duplicate_id", "design.json"),
+            ("unknown_kind", "design.json"),
+        ]
 
 
 class TestCli:

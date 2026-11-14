@@ -16,7 +16,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from designkit.contracts import Json
-from designkit.design import Design, Finding, Hazard, Hours, Node
+from designkit.design import Band, Design, Finding, Hazard, Hours, Node
 from designkit.route import RoutePlanner
 
 log = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ class CampaignSimulation:
         return {
             "runs": self._runs,
             "seed": self._seed,
-            "band": list(self._design.run_hours) if self._design.run_hours else None,
+            "band": _band_json(self._design.run_hours),
             "errors": sum(f.level == "error" for f in findings),
             "warnings": sum(f.level == "warning" for f in findings),
             "findings": [f.as_json() for f in findings],
@@ -155,7 +155,10 @@ class CampaignSimulation:
             detail = f"{count} of {self._runs} runs cannot pay {pool} for {node_id}"
             findings.append(Finding("error", "stuck", terminal, detail))
         hours = _spread([r.hours for r in done])
-        findings += self._band_findings(terminal, hours)
+        band = self._design.run_hours
+        if band is not None and not band.judges(self._design.nodes[terminal]):
+            band = None
+        findings += _band_findings(band, terminal, hours)
         pools = {pool: self._pool_summary(terminal, pool, done, findings) for pool in sorted(
             self._design.pools)}  # fmt: skip
         return {
@@ -164,7 +167,7 @@ class CampaignSimulation:
             "stuck": sum(stuck.values()),
             "hours": hours,
             "waited_hours": _spread([r.waited for r in done]),
-            "in_band": self._in_band([r.hours for r in done]),
+            "in_band": _in_band(band, [r.hours for r in done]),
             "pools": pools,
             "hazards": {
                 h: {
@@ -184,23 +187,6 @@ class CampaignSimulation:
                 break
         return state
 
-    def _band_findings(self, terminal: str, hours: Mapping[str, float] | None) -> list[Finding]:
-        band = self._design.run_hours
-        if band is None or hours is None:
-            return []
-        median = hours["p50"]
-        if band[0] <= median <= band[1]:
-            return []
-        rule = "too_short" if median < band[0] else "too_long"
-        detail = f"median run {median:g} h is outside {band[0]:g} to {band[1]:g} h"
-        return [Finding("warning", rule, terminal, detail)]
-
-    def _in_band(self, hours: Sequence[float]) -> float | None:
-        band = self._design.run_hours
-        if band is None or not hours:
-            return None
-        return round(sum(band[0] <= h <= band[1] for h in hours) / len(hours), 3)
-
     def _pool_summary(
         self, terminal: str, pool: str, done: Sequence[_Run], findings: list[Finding]
     ) -> Json:
@@ -214,6 +200,29 @@ class CampaignSimulation:
             "short_runs": short,
             "short_hours": _spread([r.pools[pool].short_hours for r in done]),
         }
+
+
+def _band_json(band: Band | None) -> Json:
+    if band is None:
+        return None
+    kinds = sorted(band.kinds) if band.kinds is not None else None
+    return {"min": band.low, "max": band.high, "kinds": kinds}
+
+
+def _band_findings(
+    band: Band | None, terminal: str, hours: Mapping[str, float] | None
+) -> list[Finding]:
+    if band is None or hours is None or band.low <= hours["p50"] <= band.high:
+        return []
+    rule = "too_short" if hours["p50"] < band.low else "too_long"
+    detail = f"median run {hours['p50']:g} h is outside {band.low:g} to {band.high:g} h"
+    return [Finding("warning", rule, terminal, detail)]
+
+
+def _in_band(band: Band | None, hours: Sequence[float]) -> float | None:
+    if band is None or not hours:
+        return None
+    return round(sum(band.low <= h <= band.high for h in hours) / len(hours), 3)
 
 
 def _sample(rng: random.Random, hours: Hours | None) -> float:

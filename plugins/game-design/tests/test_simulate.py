@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
-from design_rig import DesignBuilder, alone_route, load
+from design_rig import CliRunner, DesignBuilder, alone_route, load
 from designkit.simulate import CampaignSimulation
 
 
@@ -65,6 +66,18 @@ class TestDuration:
         hours = ending(simulate(spread, runs=400))["hours"]
         assert 3 <= hours["p10"] <= hours["p50"] <= hours["p90"] <= 10
         assert hours["p50"] == pytest.approx(6.8, abs=0.4)
+
+    def test_band_judges_only_its_kinds(self, spread: DesignBuilder) -> None:
+        spread.frame(
+            terminal_kinds=["Ending", "Failure"],
+            targets={"run_hours": {"min": 7, "max": 8, "kinds": ["Ending"]}},
+        )
+        spread.node("crash", kind="Failure", requires=["start"])
+        report = simulate(spread, runs=100)
+        assert found(report) == [("warning", "too_short", "end")]
+        crash = next(t for t in report["terminals"] if t["id"] == "crash")
+        assert crash["in_band"] is None
+        assert report["band"] == {"min": 7, "max": 8, "kinds": ["Ending"]}
 
     def test_median_outside_the_band_warns(self, spread: DesignBuilder) -> None:
         report = simulate(spread, runs=400)
@@ -126,3 +139,33 @@ class TestHazards:
         long_job.hazard("flare", every_hours=1, chance=0.3, lost_hours=0)
         strikes = ending(simulate(long_job, runs=200))["hazards"]["flare"]["strikes_per_run"]
         assert strikes == pytest.approx(3, abs=0.5)
+
+
+class TestCli:
+    def test_summary_line_drops_routes_and_out_keeps_them(
+        self, design: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        design.node("start", hours=1)
+        design.node("end", kind="Ending", requires=["start"], hours=2)
+        out = design.root.parent / "sim.json"
+        code, payload = run_cli("simulate", "--runs", "5", "--seed", "3", "--out", str(out))
+        assert (code, payload["ok"], payload["runs"], payload["seed"]) == (0, True, 5, 3)
+        assert "route" not in payload["terminals"][0]
+        assert json.loads(out.read_text())["terminals"][0]["route"] == ["start", "end"]
+
+    def test_stuck_run_exits_one(self, pooled: DesignBuilder, run_cli: CliRunner) -> None:
+        pooled.node("start")
+        pooled.node("end", kind="Ending", requires=["start"], cost={"scrap": 1})
+        code, payload = run_cli("simulate", "--runs", "2")
+        assert (code, payload["errors"]) == (1, 1)
+
+    def test_invalid_data_is_refused(self, design: DesignBuilder, run_cli: CliRunner) -> None:
+        design.node("end", kind="Ending", requires=["ghost"])
+        code, payload = run_cli("simulate")
+        assert (code, payload["reason"]) == (1, "invalid")
+
+    def test_zero_runs_is_a_usage_error(self, design: DesignBuilder, run_cli: CliRunner) -> None:
+        design.node("start")
+        with pytest.raises(SystemExit) as stopped:
+            run_cli("simulate", "--runs", "0")
+        assert stopped.value.code == 2

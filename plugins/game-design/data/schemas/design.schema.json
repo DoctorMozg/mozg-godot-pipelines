@@ -75,6 +75,14 @@
             "max": {
               "type": "number",
               "minimum": 0
+            },
+            "kinds": {
+              "description": "Terminal kinds the band judges, such as Ending but not Failure; default all.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }

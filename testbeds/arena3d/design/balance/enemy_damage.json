@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "enemy_damage",
+  "title": "Enemy damage",
+  "value": 10,
+  "unit": "hp",
+  "status": "baseline",
+  "source": "testbeds/arena3d data/enemy.tres at 2be727c",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/enemy.tres",
+      "at": "damage"
+    },
+    {
+      "file": "design/units/enemy.json",
+      "at": "damage"
+    }
+  ]
+}

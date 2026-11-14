@@ -1,0 +1,10 @@
+{
+  "schema": "unit/1",
+  "id": "enemy",
+  "title": "Enemy",
+  "health": 3,
+  "damage": 10,
+  "cooldown": 1.0,
+  "reach": 1.4,
+  "speed": 3.0
+}

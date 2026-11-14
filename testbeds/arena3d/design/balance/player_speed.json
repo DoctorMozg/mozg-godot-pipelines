@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "player_speed",
+  "title": "Player speed",
+  "value": 5.0,
+  "unit": "m/s",
+  "status": "baseline",
+  "source": "testbeds/arena3d data/player.tres at 2be727c",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/player.tres",
+      "at": "speed"
+    },
+    {
+      "file": "design/units/player.json",
+      "at": "speed"
+    }
+  ]
+}

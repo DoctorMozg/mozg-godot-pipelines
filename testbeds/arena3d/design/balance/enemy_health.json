@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "enemy_health",
+  "title": "Enemy health",
+  "value": 3,
+  "unit": "hp",
+  "status": "baseline",
+  "source": "testbeds/arena3d data/enemy.tres at 2be727c",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/enemy.tres",
+      "at": "health"
+    },
+    {
+      "file": "design/units/enemy.json",
+      "at": "health"
+    }
+  ]
+}

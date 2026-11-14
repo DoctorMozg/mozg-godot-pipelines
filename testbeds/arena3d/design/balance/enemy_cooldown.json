@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "enemy_cooldown",
+  "title": "Enemy cooldown",
+  "value": 1.0,
+  "unit": "s",
+  "status": "baseline",
+  "source": "testbeds/arena3d data/enemy.tres at 2be727c",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/enemy.tres",
+      "at": "attack_cooldown"
+    },
+    {
+      "file": "design/units/enemy.json",
+      "at": "cooldown"
+    }
+  ]
+}

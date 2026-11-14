@@ -1,0 +1,10 @@
+{
+  "schema": "unit/1",
+  "id": "player",
+  "title": "Player",
+  "health": 100,
+  "damage": 1,
+  "cooldown": 0.4,
+  "reach": 1.8,
+  "speed": 5.0
+}

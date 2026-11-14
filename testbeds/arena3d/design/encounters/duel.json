@@ -1,0 +1,12 @@
+{
+  "schema": "encounter/1",
+  "id": "duel",
+  "title": "Bot against one enemy",
+  "hero": "player",
+  "waves": [
+    {
+      "unit": "enemy",
+      "count": 1
+    }
+  ]
+}

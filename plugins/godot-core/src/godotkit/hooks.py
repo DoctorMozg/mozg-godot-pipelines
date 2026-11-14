@@ -1,4 +1,4 @@
-"""Claude Code hooks: lint each edit, guard single-writer files, and gate commits on a receipt.
+"""Edit and commit hooks (Claude Code, Codex): lint edits, guard single-writer files, gate commits.
 
 Protocol: a hook that has something to say exits 2 with the message on stderr. Before a tool
 runs that blocks it; after an edit it is feedback the agent sees at once.
@@ -18,6 +18,7 @@ from pathlib import Path
 from godotkit.arch import CONFIG_FILE, ArchRules
 from godotkit.baseline import Baseline
 from godotkit.cmd_files import lint_findings
+from godotkit.edits import edited_files
 from godotkit.external import ExternalLinters
 from godotkit.lint import Finding
 from godotkit.lsp import DiagnosticsClient, LspError, LspServer
@@ -55,9 +56,8 @@ class HookEvent:
             raise ValueError("hook input needs a tool_input object")
         return cls(str(data.get("tool_name", "")), data["tool_input"], Path(data.get("cwd", ".")))
 
-    def path(self) -> Path | None:
-        value = self.tool_input.get("file_path")
-        return (self.cwd / value).resolve() if isinstance(value, str) and value else None
+    def paths(self) -> list[Path]:
+        return edited_files(self.tool_input, self.cwd)
 
 
 def find_project(start: Path) -> Path | None:
@@ -69,9 +69,13 @@ def find_project(start: Path) -> Path | None:
 
 def post_edit(event: HookEvent) -> str | None:
     """Tier 0 after an edit: new lint findings, LSP errors and the line-cap warning."""
-    file = event.path()
-    project = find_project(file.parent) if file and file.suffix in LINTED_SUFFIXES else None
-    if file is None or project is None or not file.is_file():
+    reports = [r for r in map(_tier0, event.paths()) if r]
+    return "\n".join(reports) or None
+
+
+def _tier0(file: Path) -> str | None:
+    project = find_project(file.parent) if file.suffix in LINTED_SUFFIXES else None
+    if project is None or not file.is_file():
         return None
     relative = file.relative_to(project).as_posix()
     findings = lint_findings(project, [file], ExternalLinters())
@@ -87,9 +91,13 @@ def post_edit(event: HookEvent) -> str | None:
 
 def pre_edit(event: HookEvent) -> str | None:
     """Single-writer guard: a lane asks the orchestrator instead of editing shared files."""
-    file = event.path()
-    project = find_project(file.parent) if file else None
-    if file is None or project is None or not _is_lane(project):
+    refusals = [r for r in map(_single_writer, event.paths()) if r]
+    return "\n".join(refusals) or None
+
+
+def _single_writer(file: Path) -> str | None:
+    project = find_project(file.parent)
+    if project is None or not _is_lane(project):
         return None
     relative = file.relative_to(project).as_posix()
     if not _is_single_writer(project, file, relative):

@@ -17,6 +17,15 @@ def _event(file: str, cwd: Path) -> str:
     return json.dumps({"tool_name": "Edit", "tool_input": {"file_path": file}, "cwd": str(cwd)})
 
 
+def _patch(cwd: Path, *files: str) -> str:
+    """A Codex apply_patch call as Codex 0.169 sends it to a hook."""
+    lines = ["*** Begin Patch", *(f"*** Update File: {f}" for f in files), "*** End Patch"]
+    command = "\n".join(lines)
+    return json.dumps(
+        {"tool_name": "apply_patch", "tool_input": {"command": command}, "cwd": str(cwd)}
+    )
+
+
 @pytest.fixture
 def project(rig: StoreRig) -> Path:
     root = rig.store.root.parent
@@ -43,6 +52,11 @@ class TestPreEdit:
     )
     def test_other_files_pass(self, project: Path, file: str) -> None:
         assert pre_edit(_event(str(project / file), project)) is None
+
+    def test_codex_patch_with_one_record_among_free_files_is_refused(self, project: Path) -> None:
+        refused = pre_edit(_patch(project, "ui/hud.gd", "i18n/locales/ru/game.json"))
+        assert (refused or "").startswith("i18n/locales/ru/game.json ")
+        assert pre_edit(_patch(project, "ui/hud.gd", "i18n/glossary.json")) is None
 
     def test_relative_path_resolves_against_cwd(self, project: Path) -> None:
         assert pre_edit(_event("i18n/src/game.json", project)) is not None

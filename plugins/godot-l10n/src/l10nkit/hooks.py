@@ -1,4 +1,4 @@
-"""Claude Code hook of godot-l10n: edits of the string records go through l10nkit."""
+"""Edit hook of godot-l10n (Claude Code, Codex): edits of the string records go through l10nkit."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import json
 import logging
 import sys
 from pathlib import Path
+
+from l10nkit.edits import edited_files
 
 log = logging.getLogger(__name__)
 # Records l10nkit validates on write; glossary.json and style/ stay free for people to edit.
@@ -29,16 +31,19 @@ def pre_edit(raw: str) -> str | None:
     """The reason an edit is refused, or None to let it through."""
     try:
         data = json.loads(raw)
-        file = Path(data["tool_input"]["file_path"])
-    except (ValueError, KeyError, TypeError) as error:
+        files = edited_files(data["tool_input"], Path(data.get("cwd", ".")))
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
         log.warning("pre-edit hook got unreadable input: %s", error)
         return None
-    if not file.is_absolute():
-        file = Path(data.get("cwd", ".")) / file
-    project = find_project(file.resolve().parent)
+    refusals = [r for r in map(_guarded, files) if r]
+    return "\n".join(refusals) or None
+
+
+def _guarded(file: Path) -> str | None:
+    project = find_project(file.parent)
     if project is None:
         return None
-    parts = file.resolve().relative_to(project).parts
+    parts = file.relative_to(project).parts
     if len(parts) < 3 or parts[0] != "i18n" or parts[1] not in GUARDED:
         return None
     relative = "/".join(parts)

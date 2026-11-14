@@ -1,4 +1,4 @@
-"""Claude Code hooks: Tier 0 after edits, the single-writer guard, commits that need a receipt."""
+"""Edit and commit hooks: Tier 0 after edits, the single-writer guard, commits needing a receipt."""
 
 from __future__ import annotations
 
@@ -22,6 +22,12 @@ PARENT_CALL = "extends Node\n\n\nfunc _ready() -> void:\n\tget_parent().hide()\n
 
 def _edit(file: Path) -> HookEvent:
     return HookEvent("Edit", {"file_path": str(file)}, file.parent)
+
+
+def _patch(cwd: Path, *lines: str) -> HookEvent:
+    """A Codex apply_patch call as Codex 0.169 sends it to a hook."""
+    patch = "\n".join(["*** Begin Patch", *lines, "*** End Patch"])
+    return HookEvent("apply_patch", {"command": patch}, cwd)
 
 
 def _bash(project: Path, command: str) -> HookEvent:
@@ -63,6 +69,39 @@ class TestPostEdit:
         assert post_edit(_edit(main)) is None
         main.write_text("extends Node\n" + "\n" * (warned - 1))
         assert f"main.gd: {warned} lines, cap {config or 300}" in (post_edit(_edit(main)) or "")
+
+
+@pytest.mark.usefixtures("no_gdtoolkit")
+class TestCodexPatch:
+    def test_every_file_of_a_patch_is_read_moves_and_relative_paths_included(
+        self, tmp_path: Path
+    ) -> None:
+        event = _patch(
+            tmp_path, "*** Update File: a.gd", "@@", "-x", "+y", f"*** Add File: {tmp_path}/b.gd",
+            "+z", "*** Delete File: c.gd", "*** Update File: d.gd", "*** Move to: e/d.gd",
+        )  # fmt: skip
+        names = ["a.gd", "b.gd", "c.gd", "d.gd", "e/d.gd"]
+        assert event.paths() == [tmp_path / name for name in names]
+
+    def test_a_shell_command_is_no_edit(self, tmp_path: Path) -> None:
+        assert _bash(tmp_path, "echo '*** Update File: a.gd'").paths() == []
+
+    def test_post_edit_lints_a_patched_script(self, git_project: Path) -> None:
+        (git_project / "main.gd").write_text(PARENT_CALL)
+        found = post_edit(_patch(git_project, f"*** Update File: {git_project}/main.gd"))
+        assert "main.gd:5 get-parent" in (found or "")
+
+    def test_lane_patch_touching_project_file_is_refused(
+        self, git_project: Path, tmp_path: Path
+    ) -> None:
+        lane = tmp_path / "lane"
+        _git(git_project, "worktree", "add", "-q", "--detach", str(lane))
+        message = pre_edit(
+            _patch(lane, "*** Update File: main.gd", "*** Update File: project.godot")
+        )
+        refusals = (message or "").splitlines()
+        assert len(refusals) == 1
+        assert refusals[0].startswith("project.godot is single-writer")
 
 
 class TestSingleWriter:

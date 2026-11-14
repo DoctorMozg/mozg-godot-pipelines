@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:economy",
+  "title": "economy",
+  "description": "Gathering and training of one side for the rts model, at design/economy.json. Times are in the design's own unit, seconds or ticks.",
+  "type": "object",
+  "required": [
+    "schema",
+    "worker",
+    "workers",
+    "carry",
+    "gather_time",
+    "trip_distance",
+    "horizon"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "economy/1"
+    },
+    "worker": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "description": "Id of the gathering unit in design/units; its speed sets the walk."
+    },
+    "workers": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "carry": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Resource one trip brings back."
+    },
+    "gather_time": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time spent at the field per trip."
+    },
+    "trip_distance": {
+      "type": "number",
+      "minimum": 0,
+      "description": "One-way distance from base to field."
+    },
+    "horizon": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time the timeline covers; above 0."
+    },
+    "sample_every": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Timeline step; default a tenth of the horizon."
+    },
+    "army": {
+      "type": "object",
+      "required": [
+        "unit",
+        "train_time",
+        "cap"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "description": "Id of the trained unit; it needs a cost."
+        },
+        "train_time": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Time between training slots; above 0."
+        },
+        "cap": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Most units of the side, workers included."
+        }
+      }
+    }
+  }
+}

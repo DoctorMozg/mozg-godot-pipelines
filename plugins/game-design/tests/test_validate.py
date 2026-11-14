@@ -30,6 +30,7 @@ class TestSchemas:
             "contract",
             "unit",
             "encounter",
+            "economy",
         ],
     )
     def test_schema_is_valid_draft_2020_12(self, name: str) -> None:

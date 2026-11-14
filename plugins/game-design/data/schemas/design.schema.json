@@ -21,7 +21,8 @@
       "description": "Balance model the design data feeds; campaign (default) needs stages, playstyles and terminal_kinds.",
       "enum": [
         "campaign",
-        "combat"
+        "combat",
+        "rts"
       ]
     },
     "stages": {
@@ -170,7 +171,8 @@
       "properties": {
         "model": {
           "enum": [
-            "combat"
+            "combat",
+            "rts"
           ]
         }
       }

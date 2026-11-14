@@ -13,6 +13,7 @@ from typing import Protocol
 from designkit.combat import CombatModel
 from designkit.contracts import Json
 from designkit.design import CAMPAIGN, Design, Finding
+from designkit.rts import CounterMatrix, EconomyTimeline, RtsLoader
 from designkit.simulate import CampaignSimulation
 from designkit.units import UnitLoader
 
@@ -55,10 +56,32 @@ class CombatBalance:
         return CombatModel(self._units, self._encounters).run()
 
 
+class RtsBalance:
+    """Economy timeline from design/economy.json and counters of the costed units."""
+
+    def __init__(self, root: Path) -> None:
+        self._units, _, self._findings = UnitLoader(root).load()
+        self._economy, found = RtsLoader(root).load(self._units)
+        self._findings += found
+
+    def check(self) -> list[Finding]:
+        return list(self._findings)
+
+    def simulate(self, runs: int, seed: int) -> dict[str, Json]:
+        counters, findings = CounterMatrix(self._units).run()
+        economy = EconomyTimeline(self._economy, self._units).run() if self._economy else None
+        return {
+            "economy": economy, "counters": counters,
+            "errors": 0, "warnings": len(findings), "findings": [f.as_json() for f in findings],
+        }  # fmt: skip
+
+
 def balance_model(design: Design, root: Path) -> BalanceModel:
     log.info("balance model: %s", design.model)
     if design.model == CAMPAIGN:
         return CampaignBalance(design)
     if design.model == "combat":
         return CombatBalance(root)
-    raise ValueError(f"no balance model {design.model!r} yet")
+    if design.model == "rts":
+        return RtsBalance(root)
+    raise ValueError(f"no balance model {design.model!r}")

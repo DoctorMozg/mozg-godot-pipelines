@@ -269,3 +269,14 @@ class TestAudio:
         assert "likely click" in shown
         # A single version has nothing to compare with.
         assert chrome.evaluate(page, f"{_in(asset, '[data-control=ab]')} === null") is True
+
+
+def test_model_is_offered_as_a_download(chrome: Chrome, hub: HubServer, registry: Registry) -> None:
+    asset = _asset(registry, "model", {"main": ("crate.glb", b"glTF\x02\x00\x00\x00")}, {})
+    page = chrome.open(hub.url)
+    link = _in(asset, "[data-control=download]")
+    chrome.wait_for(page, f"{link} !== null")
+    href = chrome.evaluate(page, f"{link}.getAttribute('href')")
+    assert isinstance(href, str)
+    assert href.startswith(f"files/registry/staging/{asset}/crate.glb?token=")
+    assert chrome.errors == []

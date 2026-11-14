@@ -349,7 +349,17 @@ window.HubViewers = (() => {
       timeline(item, version, ctx, file, player));
   }
 
-  const byKind = { ui, sprite_frames: spriteFrames, video, audio };
+  // A 3D viewer is deferred; until then a model opens in the reviewer's own tool.
+  function model(item, version, ctx) {
+    const file = firstOf(version, "model/") || version.files[0];
+    const url = file && ctx.fileUrl(file);
+    if (!url) return placeholder(version, "file pruned");
+    return el("p", { class: "meta" },
+      el("a", { href: url, download: file.path.split("/").pop(), "data-control": "download" }, file.path),
+      ` (${file.bytes} bytes; no 3D preview yet)`);
+  }
+
+  const byKind = { ui, sprite_frames: spriteFrames, video, audio, model };
 
   function view(item, version, ctx) {
     if (!version) return placeholder(null, "");

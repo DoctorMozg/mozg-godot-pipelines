@@ -69,7 +69,7 @@ The locale (`ru`, `pt_BR`) and optionally one namespace; without one, every name
 
    Items that pass are written even when others are refused, and applying the same file again is safe. Each `refused` item names its reason (unknown token, placeholder count, plural count, length, changed source); fix it in the file and apply again. A changed source needs a new export. A glossary `warning` is an exact-text match: an inflected form of the term is correct and is named in the report, any other miss is fixed.
 
-1. Dispatch the judge with the Agent tool, type `godot-l10n:l10n-judge`, giving the batch file path and the locale. It returns one JSON object of findings; record each one:
+1. Dispatch the judge with the Agent tool, type `godot-l10n:l10n-judge`, giving the batch file path and the locale. A host that loads no plugin agents (Codex) gets one fresh read-only subagent instead, instructed with the body of `<plugin>/agents/l10n-judge.md` and given the same two lines. It returns one JSON object of findings; record each one:
 
    ```bash
    l10nkit note <key>@<locale> --body "<finding>" --author l10n-judge

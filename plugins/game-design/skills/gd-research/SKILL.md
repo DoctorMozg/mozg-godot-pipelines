@@ -42,7 +42,7 @@ A research question, such as "how do survival games pace oxygen and food". The p
 
 1. Split the question into two to four independent parts, each one a search could answer, such as "economy sinks in colony sims" and "hazard pacing in survival games". Show the parts to the owner in one line each, then go on unless they change them.
 
-1. Research the parts in parallel, one dispatch per part in one message, with the Agent tool and type `mz-base:pipeline-web-researcher`. Each prompt carries the part, the constraints from step 1 and this output request: findings as short claims, each with the URL of a primary source (developer posts, talks, official wikis or docs) and the date the page was read, plus a confidence of high, medium or low. When that agent type is not available, research each part directly with WebSearch and WebFetch, under the same output request.
+1. Research the parts in parallel, one dispatch per part in one message, with the Agent tool and type `mz-base:pipeline-web-researcher`. Each prompt carries the part, the constraints from step 1 and this output request: findings as short claims, each with the URL of a primary source (developer posts, talks, official wikis or docs) and the date the page was read, plus a confidence of high, medium or low. When that agent type is not available (Codex, or mz-base not installed), research each part directly with the host's web search and fetch tools, under the same output request.
 
 1. Write the report at `design/research/<YYYY-MM-DD>-<slug>.md` in this shape:
 
@@ -110,7 +110,7 @@ A research question, such as "how do survival games pace oxygen and food". The p
 
 ## Error Handling
 
-- **The researcher agent type is unknown**: research the parts directly with WebSearch and WebFetch, and say so in the report.
+- **The researcher agent type is unknown**: research the parts directly with the host's web search and fetch tools, and say so in the report.
 - **A part finds nothing usable**: record it as an open question with the searches tried; do not fill it from memory.
 - **`no_section` or `no_findings`**: the report lost a section or has no sourced claim; restore the shape above.
 - **No `design/` folder**: write the report under `design/research/` anyway and say that the project has no design data yet.

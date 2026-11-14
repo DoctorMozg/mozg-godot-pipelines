@@ -55,7 +55,7 @@ A focus (a topic, "pacing", "endings") or nothing for the whole design. The proj
    - `simulate`: `stuck`, `too_short`, `too_long`, `shortage`, and P10/P50/P90 hours per ending against `targets.run_hours`.
    - `sync`: `drift`, `missing_copy`, `marker_drift`.
 
-1. Dispatch one fresh reader with the Agent tool, type `general-purpose`, read-only by instruction. The prompt carries:
+1. Dispatch one fresh reader, read-only by instruction: the Agent tool with type `general-purpose` in Claude Code, a new default subagent in Codex. The prompt carries:
 
    - the project path and the focus;
    - the canon (`design/canon.json`) and the list of standing and superseded decision ids;

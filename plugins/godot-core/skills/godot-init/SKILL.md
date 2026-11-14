@@ -64,7 +64,7 @@ The project path, the folder that holds `project.godot`; the current folder by d
    Not run: <step> (<reason>)
    ```
 
-1. Show the plan in chat in full, then ask with AskUserQuestion, header "Init plan": **Approve** (write the files as shown) or **Reject** (change nothing). A typed answer is feedback: revise the plan and ask again. Without an answer, stop with the plan shown and nothing written.
+1. Show the plan in chat in full, then ask with AskUserQuestion, header "Init plan" (a plain question where the host has no such tool): **Approve** (write the files as shown) or **Reject** (change nothing). A typed answer is feedback: revise the plan and ask again. Without an answer, stop with the plan shown and nothing written.
 
 1. On approval: write `godotkit.json`, run `godotkit baseline write --project P`, and only the opt-ins the owner chose. Commit nothing unless the owner asked for it.
 

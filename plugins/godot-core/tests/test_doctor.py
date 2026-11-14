@@ -46,26 +46,51 @@ class TestLocator:
 
 class TestDoctor:
     def test_report_without_godot_is_not_ok_and_says_why(self) -> None:
-        report = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path).report()
+        report = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path).report(
+            Path("/nowhere")
+        )
         assert report["ok"] is False
         assert report["godot"] is None
         assert any(note.startswith("godot:") for note in report["notes"])
         assert any("native runs" in note for note in report["notes"])
 
-    def test_report_with_godot_and_display(self, fake_godot: FakeGodotFactory) -> None:
+    def test_report_with_godot_and_display(
+        self, fake_godot: FakeGodotFactory, tmp_path: Path
+    ) -> None:
         binary = fake_godot()
         env = {"GODOT_BIN": str(binary.path), "DISPLAY": ":0"}
-        report = Doctor(env, GodotLocator(env), which=lambda name: f"/usr/bin/{name}").report()
+        (tmp_path / "project.godot").write_text("config_version=5\n")
+        doctor = Doctor(env, GodotLocator(env), which=lambda name: f"/usr/bin/{name}")
+        report = doctor.report(tmp_path)
         assert report["ok"] is True
         assert report["godot"] == {"path": str(binary.path), "version": "4.7.2.stable.fake"}
         assert report["display"] == "x11 :0"
         assert report["notes"] == []
 
+    def test_project_reports_which_godotkit_files_it_has_adopted(self, tmp_path: Path) -> None:
+        doctor = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path)
+        (tmp_path / "project.godot").write_text("config_version=5\n")
+        assert doctor.report(tmp_path)["project"]["adopted"] == []
+        for name in ("architecture.json", "godotkit.json"):
+            (tmp_path / name).write_text("{}")
+        project = doctor.report(tmp_path)["project"]
+        assert (project["godot_project"], project["adopted"]) == (
+            True,
+            ["godotkit.json", "architecture.json"],
+        )
+
+    def test_a_folder_without_project_godot_is_noted(self, tmp_path: Path) -> None:
+        report = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path).report(tmp_path)
+        assert report["project"]["godot_project"] is False
+        assert any(note.startswith("no project.godot") for note in report["notes"])
+
     def test_software_drivers_are_found_or_noted(self) -> None:
         def find(pattern: str) -> list[str]:
             return ["/usr/share/vulkan/icd.d/lvp_icd.json"] if "lvp_icd" in pattern else []
 
-        report = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path, find=find).report()
+        report = Doctor({}, GodotLocator({}, which=_no_path), which=_no_path, find=find).report(
+            Path("/nowhere")
+        )
         assert report["software_drivers"] == {
             "lavapipe": "/usr/share/vulkan/icd.d/lvp_icd.json",
             "llvmpipe": None,

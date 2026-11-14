@@ -37,7 +37,7 @@ The project path, the folder that holds `project.godot`; the current folder by d
 
 ## Core Process
 
-1. Run `godotkit doctor`. Report the Godot binary and version, and each optional tool (gdtoolkit, Xvfb, software drivers) as present or missing; nothing optional blocks setup.
+1. Run `godotkit doctor --project P`. Report the Godot binary and version, and each optional tool (gdtoolkit, Xvfb, software drivers) as present or missing; nothing optional blocks setup. `project.adopted` lists the godotkit files already there, which make this run an update.
 
 1. Survey. Only the import writes, and only generated files. Run each command, keep its JSON line, and note the time it took:
 

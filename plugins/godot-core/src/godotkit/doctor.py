@@ -1,4 +1,4 @@
-"""Reports what the machine offers: Godot, optional tools and a display for native runs."""
+"""Reports what the machine offers (Godot, tools, a display) and what a project has adopted."""
 
 from __future__ import annotations
 
@@ -6,10 +6,14 @@ import glob
 import shutil
 import sys
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import TypedDict
 
+from godotkit.arch import CONFIG_FILE as ARCH_FILE
+from godotkit.baseline import BASELINE_FILE
 from godotkit.display import NoDisplay, find_display
 from godotkit.locate import GodotLocator, GodotNotFound
+from godotkit.testing import CONFIG_FILE as TESTS_FILE
 
 OPTIONAL_TOOLS = {
     "gdscript-formatter": "fast format and lint of changed scripts (tier 0)",
@@ -41,6 +45,16 @@ class GodotInfo(TypedDict):
     version: str
 
 
+# The godotkit files godot-init writes, in the order it writes them.
+ADOPTION_FILES = (TESTS_FILE, BASELINE_FILE, ARCH_FILE)
+
+
+class ProjectInfo(TypedDict):
+    path: str
+    godot_project: bool
+    adopted: list[str]
+
+
 class DoctorReport(TypedDict):
     cmd: str
     ok: bool
@@ -49,6 +63,7 @@ class DoctorReport(TypedDict):
     tools: dict[str, str | None]
     software_drivers: dict[str, str | None]
     display: str | None
+    project: ProjectInfo
     notes: list[str]
 
 
@@ -65,7 +80,7 @@ class Doctor:
         self._which = which
         self._find = find
 
-    def report(self) -> DoctorReport:
+    def report(self, project: Path) -> DoctorReport:
         notes: list[str] = []
         godot: GodotInfo | None
         try:
@@ -96,6 +111,7 @@ class Doctor:
             tools=tools,
             software_drivers=drivers,
             display=display,
+            project=_project(project, notes),
             notes=notes,
         )
 
@@ -105,3 +121,11 @@ class Doctor:
             if found:
                 return found[0]
         return None
+
+
+def _project(project: Path, notes: list[str]) -> ProjectInfo:
+    is_godot = (project / "project.godot").is_file()
+    if not is_godot:
+        notes.append(f"no project.godot in {project}: project commands need --project")
+    adopted = [name for name in ADOPTION_FILES if (project / name).is_file()]
+    return ProjectInfo(path=str(project), godot_project=is_godot, adopted=adopted)

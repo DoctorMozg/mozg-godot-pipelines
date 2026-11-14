@@ -26,7 +26,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="log decisions to stderr")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    commands.add_parser("doctor", help="report Godot, optional tools and display")
+    doctor = commands.add_parser("doctor", help="report Godot, optional tools, display and project")
+    doctor.add_argument("--project", type=Path, default=Path.cwd())
 
     run = commands.add_parser("run", help="run a project, scene or script and judge its log")
     run.add_argument("--project", type=Path, default=Path.cwd())
@@ -163,7 +164,7 @@ def main(argv: Sequence[str]) -> int:
     )
     locator = GodotLocator(os.environ)
     if args.command == "doctor":
-        report = Doctor(os.environ, locator).report()
+        report = Doctor(os.environ, locator).report(args.project.resolve())
         emit(report)
         return EXIT_OK if report["ok"] else EXIT_SETUP
     file_commands = {

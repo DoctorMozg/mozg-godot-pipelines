@@ -140,7 +140,7 @@ class RecordCheck:
         if decision.status == "open" and decision.chosen is not None:
             problems.append(("open_with_answer", "an open decision has a chosen answer"))
         if decision.status in ("agreed", "baseline") and decision.chosen is None:
-            problems.append(("no_answer", f"a {decision.status} decision needs chosen"))
+            problems.append(("no_answer", f"a decision marked {decision.status} needs chosen"))
         if decision.recommended is not None and decision.recommended not in decision.options:
             problems.append(
                 ("unknown_option", f"recommended {decision.recommended!r} is no option")

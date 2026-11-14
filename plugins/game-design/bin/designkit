@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# designkit: game design data (validate, analyze). On the Bash PATH while the plugin is enabled.
+# designkit: game design data (validate, analyze, simulate, sync, handoff, cite, render).
+# On the Bash PATH while the plugin is enabled.
 set -u
 
 here=${0%/*}

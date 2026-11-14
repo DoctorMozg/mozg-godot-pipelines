@@ -36,7 +36,7 @@
     {
       "name": "game-design",
       "source": "./plugins/game-design",
-      "description": "Game design data for Godot projects: progression graphs as JSON, checked and analyzed for reachability, dead ends, depth and pacing",
+      "description": "Game design for Godot projects: decisions, canon and contracts as JSON records, progression graphs analyzed and simulated, combat balance models, sourced research and SVG charts for the review hub",
       "category": "development",
       "keywords": [
         "godot",

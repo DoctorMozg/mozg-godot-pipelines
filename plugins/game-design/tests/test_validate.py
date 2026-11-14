@@ -18,7 +18,7 @@ def rules(builder: DesignBuilder) -> list[tuple[str, str]]:
 
 
 class TestSchemas:
-    @pytest.mark.parametrize("name", ["design", "progression-node", "hazard"])
+    @pytest.mark.parametrize("name", ["design", "progression-node", "hazard", "balance-number"])
     def test_schema_is_valid_draft_2020_12(self, name: str) -> None:
         schema = json.loads((SCHEMA_DIR / f"{name}.schema.json").read_text(encoding="utf-8"))
         jsonschema.Draft202012Validator.check_schema(schema)
@@ -172,6 +172,21 @@ class TestEconomyAndHazards:
             ("duplicate_id", "design.json"),
             ("unknown_kind", "design.json"),
         ]
+
+
+class TestBalanceNumbers:
+    @pytest.mark.parametrize("file", ["../outside.json", "/etc/passwd"])
+    def test_binding_outside_the_project_is_refused(self, design: DesignBuilder, file: str) -> None:
+        design.node("start")
+        design.number("rate", 1, bindings=[{"file": file, "at": "a"}])
+        loaded = DesignLoader(design.root).load()
+        assert [(f.rule, f.where) for f in loaded.findings] == [("binding_path", "rate")]
+
+    def test_binding_needs_a_locator(self, design: DesignBuilder) -> None:
+        design.node("start")
+        design.number("rate", 1, bindings=[{"file": "a.json"}])
+        loaded = DesignLoader(design.root).load()
+        assert [(f.rule, f.where) for f in loaded.findings] == [("schema", "balance/rate.json")]
 
 
 class TestCli:

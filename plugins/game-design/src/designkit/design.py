@@ -11,7 +11,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from designkit.contracts import Contract, Json
@@ -20,6 +20,7 @@ SCHEMA_DIR = Path(__file__).resolve().parents[2] / "data" / "schemas"
 DESIGN_FILE = "design.json"
 NODE_DIR = "progression"
 HAZARD_DIR = "hazards"
+BALANCE_DIR = "balance"
 log = logging.getLogger(__name__)
 
 Level = Literal["error", "warning"]
@@ -74,6 +75,28 @@ class Hazard:
 
 
 @dataclass(frozen=True)
+class Binding:
+    """A copy of a balance number: `at` for .json, .js and .tres; row and column for .csv."""
+
+    file: str
+    at: str | None = None
+    row: str | None = None
+    column: str | None = None
+
+    def describe(self) -> str:
+        return f"{self.file} {self.at}" if self.at else f"{self.file} {self.row}/{self.column}"
+
+
+@dataclass(frozen=True)
+class Number:
+    id: str
+    value: float
+    status: str
+    source: str
+    bindings: tuple[Binding, ...] = ()
+
+
+@dataclass(frozen=True)
 class Node:
     id: str
     title: str
@@ -103,6 +126,7 @@ class Design:
     pools: Mapping[str, Pool]
     nodes: Mapping[str, Node]
     hazards: Mapping[str, Hazard]
+    numbers: Mapping[str, Number]
 
     def is_terminal(self, node: Node) -> bool:
         return node.kind in self.terminal_kinds
@@ -126,6 +150,7 @@ class DesignLoader:
         self._design_contract = Contract.load("design", schema_dir)
         self._node_contract = Contract.load("progression-node", schema_dir)
         self._hazard_contract = Contract.load("hazard", schema_dir)
+        self._number_contract = Contract.load("balance-number", schema_dir)
 
     def load(self) -> Loaded:
         """Reads everything and reports each problem; a node with a problem stays out."""
@@ -158,6 +183,7 @@ class DesignLoader:
             pools={p.id: p for p in pools},
             nodes=nodes,
             hazards=hazards,
+            numbers=self._numbers(findings),
         )
         log.info(
             "loaded %d nodes and %d hazards with %d findings",
@@ -205,6 +231,18 @@ class DesignLoader:
             findings += [Finding("error", rule, hazard.id, detail) for rule, detail in problems]
             if not problems:
                 parsed[hazard.id] = hazard
+        return parsed
+
+    def _numbers(self, findings: list[Finding]) -> dict[str, Number]:
+        parsed: dict[str, Number] = {}
+        for record in self._entities(BALANCE_DIR, self._number_contract, findings):
+            number = _number(record)
+            problems = [b for b in number.bindings if not _inside_project(b.file)]
+            for binding in problems:
+                detail = f"binding file {binding.file!r} must be a path inside the project"
+                findings.append(Finding("error", "binding_path", number.id, detail))
+            if not problems:
+                parsed[number.id] = number
         return parsed
 
     def _entities(
@@ -269,6 +307,24 @@ def _pool(record: Mapping[str, Json]) -> Pool:
         start=float(record.get("start", 0)),
         upkeep_per_hour=float(record.get("upkeep_per_hour", 0)),
     )
+
+
+def _number(record: Mapping[str, Json]) -> Number:
+    return Number(
+        id=str(record["id"]),
+        value=float(record["value"]),
+        status=str(record["status"]),
+        source=str(record["source"]),
+        bindings=tuple(
+            Binding(str(b["file"]), b.get("at"), b.get("row"), b.get("column"))
+            for b in record.get("bindings", [])
+        ),
+    )
+
+
+def _inside_project(file: str) -> bool:
+    path = PurePosixPath(file)
+    return not path.is_absolute() and ".." not in path.parts and "\\" not in file
 
 
 def _hazard(record: Mapping[str, Json]) -> Hazard:

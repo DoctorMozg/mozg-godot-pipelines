@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:balance-number",
+  "title": "balance-number",
+  "description": "One canonical balance number, at design/balance/<id>.json: its value, how settled it is, and the copies in game files that must match it.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "value",
+    "status",
+    "source",
+    "date"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "balance-number/1"
+    },
+    "id": {
+      "description": "Equals the file name without .json; docs mark copies as <!-- n:<id>=<value> -->.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "value": {
+      "type": "number"
+    },
+    "unit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "description": "baseline: a first guess; measured: from play data; approved: signed off by the owner.",
+      "enum": [
+        "baseline",
+        "measured",
+        "approved"
+      ]
+    },
+    "source": {
+      "description": "Where the value comes from: a decision id, a doc or a measurement.",
+      "type": "string",
+      "minLength": 1
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "bindings": {
+      "description": "Copies of the number in project files, which sync compares with value.",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/path_binding"
+          },
+          {
+            "$ref": "#/$defs/csv_binding"
+          }
+        ]
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "file": {
+      "description": "Path relative to the project root.",
+      "type": "string",
+      "minLength": 1
+    },
+    "path_binding": {
+      "description": "A .json or .js file (dotted path such as rules.oxygenPerDay) or a .tres property of [resource] (name, or name.key for a Dictionary entry).",
+      "type": "object",
+      "required": [
+        "file",
+        "at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/file"
+        },
+        "at": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "csv_binding": {
+      "description": "A cell of a .csv file: the row whose first column is row, under the header column.",
+      "type": "object",
+      "required": [
+        "file",
+        "row",
+        "column"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/file"
+        },
+        "row": {
+          "type": "string",
+          "minLength": 1
+        },
+        "column": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

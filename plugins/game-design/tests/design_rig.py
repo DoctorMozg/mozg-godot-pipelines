@@ -63,6 +63,27 @@ class DesignBuilder:
         }
         return self.write(self.root / "hazards" / f"{hazard_id}.json", record)
 
+    def number(self, number_id: str, value: float, **fields: object) -> Path:
+        (self.root / "balance").mkdir(exist_ok=True)
+        record = {
+            "schema": "balance-number/1",
+            "id": number_id,
+            "title": number_id.replace("_", " "),
+            "value": value,
+            "status": "baseline",
+            "source": "test",
+            "date": "2026-11-14",
+            **fields,
+        }
+        return self.write(self.root / "balance" / f"{number_id}.json", record)
+
+    def project_file(self, relative: str, text: str) -> Path:
+        """A file of the game project around the design folder."""
+        path = self.root.parent / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
     @staticmethod
     def write(path: Path, record: object) -> Path:
         path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

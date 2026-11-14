@@ -231,6 +231,40 @@ def _wav(samples: list[float], rate: int = 8000) -> bytes:
     return out.getvalue()
 
 
+class TestGraph:
+    SVG = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 60" onload="window.hit=1">'
+        "<script>window.hit = 2</script>"
+        '<g data-node="start"><rect width="150" height="30" fill="#eee"/></g>'
+        '<g data-node="E01" transform="translate(200,0)"><rect width="150" height="30"/></g>'
+        "</svg>"
+    )
+
+    def test_clicked_node_becomes_a_node_note(
+        self, chrome: Chrome, hub: HubServer, registry: Registry
+    ) -> None:
+        asset = _asset(registry, "graph", {"main": ("graph.svg", self.SVG.encode())}, {})
+        page = chrome.open(hub.url)
+        chrome.wait_for(page, f"{_in(asset, '.graph')}?.dataset.ready === '1'")
+        assert chrome.evaluate(page, f"{_in(asset, '.graph script')} === null") is True
+        chrome.evaluate(
+            page,
+            f"{_in(asset, '[data-node=E01] rect')}"
+            ".dispatchEvent(new MouseEvent('click', {bubbles: true}))",
+        )
+        assert chrome.evaluate(page, f"{_in(asset, '[data-pending]')}.textContent") == (
+            "next note on E01"
+        )
+        chrome.evaluate(page, f"{_in(asset, '[data-note]')}.value = 'ending comes too late'")
+        chrome.evaluate(page, f"{_in(asset, '[data-action=note]')}.click()")
+        chrome.wait_for(page, f"{_in(asset, '[data-node=E01].noted')} !== null")
+        [note] = registry.asset_records(asset).events
+        assert note["region"] == {"selector": "node=E01", "file": "main"}
+        assert chrome.evaluate(page, f"{_in(asset, '[data-control=find]')}.textContent") == "1: E01"
+        assert chrome.evaluate(page, "window.hit === undefined") is True
+        assert chrome.errors == []
+
+
 class TestAudio:
     def test_waveform_seam_and_ab(self, chrome: Chrome, hub: HubServer, registry: Registry) -> None:
         # 220 whole cycles loop cleanly; a ramp jumps from +0.5 back to -0.5 at the seam.

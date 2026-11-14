@@ -22,6 +22,7 @@ window.HubViewers = (() => {
   const { el } = window.HubDom;
   const BOX = /^xywh=percent:([\d.]+),([\d.]+),([\d.]+),([\d.]+)$/;
   const TIME = /^t=([\d.]+)/;
+  const NODE = /^node=(.+)$/;
   // Viewer state that must outlive a live re-render: chosen tab, sprite frame, playback.
   const memory = new Map();
 
@@ -359,7 +360,74 @@ window.HubViewers = (() => {
       ` (${file.bytes} bytes; no 3D preview yet)`);
   }
 
-  const byKind = { ui, sprite_frames: spriteFrames, video, audio, model };
+  // Registry SVGs are untrusted: the CSP already blocks their scripts, this also drops them.
+  function cleanSvg(text) {
+    const svg = new DOMParser().parseFromString(text, "image/svg+xml").documentElement;
+    if (svg.nodeName !== "svg") throw new Error("not an SVG document");
+    for (const node of svg.querySelectorAll("script, foreignObject, style")) node.remove();
+    for (const node of [svg, ...svg.querySelectorAll("*")]) {
+      for (const attr of [...node.attributes]) {
+        if (/^on/i.test(attr.name) || /href$/i.test(attr.name)) node.removeAttribute(attr.name);
+      }
+    }
+    return document.importNode(svg, true);
+  }
+
+  // Design graphs: the SVG is inlined so a click on a node makes the next note point at it.
+  function graph(item, version, ctx) {
+    const file = firstOf(version, "image/svg");
+    const url = file && ctx.fileUrl(file);
+    if (!url) return image(item, version, ctx);
+    const canvas = el("div", { class: "graph" });
+    const notes = ctx.regionNotes(version.id).filter((n) => NODE.test(n.region.selector));
+    const draft = ctx.draft();
+    const pending = el("span", { class: "meta", "data-pending": "1" },
+      draft && NODE.test(draft.selector) ? `next note on ${NODE.exec(draft.selector)[1]}` : "");
+    const nodeOf = (id) => canvas.querySelector(`[data-node="${CSS.escape(id)}"]`);
+    function pick(id, mark) {
+      for (const old of canvas.querySelectorAll(`.${mark}`)) old.classList.remove(mark);
+      const node = nodeOf(id);
+      if (node) node.classList.add(mark);
+      return node;
+    }
+    const chips = notes.map((note, index) => {
+      const id = NODE.exec(note.region.selector)[1];
+      const chip = button(`${index + 1}: ${id}`, "find", () => {
+        const node = pick(id, "found");
+        if (node) node.scrollIntoView({ block: "center", inline: "center" });
+      });
+      chip.dataset.event = note.id;
+      return chip;
+    });
+    const controls = el("div", { class: "controls" }, pending, ...chips);
+    if (!ctx.writable || !window.fetch) {
+      canvas.append(el("img", { class: "picture", src: url, alt: file.path }));
+      return el("div", { class: "viewer" }, canvas, controls);
+    }
+    fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.text();
+    }).then((text) => {
+      canvas.replaceChildren(cleanSvg(text));
+      for (const note of notes) nodeOf(NODE.exec(note.region.selector)[1])?.classList.add("noted");
+      if (draft && NODE.test(draft.selector)) pick(NODE.exec(draft.selector)[1], "picked");
+      canvas.dataset.ready = "1";
+    }).catch((error) => {
+      canvas.replaceChildren(placeholder(version, `cannot show the graph: ${error.message}`));
+    });
+    if (version.id === item.current_version) {
+      canvas.addEventListener("click", (event) => {
+        const node = event.target.closest("[data-node]");
+        if (!node) return;
+        ctx.setDraft({ selector: `node=${node.dataset.node}`, file: file.role });
+        pick(node.dataset.node, "picked");
+        pending.textContent = `next note on ${node.dataset.node}`;
+      });
+    }
+    return el("div", { class: "viewer" }, canvas, controls);
+  }
+
+  const byKind = { ui, sprite_frames: spriteFrames, video, audio, model, graph };
 
   function view(item, version, ctx) {
     if (!version) return placeholder(null, "");

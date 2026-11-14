@@ -28,15 +28,17 @@ NODE_W, NODE_H = 160, 30
 MARGIN = 20
 LABEL_CHARS = 22
 SWEEPS = 4
-GRAPH_STYLE = """
-.edge { fill: none; stroke: #8a8f98; stroke-width: 1.2; }
-.edge.any { stroke-dasharray: 5 4; }
-.node rect { fill: #f4f5f7; stroke: #59606b; stroke-width: 1.2; rx: 4; }
-.node text { font: 12px sans-serif; fill: #1d2025; }
-.node.terminal rect { fill: #dbeafe; stroke: #1d4ed8; stroke-width: 2; }
-.node.dead-end rect { stroke: #b45309; stroke-dasharray: 4 3; }
-.node.unreachable rect { fill: #fee2e2; stroke: #b91c1c; }
-"""
+# Paint goes into attributes, not a <style> element: the hub inlines the graph under a CSP
+# that blocks inline styles, and its own stylesheet can still override attributes.
+EDGE_PAINT = 'fill="none" stroke="#8a8f98" stroke-width="1.2"'
+TEXT_PAINT = 'font-family="sans-serif" font-size="12" fill="#1d2025"'
+BOX_PAINT = {"fill": "#f4f5f7", "stroke": "#59606b", "stroke-width": "1.2"}
+# Later classes win, as later rules of a stylesheet would.
+FLAG_PAINT = {
+    "terminal": {"fill": "#dbeafe", "stroke": "#1d4ed8", "stroke-width": "2"},
+    "dead-end": {"stroke": "#b45309", "stroke-dasharray": "4 3"},
+    "unreachable": {"fill": "#fee2e2", "stroke": "#b91c1c"},
+}
 
 
 @dataclass(frozen=True)
@@ -109,7 +111,6 @@ class GraphDrawing:
         parts = [
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}"'
             f' width="{width}" height="{height}" data-design={quoteattr(self._design.title)}>',
-            f"<style>{GRAPH_STYLE}</style>",
             f'<rect width="{width}" height="{height}" fill="#ffffff"/>',
         ]
         for node in self._sorted():
@@ -128,7 +129,8 @@ class GraphDrawing:
         x2, y2 = end.x, end.y + NODE_H // 2
         bend = max(20, (x2 - x1) // 2)
         path = f"M{x1},{y1} C{x1 + bend},{y1} {x2 - bend},{y2} {x2},{y2}"
-        return f'<path class="edge {kind}" d="{path}"/>'
+        dash = ' stroke-dasharray="5 4"' if kind == "any" else ""
+        return f'<path class="edge {kind}" d="{path}" {EDGE_PAINT}{dash}/>'
 
     def _node(self, node: Node) -> str:
         place = self._places[node.id]
@@ -140,12 +142,17 @@ class GraphDrawing:
         )
         hours = f", {node.hours.mode:g} h" if node.hours else ""
         tooltip = f"{node.title} ({node.id}): {node.kind}, {node.stage}{hours}"
+        paint = dict(BOX_PAINT)
+        for flag in FLAG_PAINT:
+            if flag in classes:
+                paint.update(FLAG_PAINT[flag])
+        box = " ".join(f'{name}="{value}"' for name, value in paint.items())
         return (
             f'<g class="{" ".join(classes)}" data-node={quoteattr(node.id)}'
             f' transform="translate({place.x},{place.y})">'
             f"<title>{escape(tooltip)}</title>"
-            f'<rect width="{NODE_W}" height="{NODE_H}"/>'
-            f'<text x="8" y="19">{escape(label)}</text></g>'
+            f'<rect width="{NODE_W}" height="{NODE_H}" rx="4" {box}/>'
+            f'<text x="8" y="19" {TEXT_PAINT}>{escape(label)}</text></g>'
         )
 
 

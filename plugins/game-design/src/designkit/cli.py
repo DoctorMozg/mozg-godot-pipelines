@@ -12,6 +12,7 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from designkit.cite import CitationCheck
 from designkit.contracts import ContractError, Json
 from designkit.design import Design, DesignLoader, Finding, Loaded
 from designkit.graph import ProgressionAnalysis
@@ -52,6 +53,13 @@ def _parser() -> argparse.ArgumentParser:
         "handoff", parents=[shared], help="a coder brief for a contract with no OPEN field"
     )
     handoff.add_argument("contract", help="id of a contract in design/contracts")
+    # --project is accepted so every command takes the same flags; the report path stands alone.
+    cite = commands.add_parser(
+        "cite",
+        parents=[shared],
+        help="every claim in a research report cites a source with a URL and a date",
+    )
+    cite.add_argument("report", type=Path, help="Markdown report with Findings and Sources")
     render = commands.add_parser(
         "render", parents=[shared], help="draw the graph and charts as SVG for the review hub"
     )
@@ -95,6 +103,17 @@ def handoff(root: Path, contract_id: str) -> tuple[dict[str, Json], int]:
     return brief(records, contract), EXIT_OK
 
 
+def cite_report(report: Path) -> tuple[dict[str, Json], int]:
+    try:
+        text = report.read_text(encoding="utf-8")
+    except OSError as error:
+        detail = f"cannot read {report}: {error.strerror}"
+        return {"cmd": "cite", "ok": False, "reason": "refused", "detail": detail}, EXIT_REFUSED
+    result = CitationCheck(text).run()
+    code = EXIT_FAILED if result["errors"] else EXIT_OK
+    return {"cmd": "cite", "ok": code == EXIT_OK, "report": str(report), **result}, code
+
+
 def _load(root: Path) -> tuple[Loaded, Records]:
     loaded = DesignLoader(root).load()
     if loaded.design is None:
@@ -129,6 +148,8 @@ def main(argv: Sequence[str]) -> int:
         format="designkit: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "cite":
+        return _emit(*cite_report(args.report))
     root: Path = (args.design or args.project / "design").resolve()
     if not root.is_dir():
         return _emit(

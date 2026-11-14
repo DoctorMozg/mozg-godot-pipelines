@@ -198,6 +198,7 @@ def main(argv: Sequence[str]) -> int:
         "test": cmd_godot.test,
         "shot": cmd_godot.shot,
         "replay": cmd_play.replay,
+        "perf": cmd_play.perf,
         "gate": cmd_gate.gate,
     }
     return handlers[args.command](args, runner)

@@ -47,11 +47,13 @@ class Bed:
     min_checks: int
     # godotkit replay arguments: the arena replays a walk, the rts its whole bot match.
     replay: tuple[str, ...]
+    # Rows of the gate's perf table; 0 where godotkit.json sets no budget.
+    perf_rows: int = 0
 
 
 TESTBEDS = [
     Bed("arena3d", "res://scenes/arena.tscn", 2, 11, ("--actions", "replays/walk.jsonl")),
-    Bed("rts", "res://scenes/match.tscn", 1, 13, ("--frames", "3100", "--every", "300")),
+    Bed("rts", "res://scenes/match.tscn", 1, 13, ("--frames", "3100", "--every", "300"), 2),
 ]
 
 
@@ -92,6 +94,8 @@ class TestTestbeds:
         result = _godotkit("gate", "--project", testbed.folder, "--timeout", str(TIMEOUT_S))
         failed = [step["name"] for step in result["steps"] if step["status"] == "fail"]
         assert (result["ok"], failed) == (True, []), result
+        perf = next(step for step in result["steps"] if step["name"] == "perf")
+        assert len(perf.get("detail", {}).get("table", [])) == testbed.perf_rows, perf
 
     def test_separate_runs_replay_to_the_same_state_hashes(self, testbed: Bed) -> None:
         folder = Path(testbed.folder)

@@ -9,5 +9,21 @@
         ]
       }
     ]
+  },
+  "perf": {
+    "property": "units_per_team",
+    "sizes": [
+      50,
+      250
+    ],
+    "warmup": 60,
+    "frames": 300,
+    "budget": {
+      "frame_ms": 16.6,
+      "physics_ms": 8.0,
+      "draw_calls": 20,
+      "objects": 20,
+      "nodes": 50
+    }
   }
 }

@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 from godotkit.locate import GodotBinary
@@ -112,6 +113,14 @@ class TestTreeHash:
 
 
 @pytest.mark.usefixtures("no_gdtoolkit")
+def _step(payload: dict[str, object], name: str) -> dict[str, Any]:
+    steps = payload["steps"]
+    assert isinstance(steps, list)
+    # Any: one step of the receipt JSON, read field by field.
+    found: dict[str, Any] = next(step for step in steps if step["name"] == name)
+    return found
+
+
 class TestGateCli:
     def test_receipt_verifies_until_a_file_changes(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
@@ -131,6 +140,7 @@ class TestGateCli:
             ("arch", "not_applicable"),
             ("boot", "pass"),
             ("test", "not_applicable"),
+            ("perf", "not_applicable"),
         ]
         code, payload = run_cli(["receipt", "verify", *args], fake_godot())
         assert (code, payload["reason"]) == (0, "ok")
@@ -168,9 +178,8 @@ class TestGateCli:
         (git_project / "tests" / "a_test.gd").write_text("extends SceneTree\n")
         godot = fake_godot(PARSE_OK + "Alpha: 3 checks, 0 failures.\n")
         code, payload = run_cli(["gate", "--project", str(git_project)], godot)
-        steps = payload["steps"]
-        assert isinstance(steps, list)
-        assert (code, steps[-1]["status"], steps[-1]["detail"]["checks"]) == (0, "pass", 3)
+        test = _step(payload, "test")
+        assert (code, test["status"], test["detail"]["checks"]) == (0, "pass", 3)
 
     def test_failed_entry_says_why(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
@@ -179,11 +188,25 @@ class TestGateCli:
         (git_project / "tests" / "a_test.gd").write_text("extends SceneTree\n")
         godot = fake_godot(PARSE_OK + "Alpha: 3 checks, 1 failures.\n")
         code, payload = run_cli(["gate", "--project", str(git_project)], godot)
-        steps = payload["steps"]
-        assert isinstance(steps, list)
-        why = steps[-1]["detail"]["why"]
+        why = _step(payload, "test")["detail"]["why"]
         assert (code, list(why)) == (1, ["tests/a_test.gd"])
         assert "1 of 3 checks failed" in why["tests/a_test.gd"]
+
+    def test_perf_table_lands_in_the_receipt_and_a_breach_fails(
+        self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        perf = {"property": "count", "sizes": [10], "budget": {"frame_ms": 16.6, "nodes": 50}}
+        (git_project / "godotkit.json").write_text(json.dumps({"perf": perf}))
+        stats = {"p50": 1.0, "p95": 2.0, "max": 3.0}
+        line = {"size_set": True, "frame_ms": stats, "nodes": {**stats, "max": 80}}
+        godot = fake_godot(PARSE_OK + "GODOTKIT_PERF " + json.dumps(line) + "\n")
+        code, payload = run_cli(["gate", "--project", str(git_project)], godot)
+        step = _step(payload, "perf")
+        assert (code, step["status"], step["reason"]) == (1, "fail", "over_budget")
+        assert step["detail"]["table"][0]["metrics"] == {"frame_ms": 2.0, "nodes": 80.0}
+        assert step["detail"]["table"][0]["breaches"] == [
+            {"metric": "nodes", "value": 80.0, "budget": 50.0}
+        ]
 
     def test_new_cross_layer_edge_raises_reach_against_base(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory

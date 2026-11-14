@@ -16,6 +16,7 @@ from godotkit.external import ExternalLinters
 from godotkit.gates import BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.lint import Finding, project_sources
+from godotkit.perf import PerfConfig, ScaleProbe
 from godotkit.reach import compare, reach_stats
 from godotkit.receipts import Receipt, Step, now, tree_hash
 from godotkit.runner import GodotRunner
@@ -54,6 +55,7 @@ class Gate:
             self._arch,
             self._boot,
             self._test,
+            self._perf,
         ]
         results = tuple(_timed(step) for step in steps)
         head = head_commit(self._project)
@@ -137,6 +139,22 @@ class Gate:
         return Step(
             "test", "fail" if failed else "pass", "test_failures" if failed else "ok", 0.0, detail
         )
+
+    def _perf(self) -> Step:
+        try:
+            config = PerfConfig.read(self._project)
+        except ValueError as error:
+            return Step("perf", "fail", "refused", 0.0, {"error": str(error)})
+        if config is None:
+            return Step("perf", "not_applicable", "no perf section in godotkit.json", 0.0)
+        # Headless, so draw calls stay unmeasured here; `godotkit perf --native` judges them.
+        outcome = ScaleProbe(self._runner).run(self._project, config, self._timeout_s, None)
+        detail: dict[str, object] = {
+            "table": [dict(result) for result in outcome.results],
+            "budget": config.budget,
+            "unmeasured": list(outcome.unmeasured),
+        }
+        return Step("perf", "pass" if outcome.ok else "fail", outcome.reason, 0.0, detail)
 
     def _lint(self) -> Step:
         files = project_sources(self._project, LINT_SUFFIXES)

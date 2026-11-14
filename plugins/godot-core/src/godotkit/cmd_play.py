@@ -1,4 +1,4 @@
-"""Commands that play a scene on fixed physics frames: replay."""
+"""Commands that play a scene on fixed physics frames: replay and perf."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from godotkit.actions import Recording
 from godotkit.cmd_godot import native_display
 from godotkit.display import NoDisplay
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_SETUP, MAX_ISSUES_SHOWN, emit
+from godotkit.perf import PerfConfig, ScaleProbe
 from godotkit.replay import ReplayProbe, ReplayRequest, RunTrace
 from godotkit.runner import GodotRunner
 
@@ -62,6 +63,35 @@ def replay(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if outcome.ok else EXIT_FAILED
 
 
+def perf(args: argparse.Namespace, runner: GodotRunner) -> int:
+    try:
+        config = PerfConfig.read(args.project.resolve())
+        if config is None:
+            raise ValueError("godotkit.json has no 'perf' section with property, sizes and budget")
+        if args.sizes:
+            config = config.with_sizes(tuple(int(part) for part in args.sizes.split(",")))
+        display = native_display(args.native)
+    except ValueError as error:
+        emit({"cmd": "perf", "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    except NoDisplay as error:
+        emit({"cmd": "perf", "ok": False, "reason": "no_display", "detail": str(error)})
+        return EXIT_SETUP
+    outcome = ScaleProbe(runner).run(args.project.resolve(), config, args.timeout, display)
+    emit(
+        {
+            "cmd": "perf",
+            "ok": outcome.ok,
+            "reason": outcome.reason,
+            "display": display.name if display else None,
+            "budget": config.budget,
+            "unmeasured": list(outcome.unmeasured),
+            "table": list(outcome.results),
+        }
+    )
+    return EXIT_OK if outcome.ok else EXIT_FAILED
+
+
 def add_parser(
     commands: argparse._SubParsersAction[argparse.ArgumentParser], native_help: str
 ) -> None:
@@ -85,6 +115,14 @@ def add_parser(
     replay_cmd.add_argument("--runs", type=int, default=2, help="separate Godot runs to compare")
     replay_cmd.add_argument("--native", action="store_true", help=native_help)
     replay_cmd.add_argument("--timeout", type=float, default=300.0, help="seconds per run")
+
+    perf_cmd = commands.add_parser(
+        "perf", help="frame time and counters per size against the budget in godotkit.json"
+    )
+    perf_cmd.add_argument("--project", type=Path, default=Path.cwd())
+    perf_cmd.add_argument("--sizes", help="comma-separated sizes instead of the configured ones")
+    perf_cmd.add_argument("--native", action="store_true", help=native_help + "; adds draw calls")
+    perf_cmd.add_argument("--timeout", type=float, default=300.0, help="seconds per size")
 
 
 def _trace(trace: RunTrace) -> dict[str, object]:

@@ -52,17 +52,20 @@ class PerfConfig:
     frames: int = 300
 
     @classmethod
-    def read(cls, project: Path) -> PerfConfig:
+    def read(cls, project: Path) -> PerfConfig | None:
+        """The 'perf' section of godotkit.json, None when there is none; malformed ones raise."""
         path = project / CONFIG_FILE
+        if not path.is_file():
+            return None
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError as error:
-            raise ValueError(f"no {path}; the scale probe reads its 'perf' section") from error
         except json.JSONDecodeError as error:
             raise ValueError(f"{path}: not valid JSON ({error})") from error
         perf = raw.get("perf") if isinstance(raw, dict) else None
+        if perf is None:
+            return None
         if not isinstance(perf, dict):
-            raise ValueError(f"{path} has no 'perf' object with property, sizes and budget")
+            raise ValueError(f"{path}: 'perf' must be an object with property, sizes and budget")
         unknown = sorted(set(perf) - PERF_KEYS)
         if unknown:
             raise ValueError(f"{path}: 'perf' has unknown keys {unknown}")

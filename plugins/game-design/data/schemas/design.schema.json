@@ -50,6 +50,17 @@
         "$ref": "#/$defs/pool"
       }
     },
+    "contract_fields": {
+      "description": "Fields a contract of each kind must fill; a missing one counts as OPEN.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "targets": {
       "type": "object",
       "additionalProperties": false,

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:canon",
+  "title": "canon",
+  "description": "Which document owns each design topic, at design/canon.json, so the newest edit never wins by accident.",
+  "type": "object",
+  "required": [
+    "schema",
+    "topics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "canon/1"
+    },
+    "topics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "owner",
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner": {
+            "description": "Path of the owning document, relative to the project.",
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "description": "agreed: settled; baseline: a working first value; open: waiting for an answer; deferred: parked on purpose.",
+            "enum": [
+              "agreed",
+              "baseline",
+              "open",
+              "deferred"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

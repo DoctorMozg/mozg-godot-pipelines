@@ -127,6 +127,7 @@ class Design:
     nodes: Mapping[str, Node]
     hazards: Mapping[str, Hazard]
     numbers: Mapping[str, Number]
+    contract_fields: Mapping[str, tuple[str, ...]]
 
     def is_terminal(self, node: Node) -> bool:
         return node.kind in self.terminal_kinds
@@ -142,10 +143,48 @@ class Loaded:
         return sum(f.level == "error" for f in self.findings)
 
 
-class DesignLoader:
-    def __init__(self, root: Path, schema_dir: Path = SCHEMA_DIR) -> None:
+class EntityReader:
+    """Reads schema-checked JSON records of a design folder, naming each problem as a finding."""
+
+    def __init__(self, root: Path) -> None:
         if not root.is_dir():
             raise ValueError(f"not a design folder: {root}")
+        self._root = root
+
+    def entities(
+        self, folder_name: str, contract: Contract, findings: list[Finding]
+    ) -> list[dict[str, Json]]:
+        """Records of a one-file-per-entity folder whose id matches their file name."""
+        folder = self._root / folder_name
+        records: list[dict[str, Json]] = []
+        for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+            record = self.read(path, contract, findings)
+            if record is None:
+                continue
+            if record["id"] != path.stem:
+                detail = f"id {record['id']!r} must match the file name"
+                findings.append(Finding("error", "file_name", f"{folder_name}/{path.name}", detail))
+                continue
+            records.append(record)
+        return records
+
+    def read(
+        self, path: Path, contract: Contract, findings: list[Finding]
+    ) -> dict[str, Json] | None:
+        where = path.relative_to(self._root).as_posix()
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            findings.append(Finding("error", "unreadable", where, str(error)))
+            return None
+        problems = contract.errors(record)
+        findings += [Finding("error", "schema", where, problem) for problem in problems]
+        return None if problems else dict(record)
+
+
+class DesignLoader:
+    def __init__(self, root: Path, schema_dir: Path = SCHEMA_DIR) -> None:
+        self._reader = EntityReader(root)
         self._root = root
         self._design_contract = Contract.load("design", schema_dir)
         self._node_contract = Contract.load("progression-node", schema_dir)
@@ -155,7 +194,7 @@ class DesignLoader:
     def load(self) -> Loaded:
         """Reads everything and reports each problem; a node with a problem stays out."""
         findings: list[Finding] = []
-        frame = self._read(self._root / DESIGN_FILE, self._design_contract, findings)
+        frame = self._reader.read(self._root / DESIGN_FILE, self._design_contract, findings)
         if frame is None:
             return Loaded(None, findings)
         stages = [str(s["id"]) for s in frame["stages"]]
@@ -184,6 +223,9 @@ class DesignLoader:
             nodes=nodes,
             hazards=hazards,
             numbers=self._numbers(findings),
+            contract_fields={
+                str(kind): tuple(names) for kind, names in frame.get("contract_fields", {}).items()
+            },
         )
         log.info(
             "loaded %d nodes and %d hazards with %d findings",
@@ -195,7 +237,7 @@ class DesignLoader:
         folder = self._root / NODE_DIR
         if not (folder.is_dir() and any(folder.glob("*.json"))):
             findings.append(Finding("error", "no_nodes", NODE_DIR, f"no node files in {folder}"))
-        records = self._entities(NODE_DIR, self._node_contract, findings)
+        records = self._reader.entities(NODE_DIR, self._node_contract, findings)
         parsed: dict[str, Node] = {}
         folded: dict[str, list[str]] = defaultdict(list)
         for record in records:
@@ -223,7 +265,7 @@ class DesignLoader:
         self, nodes: Mapping[str, Node], known: _Known, findings: list[Finding]
     ) -> dict[str, Hazard]:
         parsed: dict[str, Hazard] = {}
-        for record in self._entities(HAZARD_DIR, self._hazard_contract, findings):
+        for record in self._reader.entities(HAZARD_DIR, self._hazard_contract, findings):
             hazard = _hazard(record)
             problems = _hazard_problems(hazard, known)
             if hazard.after not in nodes:
@@ -235,7 +277,7 @@ class DesignLoader:
 
     def _numbers(self, findings: list[Finding]) -> dict[str, Number]:
         parsed: dict[str, Number] = {}
-        for record in self._entities(BALANCE_DIR, self._number_contract, findings):
+        for record in self._reader.entities(BALANCE_DIR, self._number_contract, findings):
             number = _number(record)
             problems = [b for b in number.bindings if not _inside_project(b.file)]
             for binding in problems:
@@ -244,36 +286,6 @@ class DesignLoader:
             if not problems:
                 parsed[number.id] = number
         return parsed
-
-    def _entities(
-        self, folder_name: str, contract: Contract, findings: list[Finding]
-    ) -> list[dict[str, Json]]:
-        """Records of a one-file-per-entity folder whose id matches their file name."""
-        folder = self._root / folder_name
-        records: list[dict[str, Json]] = []
-        for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
-            record = self._read(path, contract, findings)
-            if record is None:
-                continue
-            if record["id"] != path.stem:
-                detail = f"id {record['id']!r} must match the file name"
-                findings.append(Finding("error", "file_name", f"{folder_name}/{path.name}", detail))
-                continue
-            records.append(record)
-        return records
-
-    def _read(
-        self, path: Path, contract: Contract, findings: list[Finding]
-    ) -> dict[str, Json] | None:
-        where = path.relative_to(self._root).as_posix()
-        try:
-            record = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
-            findings.append(Finding("error", "unreadable", where, str(error)))
-            return None
-        problems = contract.errors(record)
-        findings += [Finding("error", "schema", where, problem) for problem in problems]
-        return None if problems else dict(record)
 
 
 def _hours(value: Json) -> Hours | None:

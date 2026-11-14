@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:decision",
+  "title": "decision",
+  "description": "One design question and its answer, at design/decisions/<id>.json. A newer decision lists the ones it replaces in supersedes; old records are never edited into banners.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "date",
+    "topic",
+    "question",
+    "options",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "decision/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}(-[a-z0-9]+)+$",
+      "description": "Four-digit sequence and a slug, such as 0042-oxygen-schedule; equals the file name."
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "topic": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "description": "Id of a topic in design/canon.json."
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "recommended": {
+      "description": "Label of the option the designer recommended.",
+      "type": "string",
+      "minLength": 1
+    },
+    "chosen": {
+      "description": "Label of the chosen option, or the owner's own answer; absent while open.",
+      "type": "string",
+      "minLength": 1
+    },
+    "answer": {
+      "description": "The owner's words, verbatim.",
+      "type": "string"
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "status": {
+      "description": "agreed: settled; baseline: a working first value; open: waiting for an answer; deferred: parked on purpose.",
+      "enum": [
+        "agreed",
+        "baseline",
+        "open",
+        "deferred"
+      ]
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]{4}(-[a-z0-9]+)+$"
+      }
+    }
+  }
+}

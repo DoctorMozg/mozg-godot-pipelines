@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:contract",
+  "title": "contract",
+  "description": "What code needs to know about one feature, at design/contracts/<id>.json. A field is text, OPEN, or N/A: <reason>; handoff refuses a contract with an OPEN field.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "kind",
+    "fields"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "contract/1"
+    },
+    "id": {
+      "description": "Equals the file name without .json.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]+([_.-][A-Za-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "description": "Such as episode or hazard; design.json contract_fields lists the fields each kind needs.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+    },
+    "topic": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "description": "Id of a topic in design/canon.json."
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "tests": {
+      "description": "Tests that check the contract once built.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

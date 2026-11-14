@@ -18,7 +18,10 @@ def rules(builder: DesignBuilder) -> list[tuple[str, str]]:
 
 
 class TestSchemas:
-    @pytest.mark.parametrize("name", ["design", "progression-node", "hazard", "balance-number"])
+    @pytest.mark.parametrize(
+        "name",
+        ["design", "progression-node", "hazard", "balance-number", "decision", "canon", "contract"],
+    )
     def test_schema_is_valid_draft_2020_12(self, name: str) -> None:
         schema = json.loads((SCHEMA_DIR / f"{name}.schema.json").read_text(encoding="utf-8"))
         jsonschema.Draft202012Validator.check_schema(schema)

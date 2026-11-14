@@ -15,6 +15,14 @@
     }
   },
   "godot-assets": {
-    "placeholders": {}
+    "placeholders": {
+      "<id>": "an asset id, such as door-mc5b",
+      "<endpoint>": "the provider's model or endpoint id",
+      "<prompt>": "the prompt the file was generated from",
+      "<request id>": "the provider's job or request id",
+      "<title>": "an asset title",
+      "<status>": "a folded status: pending_review, retake, approved, final, rejected or deprecated",
+      "<next step>": "what happens to the asset next"
+    }
   }
 }

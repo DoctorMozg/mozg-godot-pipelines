@@ -20,12 +20,14 @@ class StoreRig:
     def add(self, key: str, source: str = "Text", namespace: str = "game", **fields: Json) -> None:
         self.store.add(namespace, key, {"source": source, **fields})
 
-    def translate(self, locale: str, key: str, text: str, status: str = "translated") -> None:
-        """A translation of the key's current source, so it starts fresh."""
+    def translate(
+        self, locale: str, key: str, text: str | list[str], status: str = "translated"
+    ) -> None:
+        """A translation of the key's current source, so it starts fresh; a list gives forms."""
         namespace = self.store.find(key)
         catalog = self.store.catalog(locale, namespace.name)
         catalog.strings[key] = {
-            "text": text, "status": status,
+            "forms" if isinstance(text, list) else "text": text, "status": status,
             "source_hash": source_hash(namespace.strings[key]), "by": {"kind": "human", "at": AT},
         }  # fmt: skip
         self.store.save_catalog(catalog)

@@ -69,7 +69,7 @@ class StoreCheck:
                         )
                     entry = catalog.get(key)
                     if entry is not None and state != "dnt":
-                        findings += self._translation(key, record, entry, locale)
+                        findings += translation_findings(key, record, entry, locale, self._rules)
         for keys in sorted(sorted(k) for k in sources.values() if len(k) > 1):
             detail = f"same source and context as {', '.join(keys[1:])}"
             findings.append(Finding("warning", "duplicate_source", keys[0], detail))
@@ -94,34 +94,34 @@ class StoreCheck:
             found += [Finding("error", "bbcode", key, d) for f in forms if (d := _unbalanced(f))]
         return found + _too_long(key, forms, record.get("max_chars"))
 
-    def _translation(
-        self, key: str, record: Mapping[str, Json], entry: Mapping[str, Json], locale: str
-    ) -> list[Finding]:
-        where = f"{key}@{locale}"
-        if ("forms" in record) != ("forms" in entry):
-            return [Finding("error", "shape", where, "plural source needs forms, plain needs text")]
-        found: list[Finding] = []
-        forms = _forms(entry.get("forms"), entry.get("text"))
-        source_forms = _forms(record.get("forms"), record.get("source"))
-        if "forms" in entry and len(forms) != self._rules.count(locale):
-            detail = f"{len(forms)} forms, {locale} has {self._rules.count(locale)}"
-            found.append(Finding("error", "plural_count", where, detail))
-        expected = Counter(p for f in source_forms[:1] for p in PLACEHOLDER.findall(f))
-        allowed = {p for f in source_forms for p in PLACEHOLDER.findall(f)}
+
+def translation_findings(
+    key: str, record: Mapping[str, Json], entry: Mapping[str, Json], locale: str, rules: PluralRules
+) -> list[Finding]:
+    """Parity, plural count, shape and length problems of one translation."""
+    where = f"{key}@{locale}"
+    if ("forms" in record) != ("forms" in entry):
+        return [Finding("error", "shape", where, "plural source needs forms, plain needs text")]
+    found: list[Finding] = []
+    forms = _forms(entry.get("forms"), entry.get("text"))
+    source_forms = _forms(record.get("forms"), record.get("source"))
+    if "forms" in entry and len(forms) != rules.count(locale):
+        detail = f"{len(forms)} forms, {locale} has {rules.count(locale)}"
+        found.append(Finding("error", "plural_count", where, detail))
+    expected = Counter(p for f in source_forms[:1] for p in PLACEHOLDER.findall(f))
+    allowed = {p for f in source_forms for p in PLACEHOLDER.findall(f)}
+    for form in forms:
+        got = Counter(PLACEHOLDER.findall(form))
+        # A plural form may drop the number ("one item"), never add a new placeholder.
+        if set(got) - allowed or ("forms" not in entry and got != expected):
+            detail = f"{form!r} has {sorted(got.elements())}, source {sorted(expected.elements())}"
+            found.append(Finding("error", "placeholders", where, detail))
+    if record.get("markup") == "bbcode":
+        source_tags = Counter(BBCODE.findall(source_forms[0]))
         for form in forms:
-            got = Counter(PLACEHOLDER.findall(form))
-            # A plural form may drop the number ("one item"), never add a new placeholder.
-            if set(got) - allowed or ("forms" not in entry and got != expected):
-                detail = (
-                    f"{form!r} has {sorted(got.elements())}, source {sorted(expected.elements())}"
-                )
-                found.append(Finding("error", "placeholders", where, detail))
-        if record.get("markup") == "bbcode":
-            source_tags = Counter(BBCODE.findall(source_forms[0]))
-            for form in forms:
-                if problem := _unbalanced(form) or _tag_mismatch(form, source_tags):
-                    found.append(Finding("error", "bbcode", where, problem))
-        return found + _too_long(where, forms, record.get("max_chars"))
+            if problem := _unbalanced(form) or _tag_mismatch(form, source_tags):
+                found.append(Finding("error", "bbcode", where, problem))
+    return found + _too_long(where, forms, record.get("max_chars"))
 
 
 def _forms(forms: Json, text: Json) -> list[str]:

@@ -1,0 +1,16 @@
+{
+  "name": "game-design",
+  "version": "0.1.0",
+  "description": "Game design data for Godot projects: progression graphs as JSON, checked and analyzed for reachability, dead ends, depth and pacing",
+  "author": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "game-design",
+    "progression",
+    "balance"
+  ]
+}

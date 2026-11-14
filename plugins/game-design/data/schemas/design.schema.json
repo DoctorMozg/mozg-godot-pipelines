@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:design",
+  "title": "design",
+  "description": "The frame of a game's design data, at design/design.json: stages in play order, playstyles, the node kinds that end a run and the targets analyze checks.",
+  "type": "object",
+  "required": [
+    "schema",
+    "title",
+    "stages",
+    "playstyles",
+    "terminal_kinds"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "design/1"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stages": {
+      "description": "Acts or phases in play order; each node names one by id.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/named"
+      }
+    },
+    "playstyles": {
+      "description": "Ways to play that nodes are tagged with, such as a stealth or a builder route.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/named"
+      }
+    },
+    "terminal_kinds": {
+      "description": "Node kinds that end a run, such as Ending or Failure; they need no dependents.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_gap_hours": {
+          "description": "Longest wait between two unlocks before analyze reports a pacing gap.",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "named": {
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:progression-node",
+  "title": "progression-node",
+  "description": "One node of the progression graph, at design/progression/<id>.json: something the player does, builds, learns or reaches, and what must come before it.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "kind",
+    "stage"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "progression-node/1"
+    },
+    "id": {
+      "description": "Equals the file name without .json.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]+([_.-][A-Za-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "description": "A label such as Research, Device or Ending; design.json names the terminal kinds.",
+      "type": "string",
+      "minLength": 1
+    },
+    "stage": {
+      "description": "Id of a stage in design.json.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+    },
+    "requires": {
+      "description": "Every one of these nodes comes first.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node_id"
+      }
+    },
+    "any": {
+      "description": "At least one of these nodes comes first.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node_id"
+      }
+    },
+    "playstyles": {
+      "description": "Ids of playstyles in design.json this node serves.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+      }
+    },
+    "hours": {
+      "description": "Time the node takes: one estimate, or min, mode and max for a triangular spread.",
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "object",
+          "required": [
+            "min",
+            "mode",
+            "max"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "type": "number",
+              "minimum": 0
+            },
+            "mode": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "leaf": {
+      "description": "Leads nowhere on purpose, such as a side reward; not reported as a dead end.",
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "node_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]+([_.-][A-Za-z0-9]+)*$"
+    }
+  }
+}

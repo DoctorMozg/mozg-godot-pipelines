@@ -11,6 +11,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = sorted((REPO_ROOT / "contracts").glob("*.schema.json"))
 COPIES = sorted(REPO_ROOT.glob("plugins/*/data/contracts/*.schema.json"))
+CHECKERS = sorted(REPO_ROOT.glob("plugins/*/src/*/contracts.py"))
 
 
 @pytest.mark.parametrize("path", CONTRACTS, ids=lambda path: path.name)
@@ -24,6 +25,13 @@ def test_plugin_copy_matches_the_contract(copy: Path) -> None:
     original = REPO_ROOT / "contracts" / copy.name
     assert original.is_file(), f"{copy} has no original in contracts/"
     assert copy.read_bytes() == original.read_bytes(), f"{copy} differs; copy contracts/{copy.name}"
+
+
+def test_schema_checker_copies_are_identical() -> None:
+    # Plugins never import each other, so each kit carries the same stdlib schema checker.
+    assert len(CHECKERS) >= 2
+    first = CHECKERS[0].read_bytes()
+    assert [c for c in CHECKERS if c.read_bytes() != first] == []
 
 
 def test_contracts_exist() -> None:

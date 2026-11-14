@@ -24,5 +24,8 @@
       "<status>": "a folded status: pending_review, retake, approved, final, rejected or deprecated",
       "<next step>": "what happens to the asset next"
     }
+  },
+  "game-design": {
+    "placeholders": {}
   }
 }

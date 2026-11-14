@@ -32,6 +32,18 @@
         "review",
         "provenance"
       ]
+    },
+    {
+      "name": "game-design",
+      "source": "./plugins/game-design",
+      "description": "Game design data for Godot projects: progression graphs as JSON, checked and analyzed for reachability, dead ends, depth and pacing",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "game-design",
+        "progression",
+        "balance"
+      ]
     }
   ]
 }

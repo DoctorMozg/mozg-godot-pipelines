@@ -6,9 +6,11 @@ import argparse
 import json
 import logging
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
+from l10nkit.check import StoreCheck
 from l10nkit.contracts import ContractError, Json
 from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
@@ -17,7 +19,8 @@ from l10nkit.po import RES_BUILD, PluralRules, PoBuild
 from l10nkit.status import STATES, Coverage, key_state
 from l10nkit.store import Store, StoreError
 
-EXIT_OK, EXIT_SETUP, EXIT_REFUSED = 0, 2, 3
+EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
+SHOWN_FINDINGS = 100
 FIELD_FLAGS = ("context", "note", "max_chars", "max_px", "markup")
 LIST_FLAGS = (("tag", "tags"), ("screenshot", "screenshots"))
 
@@ -52,6 +55,8 @@ def _parser() -> argparse.ArgumentParser:
     build = commands.add_parser("build", help="write the Godot translation files into i18n/build")
     build.add_argument("--format", choices=("po", "csv"), default="po", help="csv needs Godot 4.6+")
     build.add_argument("--register", action="store_true", help="list the PO files in project.godot")
+    check = commands.add_parser("check", help="parity, plural, length and release checks")
+    check.add_argument("--ship", action="append", default=[], help="locale that must be complete")
     status = commands.add_parser("status", help="coverage per locale")
     status.add_argument("--locale", action="append", default=[])
     return parser
@@ -123,6 +128,14 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
         if args.command == "import":
             return CsvImport(store).run(path, args.ns or path.stem)
         return CsvExport(store).run(args.ns, path)
+    if args.command == "check":
+        findings, states = StoreCheck(store, PluralRules.load(), args.ship).run()
+        errors = sum(f.level == "error" for f in findings)
+        return {
+            "errors": errors, "warnings": len(findings) - errors,
+            "rules": dict(sorted(Counter(f.rule for f in findings).items())), "states": states,
+            "findings": [f.as_json() for f in findings[:SHOWN_FINDINGS]],
+        }  # fmt: skip
     if args.command == "build":
         if args.format == "csv":
             if args.register:
@@ -158,7 +171,8 @@ def main(argv: Sequence[str]) -> int:
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP
         )
-    return _emit({"cmd": args.command, "ok": True, **payload}, EXIT_OK)
+    code = EXIT_FAILED if payload.get("errors") else EXIT_OK
+    return _emit({"cmd": args.command, "ok": code == EXIT_OK, **payload}, code)
 
 
 def _emit(payload: dict[str, Json], code: int) -> int:

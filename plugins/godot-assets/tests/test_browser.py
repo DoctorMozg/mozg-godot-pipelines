@@ -20,7 +20,7 @@ from assetkit.hub import PAGE_DIR, build_static
 from assetkit.hubserver import HubConfig, HubServer
 from assetkit.registry import AssetSpec, Registry, VersionSpec
 from assetkit.review import Review
-from assetkit_rig import HUMAN, Lane, png, tiny_png, write_strings
+from assetkit_rig import HUMAN, Lane, png, tiny_png, write_shots, write_strings
 from chrome_rig import Chrome, find_chrome
 
 pytestmark = pytest.mark.live_browser
@@ -137,7 +137,10 @@ def test_string_review_in_the_served_page(chrome: Chrome, hub: HubServer) -> Non
     (project / "shots" / "hud.png").write_bytes(tiny_png())
     page = chrome.open(hub.url)
     chrome.wait_for(page, f"{_row('UI_EXIT@fr')}?.dataset.state === 'machine'")
-    chrome.wait_for(page, f"{_row('UI_EXIT@fr', 'img')}?.naturalWidth === 1")
+    chrome.wait_for(page, f"{_row('UI_EXIT@fr', 'img[data-kind=source]')}?.naturalWidth === 1")
+    # A picture l10nkit shot adds while the page is open arrives without a reload.
+    write_shots(project, tiny_png())
+    chrome.wait_for(page, f"{_row('UI_EXIT@fr', 'img[data-kind=locale]')}?.naturalWidth === 1")
     # A stale text is not what the game shows, so it offers nothing to approve.
     assert chrome.evaluate(page, f"{_row('UI_OPEN@fr', '[data-decision]')} === null") is True
     chrome.evaluate(page, f"{_row('UI_EXIT@fr', '[data-decision=approve]')}.click()")

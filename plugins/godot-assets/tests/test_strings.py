@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from assetkit.registry import RegistryError
 from assetkit.strings import Strings
-from assetkit_rig import write_strings
+from assetkit_rig import write_shots, write_strings
 
 
 @pytest.fixture
@@ -25,6 +25,14 @@ class TestRows:
         assert _states(strings) == {"UI_EXIT@fr": "machine", "UI_OPEN@fr": "stale"}
         opened = next(r for r in strings.rows() if r["key"] == "UI_OPEN")
         assert (opened["source"], opened["context"], opened["text"]) == ("Open", "door", "Ouvert")
+
+    def test_locale_shots_go_to_the_keys_and_locale_they_show(
+        self, strings: Strings, project: Path
+    ) -> None:
+        path = write_shots(project, b"png")
+        shots = {str(r["item"]): r["locale_shots"] for r in strings.rows()}
+        assert shots == {"UI_EXIT@fr": [path], "UI_OPEN@fr": []}
+        assert strings.screenshots() == {"shots/hud.png", path}
 
     def test_no_i18n_folder_gives_no_rows(self, project: Path) -> None:
         assert Strings(project).rows() == []

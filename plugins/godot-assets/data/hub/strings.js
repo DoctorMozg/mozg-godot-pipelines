@@ -31,10 +31,13 @@ window.HubStrings = (() => {
   }
 
   function shots(row) {
-    return (row.screenshots || []).map((path) => {
+    // Pictures of this locale as Godot drew it come first; the source's own screenshots follow.
+    const drawn = (row.locale_shots || []).map((path) => [path, "locale"]);
+    const named = (row.screenshots || []).map((path) => [path, "source"]);
+    return [...drawn, ...named].map(([path, kind]) => {
       const url = context.fileUrl({ url: `files/${encodeURI(path)}`, path });
       return el("a", { href: url, target: "_blank", rel: "noopener" },
-        el("img", { src: url, alt: path, loading: "lazy", class: "shot" }));
+        el("img", { src: url, alt: path, loading: "lazy", class: "shot", "data-kind": kind }));
     });
   }
 

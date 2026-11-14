@@ -117,3 +117,15 @@ def write_strings(project: Path) -> None:
         "strings": strings,
     }
     (root / "locales" / "fr" / "hud.json").write_text(json.dumps(catalog))
+
+
+def write_shots(project: Path, picture: bytes) -> str:
+    """A picture of UI_EXIT in fr as l10nkit shot indexes it; returns its path."""
+    path = "i18n/shots/fr/hud-1x1.png"
+    (project / path).parent.mkdir(parents=True)
+    (project / path).write_bytes(picture)
+    shot = {"path": path, "locale": "fr", "scene": "res://hud.tscn", "size": [1, 1],
+            "keys": ["UI_EXIT"]}  # fmt: skip
+    index = {"schema": "string-shots/1", "shots": [shot]}
+    (project / "i18n" / "shots" / "index.json").write_text(json.dumps(index))
+    return path

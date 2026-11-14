@@ -37,7 +37,8 @@ class Strings:
         self._root = project / I18N
         self._ids = ids or UlidSource()
         self._contracts = {
-            name: Contract.load(name) for name in ("string", "string-translation", "item-event")
+            name: Contract.load(name)
+            for name in ("string", "string-translation", "string-shots", "item-event")
         }
 
     def rows(self) -> list[dict[str, Json]]:
@@ -48,6 +49,10 @@ class Strings:
         for event in sorted(events, key=lambda e: (str(e["at"]), str(e["id"]))):
             if event["type"] == "decision":
                 decided[str(event["item"])] = event
+        drawn: dict[str, list[str]] = {}
+        for shot in self._shots():
+            for key in shot["keys"]:
+                drawn.setdefault(f"{key}@{shot['locale']}", []).append(str(shot["path"]))
         rows: list[dict[str, Json]] = []
         for path in sorted(self._root.glob("locales/*/*.json")):
             catalog = self._read(path, "string-translation")
@@ -66,12 +71,14 @@ class Strings:
                     row["forms"] = entry.get("forms")
                 row["state"] = _state(record, entry, decided.get(item))
                 row["notes"] = [e for e in events if e["item"] == item and e["type"] == "note"]
+                row["locale_shots"] = drawn.get(item, [])
                 rows.append(row)
         return rows
 
     def screenshots(self) -> set[str]:
-        """Project-relative screenshot paths the source records name."""
-        return {str(p) for r in self._sources().values() for p in r.get("screenshots", [])}
+        """Project-relative pictures the hub may serve: named by source records or l10nkit shot."""
+        named = {str(p) for r in self._sources().values() for p in r.get("screenshots", [])}
+        return named | {str(shot["path"]) for shot in self._shots()}
 
     def fingerprint(self) -> str:
         digest = hashlib.sha256()
@@ -111,6 +118,10 @@ class Strings:
         for path in sorted(self._root.glob("src/*.json")):
             found |= self._read(path, "string")["strings"]
         return found
+
+    def _shots(self) -> list[dict[str, Json]]:
+        index = self._root / "shots" / "index.json"
+        return list(self._read(index, "string-shots")["shots"]) if index.is_file() else []
 
     def _events(self) -> list[dict[str, Json]]:
         return [self._read(p, "item-event") for p in sorted(self._root.glob("events/*.json"))]

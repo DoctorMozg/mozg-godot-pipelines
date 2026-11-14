@@ -111,6 +111,19 @@ class DesignBuilder:
         }
         return self.write(self.root / "contracts" / f"{contract_id}.json", record)
 
+    def unit(self, unit_id: str, **fields: object) -> Path:
+        """design/units/<id>.json; defaults are arena3d's enemy at 2be727c."""
+        (self.root / "units").mkdir(exist_ok=True)
+        record = {"schema": "unit/1", "id": unit_id, "title": unit_id.title(), "health": 3,
+                  "damage": 10, "cooldown": 1.0, "reach": 1.4, "speed": 3.0, **fields}  # fmt: skip
+        return self.write(self.root / "units" / f"{unit_id}.json", record)
+
+    def encounter(self, encounter_id: str, *waves: dict[str, object], hero: str = "player") -> Path:
+        (self.root / "encounters").mkdir(exist_ok=True)
+        record = {"schema": "encounter/1", "id": encounter_id, "title": encounter_id,
+                  "hero": hero, "waves": list(waves)}  # fmt: skip
+        return self.write(self.root / "encounters" / f"{encounter_id}.json", record)
+
     def project_file(self, relative: str, text: str) -> Path:
         """A file of the game project around the design folder."""
         path = self.root.parent / relative

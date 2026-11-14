@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:design:unit",
+  "title": "unit",
+  "description": "One fighter or unit type, at design/units/<id>.json, for the combat and rts models. Times are in the design's own unit, seconds or ticks.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "health",
+    "damage",
+    "cooldown",
+    "reach",
+    "speed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "unit/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "description": "Equals the file name without .json."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "health": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Above 0."
+    },
+    "damage": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Damage of one hit."
+    },
+    "cooldown": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time between hits; above 0."
+    },
+    "reach": {
+      "type": "number",
+      "minimum": 0
+    },
+    "speed": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Distance per time unit."
+    },
+    "targets": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Enemies one hit reaches; default 1."
+    },
+    "cost": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Price to build, for the rts model."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+      }
+    },
+    "bonus": {
+      "description": "Damage multiplier against units carrying a tag.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    }
+  }
+}

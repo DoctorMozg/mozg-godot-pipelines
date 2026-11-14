@@ -56,7 +56,7 @@ class TestExport:
         )
         assert (hp["note"], hp["max_chars"], hp["text"]) == ("Top-left", 30, None)
         assert hp["memory"][0]["text"] == "Oxygène : {current}"
-        assert items["UI_BOLD"]["source"] == "⟦0⟧Oxygen low⟦1⟧ at ⟦2⟧%%"
+        assert items["UI_BOLD"]["source"] == "⟦0⟧Oxygen low⟦1⟧ at ⟦2⟧⟦3⟧"
         assert (items["ITEMS"]["source_forms"], items["ITEMS"]["plural_count"]) == (
             ["⟦0⟧ item", "⟦0⟧ items"],
             2,
@@ -67,7 +67,7 @@ class TestApply:
     def test_round_trip_keeps_placeholders(
         self, rig: StoreRig, batch: Path, run_cli: CliRunner
     ) -> None:
-        _fill(batch, HUD_HP="Oxygène : ⟦0⟧/⟦1⟧", UI_BOLD="⟦0⟧Oxygène bas⟦1⟧ à ⟦2⟧%%",
+        _fill(batch, HUD_HP="Oxygène : ⟦0⟧/⟦1⟧", UI_BOLD="⟦0⟧Oxygène bas⟦1⟧ à ⟦2⟧⟦3⟧",
               ITEMS=["⟦0⟧ objet", "⟦0⟧ objets"])  # fmt: skip
         code, payload = run_cli("batch", "apply", str(batch), "--model", "claude-sonnet-5-5")
         assert (code, payload["applied"], payload["refused"], payload["warnings"]) == (0, 3, [], [])

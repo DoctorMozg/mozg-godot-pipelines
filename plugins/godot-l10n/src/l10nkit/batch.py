@@ -24,8 +24,9 @@ from l10nkit.store import Store, StoreError, source_hash
 
 log = logging.getLogger(__name__)
 BATCH_SCHEMA = "l10n-batch/1"
+# %% is masked too: a lone % left by a translator breaks the % operator at runtime.
 MASKED = re.compile(
-    r"\{[A-Za-z0-9_]*\}|%(?!%)[-+ 0#]*\d*(?:\.\d+)?[scdoxXfv]|\[/?[a-z_]+(?:=[^\]]*)?\]"
+    r"%%|\{[A-Za-z0-9_]*\}|%[-+ 0#]*\d*(?:\.\d+)?[scdoxXfv]|\[/?[a-z_]+(?:=[^\]]*)?\]"
 )
 TOKEN = re.compile(r"⟦(\d+)⟧")
 MEMORY_RATIO, MEMORY_LIMIT = 0.6, 3

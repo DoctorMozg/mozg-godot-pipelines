@@ -33,6 +33,7 @@ from godotkit.testing import (
     SuiteRunner,
     changed_since,
     select_affected,
+    timeout_hint,
 )
 from godotkit.worktree import GitError
 
@@ -213,7 +214,7 @@ def test(args: argparse.Namespace, runner: GodotRunner) -> int:
                 "changed": sorted(changed) if changed is not None else None,
             },
             "summary": _test_summary(results),
-            "failed": [_failure(result, args.log_dir) for result in failed],
+            "failed": [_failure(project, result, args.log_dir) for result in failed],
             "results": [
                 {
                     "entry": result.entry.name,
@@ -278,7 +279,7 @@ def _test_summary(results: Sequence[EntryResult]) -> dict[str, int]:
     }
 
 
-def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
+def _failure(project: Path, result: EntryResult, log_dir: Path | None) -> dict[str, object]:
     verdict, run = result.verdict, result.run
     if verdict is None or run is None:
         raise ValueError(f"{result.entry.name} did not run, so it cannot have failed")
@@ -291,6 +292,7 @@ def _failure(result: EntryResult, log_dir: Path | None) -> dict[str, object]:
         "entry": result.entry.name,
         "log": str(log_path) if log_path else None,
         "reason": verdict.reason,
+        "hint": timeout_hint(project, result),
         "summary": verdict.summary,
         "issues": [asdict(issue) for issue in verdict.issues[:MAX_ISSUES_SHOWN]],
     }

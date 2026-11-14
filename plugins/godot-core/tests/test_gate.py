@@ -172,6 +172,19 @@ class TestGateCli:
         assert isinstance(steps, list)
         assert (code, steps[-1]["status"], steps[-1]["detail"]["checks"]) == (0, "pass", 3)
 
+    def test_failed_entry_says_why(
+        self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        (git_project / "tests").mkdir()
+        (git_project / "tests" / "a_test.gd").write_text("extends SceneTree\n")
+        godot = fake_godot(PARSE_OK + "Alpha: 3 checks, 1 failures.\n")
+        code, payload = run_cli(["gate", "--project", str(git_project)], godot)
+        steps = payload["steps"]
+        assert isinstance(steps, list)
+        why = steps[-1]["detail"]["why"]
+        assert (code, list(why)) == (1, ["tests/a_test.gd"])
+        assert "1 of 3 checks failed" in why["tests/a_test.gd"]
+
     def test_new_cross_layer_edge_raises_reach_against_base(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
     ) -> None:

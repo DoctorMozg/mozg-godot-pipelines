@@ -20,7 +20,7 @@ from godotkit.reach import compare, reach_stats
 from godotkit.receipts import Receipt, Step, now, tree_hash
 from godotkit.runner import GodotRunner
 from godotkit.strict import ProjectFile
-from godotkit.testing import EntryCatalog, SuiteRunner
+from godotkit.testing import EntryCatalog, SuiteRunner, failure_note
 from godotkit.worktree import head_commit
 
 log = logging.getLogger(__name__)
@@ -121,7 +121,8 @@ class Gate:
             self._project, entries, native=None
         )
         ran = [result for result in results if result.verdict is not None]
-        failed = [result.entry.name for result in ran if result.verdict and not result.verdict.ok]
+        broken = [result for result in ran if result.verdict and not result.verdict.ok]
+        failed = [result.entry.name for result in broken]
         checks = sum(
             (result.verdict.summary or {}).get("checks", 0) for result in ran if result.verdict
         )
@@ -130,6 +131,7 @@ class Gate:
             "skipped": len(results) - len(ran),
             "checks": checks,
             "failed": failed,
+            "why": {result.entry.name: failure_note(self._project, result) for result in broken},
             "seconds": {result.entry.name: round(result.duration_s, 3) for result in ran},
         }
         return Step(

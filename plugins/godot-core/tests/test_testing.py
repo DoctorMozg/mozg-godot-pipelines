@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from godotkit.display import NativeDisplay
 from godotkit.locate import GodotBinary
+from godotkit.logjudge import Verdict
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.runner import GodotRunner
 from godotkit.testing import (
@@ -16,9 +17,11 @@ from godotkit.testing import (
     DURATIONS_FILE,
     DurationStore,
     EntryCatalog,
+    EntryResult,
     SuiteEntry,
     SuiteRunner,
     changed_since,
+    timeout_hint,
 )
 from godotkit_rig import (
     GIT_ENV,
@@ -94,10 +97,25 @@ class TestCatalog:
             ({"script": "tests/a_test.gd", "args": "--wide"}, "list of strings"),
             ({"args": []}, "needs a 'script' or 'scene'"),
             ({"script": "tests/a_test.gd", "native": "yes"}, "'native' must be true or false"),
+            ({"script": "tests/a_test.gd", "nativ": True}, r"unknown keys \['nativ'\]"),
         ],
     )
     def test_bad_config_is_refused(self, suite: Path, raw: dict[str, object], message: str) -> None:
         _configure(suite, [raw])
+        with pytest.raises(ValueError, match=message):
+            EntryCatalog(suite).entries()
+
+    @pytest.mark.parametrize(
+        ("raw", "message"),
+        [
+            ({"entries": []}, r"unknown keys \['entries'\]; test settings go under 'tests'"),
+            ({"tests": {"entry": []}}, r"'tests': unknown keys \['entry'\]"),
+        ],
+    )
+    def test_misplaced_settings_are_refused_not_ignored(
+        self, suite: Path, raw: dict[str, object], message: str
+    ) -> None:
+        (suite / CONFIG_FILE).write_text(json.dumps(raw))
         with pytest.raises(ValueError, match=message):
             EntryCatalog(suite).entries()
 
@@ -168,6 +186,28 @@ class TestRuns:
         )
         homes = {_line(result.run.output, "XDG_DATA_HOME=") for result in results if result.run}
         assert len(homes) == 2
+
+
+class TestTimeoutHint:
+    STALL = ENTRY + "func _run() -> void:\n\tawait RenderingServer.frame_post_draw\n"
+
+    def _timed_out(self, entry: SuiteEntry) -> EntryResult:
+        return EntryResult(entry, None, Verdict(False, "timeout"))
+
+    def test_headless_entry_awaiting_a_drawn_frame_is_told_to_go_native(self, suite: Path) -> None:
+        (suite / "tests" / "a_test.gd").write_text(self.STALL)
+        hint = timeout_hint(suite, self._timed_out(SuiteEntry("tests/a_test.gd")))
+        assert hint is not None
+        assert "mark it native" in hint
+
+    @pytest.mark.parametrize(
+        ("script", "native"), [("tests/a_test.gd", True), ("tests/b_test.gd", False)]
+    )
+    def test_no_hint_for_native_entries_or_other_stalls(
+        self, suite: Path, script: str, native: bool
+    ) -> None:
+        (suite / "tests" / "a_test.gd").write_text(self.STALL)
+        assert timeout_hint(suite, self._timed_out(SuiteEntry(script, native=native))) is None
 
 
 class TestDurations:

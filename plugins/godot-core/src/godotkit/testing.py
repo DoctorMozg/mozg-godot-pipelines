@@ -32,6 +32,13 @@ DEFAULT_SUMMARIES = (
 
 
 SCENE_SUFFIXES = (".tscn", ".scn")
+TOP_KEYS = frozenset({"tests"})
+TEST_KEYS = frozenset({"roots", "allow", "allow_push_error", "entries"})
+ENTRY_KEYS = frozenset(
+    {"script", "scene", "args", "native", "summary", "allow", "allow_push_error"}
+)
+# Under --headless this signal never fires, so an entry awaiting it idles until the timeout.
+HEADLESS_STALL = "frame_post_draw"
 DURATIONS_FILE = Path(".godot") / "godotkit" / "durations.json"
 
 
@@ -100,13 +107,16 @@ class EntryCatalog:
         if not path.is_file():
             return {}
         try:
-            tests = json.loads(path.read_text(encoding="utf-8")).get("tests", {})
-        except (json.JSONDecodeError, AttributeError) as error:
-            raise ValueError(
-                f"{path}: not a JSON object with a 'tests' object ({error})"
-            ) from error
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError(f"{path}: not valid JSON ({error})") from error
+        if not isinstance(raw, dict):
+            raise ValueError(f"{path}: not a JSON object with a 'tests' object")
+        _known_keys(raw, TOP_KEYS, f"{path}", "test settings go under 'tests'")
+        tests = raw.get("tests", {})
         if not isinstance(tests, dict):
             raise ValueError(f"{path}: 'tests' must be an object")
+        _known_keys(tests, TEST_KEYS, f"{path}: 'tests'", "entry flags go in 'entries'")
         return tests
 
     def _entry(self, raw: object, shared: SuiteEntry) -> SuiteEntry:
@@ -114,6 +124,7 @@ class EntryCatalog:
         if not isinstance(raw, dict) or not isinstance(target, str):
             raise ValueError(f"{CONFIG_FILE}: each entry needs a 'script' or 'scene', got {raw!r}")
         path = target.removeprefix("res://")
+        _known_keys(raw, ENTRY_KEYS, f"{CONFIG_FILE}: entry {path}", "check the spelling")
         if not (self._project / path).is_file():
             raise ValueError(f"{CONFIG_FILE}: no such file: {path}")
         args = _strings(raw.get("args", []), f"args of {path}")
@@ -295,3 +306,41 @@ def _patterns(raw: object, what: str) -> tuple[str, ...]:
         except re.error as error:
             raise ValueError(f"{CONFIG_FILE}: bad '{what}' pattern {pattern!r}: {error}") from error
     return patterns
+
+
+def _known_keys(raw: dict[str, object], known: frozenset[str], where: str, advice: str) -> None:
+    # An unknown key used to be ignored, so a misplaced flag silently did nothing.
+    unknown = sorted(set(raw) - known)
+    if unknown:
+        raise ValueError(f"{where}: unknown keys {unknown}; {advice}")
+
+
+def timeout_hint(project: Path, result: EntryResult) -> str | None:
+    """Why a headless entry most likely timed out, when its own script shows it."""
+    entry, verdict = result.entry, result.verdict
+    if verdict is None or verdict.reason != "timeout" or entry.native or entry.framework:
+        return None
+    script = project / entry.path
+    if script.suffix != ".gd" or not script.is_file():
+        return None
+    if HEADLESS_STALL not in script.read_text(encoding="utf-8", errors="replace"):
+        return None
+    return f"awaits RenderingServer.{HEADLESS_STALL}, which never fires headless; mark it native"
+
+
+def failure_note(project: Path, result: EntryResult) -> str:
+    """One line on why an entry failed: a hint, its first issue, or its failure count."""
+    verdict = result.verdict
+    if verdict is None:
+        raise ValueError(f"{result.entry.name} did not run, so it cannot have failed")
+    hint = timeout_hint(project, result)
+    if hint is not None:
+        return f"{verdict.reason}: {hint}"
+    if verdict.issues:
+        return f"{verdict.reason}: {verdict.issues[0].line}"
+    summary = verdict.summary or {}
+    if summary.get("failures"):
+        return (
+            f"{verdict.reason}: {summary['failures']} of {summary.get('checks', 0)} checks failed"
+        )
+    return verdict.reason

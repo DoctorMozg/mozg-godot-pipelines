@@ -6,6 +6,7 @@ import shutil
 
 import pytest
 from l10n_rig import CliRunner, StoreRig
+from l10nkit.csvbuild import CsvBuild
 from l10nkit.godot_project import ProjectSettings
 from l10nkit.po import RES_BUILD, PluralRules, PoBuild
 from l10nkit.store import StoreError
@@ -116,3 +117,23 @@ class TestRegister:
     def test_project_without_project_godot(self, rig: StoreRig, run_cli: CliRunner) -> None:
         rig.add("A")
         assert run_cli("build", "--register")[1]["detail"].startswith("no project.godot")
+
+
+class TestCsvBuild:
+    def test_godot_46_layout(self, built: StoreRig) -> None:
+        CsvBuild(built.store, PluralRules.load()).run()
+        text = (built.store.root / "build" / "strings.csv").read_text(encoding="utf-8")
+        assert text == (
+            "keys,?plural,?context,en,fr\n"
+            f"?pluralrule,,,{EN_RULE},{FR_RULE}\n"
+            "APP_NAME,,,Alone,\n"
+            "ITEMS,ITEMS,,{n} item,{n} objet\n"
+            ",,,{n} items,{n} objets\n"
+            "UI_EXIT,,,Exit,\n"
+            "UI_OPEN,,door,Open,Ouvrir\n"
+            "UI_QUOTE,,,Say hello,\n"
+        )
+
+    def test_csv_is_not_registered(self, built: StoreRig, run_cli: CliRunner) -> None:
+        payload = run_cli("build", "--format", "csv", "--register")[1]
+        assert payload["detail"] == "--register lists PO files; Godot registers CSV on import"

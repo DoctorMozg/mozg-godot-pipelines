@@ -114,7 +114,7 @@ def _entry(key: str, record: Mapping[str, Json], entry: Mapping[str, Json], fuzz
     if forms is None:
         lines.append(f"msgstr {_quoted(str(entry['text']))}")
     else:
-        # tr_n looks the entry up by msgid; msgid_plural only has to be there (UNTESTED until L2b).
+        # tr_n finds the entry by msgid, so msgid_plural repeats the key (live test, Godot 4.7.2).
         lines.append(f"msgid_plural {_quoted(key)}")
         lines += [f"msgstr[{i}] {_quoted(form)}" for i, form in enumerate(forms)]
     return "\n".join(lines) + "\n"

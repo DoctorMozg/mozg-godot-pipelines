@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from l10nkit.contracts import ContractError, Json
+from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
 from l10nkit.godot_project import ProjectSettings
 from l10nkit.po import RES_BUILD, PluralRules, PoBuild
@@ -48,7 +49,8 @@ def _parser() -> argparse.ArgumentParser:
     export = commands.add_parser("export", help="write one namespace as a Godot translation CSV")
     export.add_argument("--ns", required=True)
     export.add_argument("--out", type=Path, required=True)
-    build = commands.add_parser("build", help="write i18n/build/<locale>.po for every locale")
+    build = commands.add_parser("build", help="write the Godot translation files into i18n/build")
+    build.add_argument("--format", choices=("po", "csv"), default="po", help="csv needs Godot 4.6+")
     build.add_argument("--register", action="store_true", help="list the PO files in project.godot")
     status = commands.add_parser("status", help="coverage per locale")
     status.add_argument("--locale", action="append", default=[])
@@ -122,6 +124,10 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
             return CsvImport(store).run(path, args.ns or path.stem)
         return CsvExport(store).run(args.ns, path)
     if args.command == "build":
+        if args.format == "csv":
+            if args.register:
+                raise StoreError("--register lists PO files; Godot registers CSV on import")
+            return CsvBuild(store, PluralRules.load()).run()
         built = PoBuild(store, PluralRules.load()).run()
         if args.register:
             paths = [RES_BUILD + Path(f).name for f in built["files"]]

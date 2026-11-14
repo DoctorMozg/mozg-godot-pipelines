@@ -32,6 +32,7 @@ class TestPreEdit:
             "i18n/locales/ru/game.json",
             "i18n/build/ru.po",
             "i18n/events/x.json",
+            "i18n/shots/index.json",
         ],
     )
     def test_records_are_refused(self, project: Path, file: str) -> None:

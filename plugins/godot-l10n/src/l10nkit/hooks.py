@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 # Records l10nkit validates on write; glossary.json and style/ stay free for people to edit.
 GUARDED = {
     "build": "is generated: run `l10nkit build` instead",
+    "shots": "is generated: run `l10nkit shot` instead",
     "src": "holds source strings: use `l10nkit add`, `edit` or `remove`",
     "locales": "holds translations: use `l10nkit batch export` and `batch apply`",
     "events": "holds immutable review events: use `l10nkit note`",

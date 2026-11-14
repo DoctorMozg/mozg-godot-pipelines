@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contracts:string-shots",
+  "title": "string-shots",
+  "description": "Screenshots of scenes as Godot drew them in each locale, at i18n/shots/index.json, written by l10nkit shot. Each names the keys its picture shows, so a review of KEY@locale finds the pictures of that text.",
+  "type": "object",
+  "required": [
+    "schema",
+    "shots"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "string-shots/1"
+    },
+    "shots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/shot"
+      }
+    }
+  },
+  "$defs": {
+    "shot": {
+      "type": "object",
+      "required": [
+        "path",
+        "locale",
+        "scene",
+        "size",
+        "keys"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "The PNG, relative to the project root.",
+          "type": "string",
+          "pattern": "^i18n/shots/[^/]+/[^/]+\\.png$"
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2
+        },
+        "scene": {
+          "type": "string",
+          "pattern": "^res://.+\\.t?scn$"
+        },
+        "size": {
+          "description": "Window width and height in pixels.",
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "keys": {
+          "description": "Keys of the visible controls that translate their text.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

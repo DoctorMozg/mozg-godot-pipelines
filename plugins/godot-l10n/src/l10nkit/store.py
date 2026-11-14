@@ -18,6 +18,7 @@ from l10nkit.contracts import Contract, Json
 
 log = logging.getLogger(__name__)
 I18N, CONFIG, SRC, LOCALES, EVENTS = "i18n", "l10n.json", "src", "locales", "events"
+SHOTS, SHOT_INDEX = "shots", "index.json"
 KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 LOCALE_PATTERN = re.compile(r"^[a-z]{2,3}(_[A-Z][a-z]{3})?(_[A-Z]{2}|_[0-9]{3})?$")
 SOURCE_FIELDS = (
@@ -57,6 +58,7 @@ class Store:
         self.root = project / I18N
         self._sources = Contract.load("string")
         self._translations = Contract.load("string-translation")
+        self._shots = Contract.load("string-shots")
 
     @classmethod
     def init(cls, project: Path, source_locale: str) -> Store:
@@ -104,6 +106,19 @@ class Store:
         if (doc["namespace"], doc["locale"]) != (namespace, locale):
             raise StoreError(f"{path}: namespace or locale differs from the path")
         return Catalog(namespace, locale, doc["strings"])
+
+    def shots(self) -> list[dict[str, Json]]:
+        """The entries of i18n/shots/index.json; none before the first l10nkit shot."""
+        path = self.root / SHOTS / SHOT_INDEX
+        return list(self._checked(path, self._shots)["shots"]) if path.is_file() else []
+
+    def save_shots(self, shots: Sequence[Mapping[str, Json]]) -> None:
+        doc: dict[str, Json] = {
+            "schema": "string-shots/1", "shots": sorted(shots, key=lambda s: str(s["path"])),
+        }  # fmt: skip
+        self._write_checked(self.root / SHOTS / SHOT_INDEX, doc, self._shots)
+        # Review pictures, not game assets: Godot must not import them.
+        (self.root / SHOTS / ".gdignore").touch()
 
     def find(self, key: str) -> Namespace:
         for namespace in self.namespaces().values():

@@ -146,3 +146,31 @@ body {
 .graph [data-node] { cursor: pointer; }
 .graph [data-node].noted rect { stroke: var(--retake); stroke-width: 3px; }
 .graph [data-node].picked rect, .graph [data-node].found rect { stroke: var(--focus); stroke-width: 4px; }
+
+.strings {
+  padding: 16px;
+}
+
+.strings table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+}
+
+.strings th,
+.strings td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.strings .shot {
+  max-width: 120px;
+  max-height: 68px;
+  margin-right: 4px;
+}
+
+.pill.machine { background: var(--pending); }
+.pill.translated { background: var(--final); }
+.pill.reviewed { background: var(--approved); }

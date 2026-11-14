@@ -178,16 +178,21 @@ filter.addEventListener("change", () => {
   render();
 });
 
+const stringContext = { token, readOnly: Boolean(staticData), fileUrl, showMessage };
+
 if (staticData) {
   setConnection("read-only");
   items = staticData.items;
   render();
+  window.HubStrings.render(staticData.strings, stringContext);
 } else {
   const stream = new EventSource(`api/stream?token=${encodeURIComponent(token)}`);
   stream.addEventListener("items", (event) => {
-    items = JSON.parse(event.data).items;
+    const snapshot = JSON.parse(event.data);
+    items = snapshot.items;
     setConnection("live");
     render();
+    window.HubStrings.render(snapshot.strings, stringContext);
   });
   stream.addEventListener("error", () => setConnection("offline"));
 }

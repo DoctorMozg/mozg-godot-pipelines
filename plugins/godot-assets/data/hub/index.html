@@ -26,8 +26,26 @@
     </header>
     <p id="message" class="message" role="status" hidden></p>
     <main id="grid" class="grid" aria-live="polite"></main>
+    <section id="strings" class="strings" hidden>
+      <h2>Strings</h2>
+      <label>Locale <select id="string-locale"></select></label>
+      <label>State
+        <select id="string-state">
+          <option value="">all</option>
+          <option>machine</option>
+          <option>translated</option>
+          <option>reviewed</option>
+          <option>stale</option>
+        </select>
+      </label>
+      <table>
+        <thead><tr><th>Key</th><th>Source</th><th>Translation</th><th>State</th><th>Screenshots</th><th></th></tr></thead>
+        <tbody id="string-rows"></tbody>
+      </table>
+    </section>
     <script src="items.js"></script>
     <script src="viewers.js"></script>
+    <script src="strings.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

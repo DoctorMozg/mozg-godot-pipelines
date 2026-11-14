@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import math
 import secrets
 import shutil
@@ -19,7 +20,7 @@ from assetkit.hub import PAGE_DIR, build_static
 from assetkit.hubserver import HubConfig, HubServer
 from assetkit.registry import AssetSpec, Registry, VersionSpec
 from assetkit.review import Review
-from assetkit_rig import HUMAN, Lane, png, tiny_png
+from assetkit_rig import HUMAN, Lane, png, tiny_png, write_strings
 from chrome_rig import Chrome, find_chrome
 
 pytestmark = pytest.mark.live_browser
@@ -122,6 +123,27 @@ def test_static_build_opens_from_disk_read_only(chrome: Chrome, lane: Lane) -> N
     connection = "document.getElementById('connection').textContent"
     assert chrome.evaluate(page, connection) == "read-only"
     assert chrome.evaluate(page, f"{_card(lane, '[data-action]')} === null") is True
+    assert chrome.errors == []
+
+
+def _row(item: str, inner: str = "") -> str:
+    return f"document.querySelector('[data-item=\"{item}\"] {inner}')"
+
+
+def test_string_review_in_the_served_page(chrome: Chrome, hub: HubServer) -> None:
+    project = hub.registry.project
+    write_strings(project)
+    (project / "shots").mkdir()
+    (project / "shots" / "hud.png").write_bytes(tiny_png())
+    page = chrome.open(hub.url)
+    chrome.wait_for(page, f"{_row('UI_EXIT@fr')}?.dataset.state === 'machine'")
+    chrome.wait_for(page, f"{_row('UI_EXIT@fr', 'img')}?.naturalWidth === 1")
+    # A stale text is not what the game shows, so it offers nothing to approve.
+    assert chrome.evaluate(page, f"{_row('UI_OPEN@fr', '[data-decision]')} === null") is True
+    chrome.evaluate(page, f"{_row('UI_EXIT@fr', '[data-decision=approve]')}.click()")
+    chrome.wait_for(page, f"{_row('UI_EXIT@fr')}.dataset.state === 'reviewed'")
+    [event] = [json.loads(p.read_text()) for p in (project / "i18n" / "events").glob("*.json")]
+    assert (event["item"], event["decision"], event["author"]) == ("UI_EXIT@fr", "approve", "owner")
     assert chrome.errors == []
 
 

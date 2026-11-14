@@ -143,11 +143,14 @@ def _listing(store: Store, args: argparse.Namespace) -> dict[str, Json]:
         if args.ns and namespace.name != args.ns:
             continue
         catalog = store.catalog(args.locale, namespace.name) if args.locale else None
+        approvals = EventLog(store).approvals() if args.locale else {}
         for key, record in namespace.strings.items():
             row: dict[str, Json] = {"key": key, "namespace": namespace.name}
             row |= {s: record[s] for s in ("source", "forms", "context") if s in record}
             if catalog is not None:
-                row["state"] = key_state(record, catalog.strings.get(key))
+                row["state"] = key_state(
+                    record, catalog.strings.get(key), approvals.get(f"{key}@{args.locale}")
+                )
             if args.state is None or row.get("state") == args.state:
                 rows.append(row)
     return {"count": len(rows), "strings": rows}

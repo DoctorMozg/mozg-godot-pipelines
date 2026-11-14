@@ -66,6 +66,15 @@ class EventLog:
         log.info("note on %s by %s", item, author)
         return event
 
+    def approvals(self) -> dict[str, str]:
+        """When each KEY@locale was last approved, if its latest decision is an approval."""
+        latest: dict[str, Json] = {}
+        # By time first: two writers can make ULIDs in one millisecond in either order.
+        for event in sorted(self.events(), key=lambda e: (str(e["at"]), str(e["id"]))):
+            if event["type"] == "decision":
+                latest[str(event["item"])] = event
+        return {item: str(e["at"]) for item, e in latest.items() if e["decision"] == "approve"}
+
     def events(self, item: str | None = None) -> list[dict[str, Json]]:
         """Events in creation order, of one item or of all."""
         found = []

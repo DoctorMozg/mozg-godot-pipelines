@@ -6,19 +6,26 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 
 from l10nkit.contracts import Json
+from l10nkit.events import EventLog
 from l10nkit.store import Store, source_hash
 
-STATES = ("translated", "machine", "stale", "missing", "dnt")
+STATES = ("reviewed", "translated", "machine", "stale", "missing", "dnt")
 
 
-def key_state(record: Mapping[str, Json], entry: Mapping[str, Json] | None) -> str:
-    """dnt, missing, stale (the source changed since), or the stored machine or translated."""
+def key_state(
+    record: Mapping[str, Json], entry: Mapping[str, Json] | None, approved_at: str | None = None
+) -> str:
+    """dnt, missing, stale, reviewed, or the stored machine or translated.
+
+    Reviewed needs the owner's approval at or after the text was last written."""
     if record.get("dnt"):
         return "dnt"
     if entry is None:
         return "missing"
     if entry["source_hash"] != source_hash(record):
         return "stale"
+    if approved_at is not None and approved_at >= str(entry["by"]["at"]):
+        return "reviewed"
     return str(entry["status"])
 
 
@@ -31,12 +38,14 @@ class Coverage:
         namespaces = self._store.namespaces()
         chosen = [x for x in (locales or self._store.locales()) if x != source_locale]
         rows: list[Json] = []
+        approvals = EventLog(self._store).approvals()
         for locale in chosen:
             counts: Counter[str] = Counter()
             for namespace in namespaces.values():
                 catalog = self._store.catalog(locale, namespace.name)
                 for key, record in namespace.strings.items():
-                    counts[key_state(record, catalog.strings.get(key))] += 1
+                    entry = catalog.strings.get(key)
+                    counts[key_state(record, entry, approvals.get(f"{key}@{locale}"))] += 1
                 counts["orphan"] += len(catalog.strings.keys() - namespace.strings.keys())
             rows.append({"locale": locale, **{s: counts[s] for s in (*STATES, "orphan")}})
         return {

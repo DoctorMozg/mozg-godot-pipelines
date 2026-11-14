@@ -75,7 +75,7 @@
           ]
         },
         "source_hash": {
-          "description": "Hash of the source, context and forms this text translates; a different hash makes it stale.",
+          "description": "What this text translates: the first 16 hex digits of the SHA-256 of the UTF-8 JSON of the source record's source, forms and context fields that are present, keys sorted, separators \", \" and \": \", non-ASCII unescaped (Python json.dumps(sort_keys=True, ensure_ascii=False)). A different hash makes the text stale.",
           "type": "string",
           "pattern": "^[0-9a-f]{16}$"
         },

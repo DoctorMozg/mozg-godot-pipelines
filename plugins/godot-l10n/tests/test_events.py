@@ -7,6 +7,7 @@ from pathlib import Path
 
 from l10n_rig import CliRunner, StoreRig
 from l10nkit.events import UlidSource
+from l10nkit.status import Coverage
 
 
 class TestNotes:
@@ -56,3 +57,38 @@ def test_ids_sort_within_one_millisecond() -> None:
     ids = UlidSource(clock_ms=lambda: 1_700_000_000_000, random_bits=lambda bits: 5)
     first, second = ids.next(), ids.next()
     assert (len(first), first < second) == (26, True)
+
+
+def _decide(rig: StoreRig, item: str, decision: str, at: str) -> None:
+    """A decision as the hub writes it: version_id null, since a string has no versions."""
+    event = {"schema": "item-event/1", "id": UlidSource().next(), "item": item, "type": "decision",
+             "decision": decision, "version_id": None, "author": "owner", "at": at}  # fmt: skip
+    folder = rig.store.root / "events"
+    folder.mkdir(exist_ok=True)
+    (folder / f"{event['id']}.json").write_text(json.dumps(event))
+
+
+def _state(rig: StoreRig) -> str:
+    row = Coverage(rig.store).run(["fr"])["locales"][0]
+    return next(s for s in ("reviewed", "machine", "stale") if row[s])
+
+
+class TestReviewed:
+    def test_approval_after_the_text_reviews_it(self, rig: StoreRig) -> None:
+        rig.add("UI_TITLE", "Asteroid")
+        rig.translate("fr", "UI_TITLE", "Astéroïde", status="machine")
+        written = str(rig.store.catalog("fr", "game").strings["UI_TITLE"]["by"]["at"])
+        _decide(rig, "UI_TITLE@fr", "approve", "2000-01-01T00:00:00Z")
+        assert _state(rig) == "machine"
+        _decide(rig, "UI_TITLE@fr", "approve", written)
+        assert _state(rig) == "reviewed"
+
+    def test_retake_or_reworded_source_undoes_it(self, rig: StoreRig) -> None:
+        rig.add("UI_TITLE", "Asteroid")
+        rig.translate("fr", "UI_TITLE", "Astéroïde", status="machine")
+        _decide(rig, "UI_TITLE@fr", "approve", "2999-01-01T00:00:00Z")
+        _decide(rig, "UI_TITLE@fr", "retake", "2999-01-02T00:00:00Z")
+        assert _state(rig) == "machine"
+        _decide(rig, "UI_TITLE@fr", "approve", "2999-01-03T00:00:00Z")
+        rig.store.edit("UI_TITLE", {"source": "Asteroid Survival"})
+        assert _state(rig) == "stale"

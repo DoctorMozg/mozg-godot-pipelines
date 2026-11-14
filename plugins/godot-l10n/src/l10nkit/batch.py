@@ -70,12 +70,15 @@ class BatchExport:
         catalog = self._store.catalog(locale, namespace).strings
         memory = self._memory(locale)
         notes: dict[str, list[Json]] = {}
-        for event in EventLog(self._store).events():
+        event_log = EventLog(self._store)
+        approvals = event_log.approvals()
+        for event in event_log.events():
             if event["type"] == "note" and event["item"].endswith(f"@{locale}"):
                 notes.setdefault(event["item"].partition("@")[0], []).append(event["body"])
         items: list[Json] = []
         for key, record in source.strings.items():
-            if key_state(record, catalog.get(key)) in states and (
+            approved = approvals.get(f"{key}@{locale}")
+            if key_state(record, catalog.get(key), approved) in states and (
                 limit is None or len(items) < limit
             ):
                 items.append(self._item(key, record, catalog.get(key), memory))

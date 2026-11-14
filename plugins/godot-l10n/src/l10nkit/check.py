@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from l10nkit.contracts import Json
+from l10nkit.events import EventLog
 from l10nkit.po import PluralRules
 from l10nkit.status import key_state
 from l10nkit.store import Store
@@ -47,6 +48,7 @@ class StoreCheck:
         namespaces = self._store.namespaces()
         states: dict[str, Counter[str]] = defaultdict(Counter)
         sources: dict[tuple[str, str], list[str]] = defaultdict(list)
+        approvals = EventLog(self._store).approvals()
         for namespace in namespaces.values():
             for key, record in namespace.strings.items():
                 findings += self._source(key, record, source_locale)
@@ -61,7 +63,7 @@ class StoreCheck:
                         Finding("warning", "orphan", f"{key}@{locale}", "no such source key")
                     )
                 for key, record in namespace.strings.items():
-                    state = key_state(record, catalog.get(key))
+                    state = key_state(record, catalog.get(key), approvals.get(f"{key}@{locale}"))
                     states[locale][state] += 1
                     if state in ("missing", "stale") and locale in self._ship:
                         findings.append(

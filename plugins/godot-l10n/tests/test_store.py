@@ -115,8 +115,8 @@ class TestCoverage:
         report = Coverage(rig.store).run()
         assert (report["keys"], report["namespaces"]) == (5, 1)
         assert report["locales"] == [
-            {"locale": "fr", "translated": 1, "machine": 1, "stale": 1, "missing": 1, "dnt": 1,
-             "orphan": 1},
+            {"locale": "fr", "reviewed": 0, "translated": 1, "machine": 1, "stale": 1,
+             "missing": 1, "dnt": 1, "orphan": 1},
         ]  # fmt: skip
 
     def test_hand_edited_file_that_breaks_the_contract(self, rig: StoreRig) -> None:

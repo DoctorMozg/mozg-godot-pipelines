@@ -134,3 +134,40 @@ class TestMarkers:
         design.project_file("README.md", "Speed <!-- n:top_speed=3 -->\n")
         design.project_file(".mz/notes.md", "<!-- n:top_speed=9 -->\n")
         assert found(sync(design)) == [("warning", "unknown_marker", "README.md:1")]
+
+
+class TestNumbersModel:
+    """A project adopting only balance numbers: no stages, no progression graph."""
+
+    @pytest.fixture
+    def numbers(self, design: DesignBuilder) -> DesignBuilder:
+        design.write(
+            design.root / "design.json",
+            {"schema": "design/1", "title": "Numbers only", "model": "numbers"},
+        )
+        design.project_file("resources/survival.tres", SURVIVAL_TRES)
+        tres = "resources/survival.tres"
+        design.number(
+            "survival_initial_stress", 10, bindings=[{"file": tres, "at": "initial_stress"}]
+        )
+        return design
+
+    def test_validates_and_syncs_without_nodes(
+        self, numbers: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        assert run_cli("validate")[0] == 0
+        code, payload = run_cli("sync")
+        assert (code, payload["numbers"], payload["copies"]) == (0, 1, 1)
+
+    def test_drift_is_still_caught(self, numbers: DesignBuilder, run_cli: CliRunner) -> None:
+        numbers.number("survival_initial_stress", 12, bindings=[
+            {"file": "resources/survival.tres", "at": "initial_stress"}])  # fmt: skip
+        code, payload = run_cli("sync")
+        assert (code, payload["findings"][0]["rule"]) == (1, "drift")
+
+    @pytest.mark.parametrize("command", [("simulate",), ("analyze",), ("render", "--out", "views")])
+    def test_model_commands_refuse(
+        self, numbers: DesignBuilder, run_cli: CliRunner, command: tuple[str, ...]
+    ) -> None:
+        code, payload = run_cli(*command)
+        assert (code, payload["reason"]) == (3, "refused")

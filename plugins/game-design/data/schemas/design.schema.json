@@ -18,11 +18,12 @@
       "minLength": 1
     },
     "model": {
-      "description": "Balance model the design data feeds; campaign (default) needs stages, playstyles and terminal_kinds.",
+      "description": "Balance model the design data feeds; campaign (default) needs stages, playstyles and terminal_kinds; numbers holds balance numbers only, for sync.",
       "enum": [
         "campaign",
         "combat",
-        "rts"
+        "rts",
+        "numbers"
       ]
     },
     "stages": {
@@ -172,7 +173,8 @@
         "model": {
           "enum": [
             "combat",
-            "rts"
+            "rts",
+            "numbers"
           ]
         }
       }

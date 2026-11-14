@@ -14,7 +14,7 @@ from pathlib import Path
 
 from designkit.cite import CitationCheck
 from designkit.contracts import ContractError, Json
-from designkit.design import CAMPAIGN, Design, DesignLoader, Finding, Loaded
+from designkit.design import CAMPAIGN, NUMBERS, Design, DesignLoader, Finding, Loaded
 from designkit.graph import ProgressionAnalysis
 from designkit.models import BalanceModel, balance_model
 from designkit.records import RecordLoader, Records, brief
@@ -131,6 +131,7 @@ def report(
     out: Path | None,
     build: Callable[[Design, BalanceModel], dict[str, Json]],
     campaign_only: bool = False,
+    simulates: bool = False,
 ) -> tuple[dict[str, Json], int]:
     """Runs a report command on valid data, writing the full report to `out` if given."""
     loaded, _, model = _load(root)
@@ -141,6 +142,9 @@ def report(
         detail = (
             f"needs the campaign model's progression graph; this design is {loaded.design.model}"
         )
+        return {"reason": "refused", "detail": detail}, EXIT_REFUSED
+    if simulates and loaded.design.model == NUMBERS:
+        detail = "the numbers model holds balance numbers only; pick campaign, combat or rts"
         return {"reason": "refused", "detail": detail}, EXIT_REFUSED
     result = build(loaded.design, model)
     if out is not None:
@@ -185,7 +189,9 @@ def main(argv: Sequence[str]) -> int:
                 campaign_only=True,
             )
         elif args.command == "simulate":
-            payload, code = report(root, args.out, lambda d, m: m.simulate(args.runs, args.seed))
+            payload, code = report(
+                root, args.out, lambda d, m: m.simulate(args.runs, args.seed), simulates=True
+            )
             # The route of every terminal is in --out; the line stays short.
             for terminal in payload.get("terminals", []):
                 terminal.pop("route", None)

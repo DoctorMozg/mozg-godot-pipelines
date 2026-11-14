@@ -22,6 +22,7 @@ NODE_DIR = "progression"
 HAZARD_DIR = "hazards"
 BALANCE_DIR = "balance"
 CAMPAIGN = "campaign"
+NUMBERS = "numbers"
 log = logging.getLogger(__name__)
 
 Level = Literal["error", "warning"]

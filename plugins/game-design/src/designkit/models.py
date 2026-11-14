@@ -12,7 +12,7 @@ from typing import Protocol
 
 from designkit.combat import CombatModel
 from designkit.contracts import Json
-from designkit.design import CAMPAIGN, Design, Finding
+from designkit.design import CAMPAIGN, NUMBERS, Design, Finding
 from designkit.rts import CounterMatrix, EconomyTimeline, RtsLoader
 from designkit.simulate import CampaignSimulation
 from designkit.units import UnitLoader
@@ -76,6 +76,16 @@ class RtsBalance:
         }  # fmt: skip
 
 
+class NumbersOnly:
+    """Balance numbers and their copies with nothing to simulate; the CLI refuses simulate."""
+
+    def check(self) -> list[Finding]:
+        return []
+
+    def simulate(self, runs: int, seed: int) -> dict[str, Json]:
+        raise ValueError("the numbers model has nothing to simulate")
+
+
 def balance_model(design: Design, root: Path) -> BalanceModel:
     log.info("balance model: %s", design.model)
     if design.model == CAMPAIGN:
@@ -84,4 +94,6 @@ def balance_model(design: Design, root: Path) -> BalanceModel:
         return CombatBalance(root)
     if design.model == "rts":
         return RtsBalance(root)
+    if design.model == NUMBERS:
+        return NumbersOnly()
     raise ValueError(f"no balance model {design.model!r}")

@@ -17,7 +17,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--disable-plugin-autoload -p xdist -ra --strict-config --strict-markers --import-mode=importlib -m 'not live_claude and not live_godot and not live_browser'"
+addopts = "--disable-plugin-autoload -p xdist -ra --strict-config --strict-markers --import-mode=importlib -m 'not live_claude and not live_godot and not live_browser and not live_codex'"
 pythonpath = [
   "tools",
   "tests",
@@ -36,6 +36,7 @@ markers = [
   "live_claude: runs the real claude CLI and costs cents; excluded from make check",
   "live_godot: runs a real Godot binary; selected by make test-godot",
   "live_browser: drives headless Chrome; selected by make test-browser",
+  "live_codex: runs the real codex CLI on the owner's login and costs tokens; selected by make test-codex",
 ]
 
 [tool.ruff]

@@ -1,4 +1,4 @@
-.PHONY: help fmt lint types test test-godot test-browser validate hooks static check
+.PHONY: help fmt lint types test test-godot test-browser test-codex validate hooks static check
 
 SUITES := tests $(patsubst %/,%,$(wildcard plugins/*/tests/))
 PLUGINS := $(patsubst %/,%,$(wildcard plugins/*/))
@@ -12,6 +12,7 @@ help:
 	@echo "  test       pytest per suite, side by side (live_* tests excluded)"
 	@echo "  test-godot pytest of the live_godot tests, which run a real Godot binary"
 	@echo "  test-browser pytest of the live_browser tests, which drive headless Chrome"
+	@echo "  test-codex pytest of the live_codex test, which drives the codex CLI"
 	@echo "  validate   claude plugin validate --strict on the marketplace and every plugin"
 	@echo "  hooks      pre-commit on tracked and new (untracked, not ignored) files"
 	@echo "  static     lint + types + validate + hooks, in parallel"
@@ -51,7 +52,8 @@ test/%:
 
 test-godot: MARK = live_godot
 test-browser: MARK = live_browser
-test-godot test-browser:
+test-codex: MARK = live_codex
+test-godot test-browser test-codex:
 	@for suite in $(SUITES); do \
 	  [ -n "$$(find $$suite -name 'test_*.py' -print -quit)" ] || continue; \
 	  pytest -q -m $(MARK) -o cache_dir=.pytest_cache/$(MARK)_$$(echo $$suite | tr / _) $$suite; \

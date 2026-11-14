@@ -16,6 +16,7 @@ Plugin marketplace `mozg-godot` for Godot 4 game development. The plan, its mile
 ```bash
 make check        # ruff, mypy --strict, skill lint, layout rules, plugin validate, pre-commit, pytest
 make test-godot   # tests marked live_godot, which run the real Godot binary
+make test-codex   # the live_codex smoke test, which drives the codex CLI on the owner's login
 make fmt          # format and auto-fix Python
 python3 tools/lint_skills.py [--fix]
 ```

@@ -1,5 +1,5 @@
 {
-  "description": "Names the running asset review hub at session start",
+  "description": "Names the running review hub and retakes waiting for a new version",
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +7,17 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/assetkit\" hook session-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/assetkit\" hook prompt-submit",
             "timeout": 10
           }
         ]

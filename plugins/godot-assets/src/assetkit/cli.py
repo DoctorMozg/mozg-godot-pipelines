@@ -23,6 +23,7 @@ from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
 from assetkit.hub import HubControl, HubError, build_static
 from assetkit.index import RegistryIndex
+from assetkit.pending import pending_retakes
 from assetkit.promote import Promoter, PromoteRequest
 from assetkit.prune import STORE_ENV, BlobStore, Pruner, default_store
 from assetkit.registry import AssetSpec, Registry, RegistryError, VersionSpec
@@ -130,6 +131,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     serve.add_argument("--foreground", action="store_true", help="serve from this process")
     hub_actions.add_parser("stop", parents=[shared], help="stop this project's hub")
+
+    commands.add_parser("pending", parents=[shared], help="retakes waiting for a new version")
 
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
@@ -269,6 +272,9 @@ class Commands:
             return {"stopped": True}
         info, reused = control.start(self._author)
         return {**info.as_json(), "reused": reused}
+
+    def pending(self, args: argparse.Namespace) -> dict[str, Json]:
+        return {"retakes": [retake.as_json() for retake in pending_retakes(self._registry)]}
 
     def _set_status(self, args: argparse.Namespace) -> dict[str, Json]:
         if not args.asset:

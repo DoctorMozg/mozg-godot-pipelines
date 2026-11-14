@@ -43,7 +43,7 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
    - `godotkit check --project P`: every script loads and every shader compiles (`failed_scripts`, `failed_shaders`).
    - `godotkit test --project P --changed <path>` for each changed file, or `--since <base ref>`: only the entries that can reach the change run.
 
-1. Before calling the work done, run `godotkit gate --project P`. It runs every step even after one fails: `import`, `check`, `strict`, `lint`, `arch`, `boot`, `test`, `perf`. Read `failed`, then each failed step's `reason` and `detail`.
+1. Before calling the work done, run `godotkit gate --project P`. It runs every step even after one fails: `import`, `check`, `strict`, `lint`, `arch`, `boot`, `test`, `perf`, `feel`. Read `failed`, then each failed step's `reason` and `detail`.
 
 1. Fix by step, then run the whole gate again; a receipt covers one tree, so a fix after the gate needs a new one.
 
@@ -53,6 +53,7 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
    - `boot` with `input_dead` or `no_boot_report`: the main scene starts but takes no click, or never reports. Fix startup order, not the probe.
    - `test`: rerun the failed entries alone with `godotkit test --project P --changed <entry> --log-dir <dir>` and read the log before changing code.
    - `perf` with `over_budget`: `detail.table` names each size's breached metric (`frame_ms` and `physics_ms` are p95, counters are maxima). Fix the cost; a budget changes only with the owner. `godotkit perf --native` adds the renderer counters `draw_calls` and `objects`, which read zero headless.
+   - `feel` with `over_budget`: `detail.breaches` names a late action (`input_frames:<action>`, frames after the press, `null` for no response), `camera_clip_frames` or `stuck_frames` from the walk. Rerun with `godotkit feel --project P`.
 
 1. Run `godotkit receipt verify --project P`. Commit only on `ok`; the commit hook refuses anything else.
 

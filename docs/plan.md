@@ -220,6 +220,7 @@ one hub per project: port and pid in .cache/mozg/hub.json, skills reuse it, `ass
 session-start hook prints the running hub's URL
 ```
 
+- Manifest import (B5), AloneGodot at 78b719d in a scratch worktree, 2026-11-14: 55 manifests (57 found, 2 `.original.` copies skipped; the plan's 36 grew), 684 take records, 530 distinct versions of 318 assets (77 repeats), no missing file or sha mismatch; dry run 4.2 s, apply 4.4 s, 7.6 MB of records; hub shows 251 pending, 41 approved, 26 rejected. 13 manifests use shapes the importer skips (depth conversions, layer and UI concept lists), 154 takes record no model (imported as generated, `unrecorded`), and 193 field names stay unmapped (top: technical_review, review_status, job_record, step_id). Licence is `LicenseRef-unreviewed` until a person sets it. The real import is M3.
 - Region notes carry a W3C media fragment (`xywh=percent:x,y,w,h` or `t=start,end`), an optional file role and frame; the writer refuses a box outside the picture or a reversed range. Viewers live in `data/hub/viewers.js`, one per asset kind; sprite frames come from `frame*` files in numeric order or from one sheet split by `--media hframes=… vframes=…`.
 - Browser tests drive headless Chrome over its DevTools pipe (`--remote-debugging-pipe`, fds 3 and 4) with the stdlib only; they are marked `live_browser` and run by `make test-browser`, outside `make check`.
 - The hub writes through the same `Review` class as the CLI, so a click obeys the same rules; a decision on a version that is no longer current shows as stale.

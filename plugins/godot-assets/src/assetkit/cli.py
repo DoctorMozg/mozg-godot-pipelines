@@ -22,6 +22,7 @@ from assetkit.contracts import ContractError, Json
 from assetkit.doctor import Doctor
 from assetkit.godot import GodotMissing, ImportRun, find_godot, run_import
 from assetkit.hub import HubControl, HubError, build_static
+from assetkit.importer import ManifestImporter
 from assetkit.index import RegistryIndex
 from assetkit.pending import pending_retakes
 from assetkit.promote import Promoter, PromoteRequest
@@ -121,6 +122,14 @@ def _parser() -> argparse.ArgumentParser:
         "ship-report", parents=[shared], help="shipped assets and which are AI-generated"
     )
     ship.add_argument("--ai-only", action="store_true", help="list only AI-generated assets")
+
+    manifests = commands.add_parser(
+        "import-manifests", parents=[shared], help="plan registry records from art manifests"
+    )
+    manifests.add_argument("--under", default="art", help="project folder to search")
+    manifests.add_argument(
+        "--apply", action="store_true", help="write the records (default: dry run)"
+    )
 
     hub = commands.add_parser("hub", help="the browser review hub")
     hub_actions = hub.add_subparsers(dest="action", required=True)
@@ -237,6 +246,12 @@ class Commands:
             # Large binaries suit Git LFS; it is reported, never required.
             "git_lfs": shutil.which("git-lfs") is not None,
         }
+
+    def import_manifests(self, args: argparse.Namespace) -> dict[str, Json]:
+        importer = ManifestImporter(self._registry, self._author)
+        report = importer.scan(Path(args.under))
+        applied: Json = importer.apply(report) if args.apply else None
+        return {"dry_run": not args.apply, "report": report.as_json(), "applied": applied}
 
     def ship_report(self, args: argparse.Namespace) -> dict[str, Json]:
         shipped = ship_report(self._registry)

@@ -198,7 +198,8 @@ class TestCli:
         code, payload = run_cli("validate")
         assert code == 0
         assert payload == {
-            "cmd": "validate", "ok": True, "nodes": 1, "errors": 0, "warnings": 0, "findings": []
+            "cmd": "validate", "ok": True, "nodes": 1, "decisions": 0, "contracts": 0,
+            "open_contracts": 0, "errors": 0, "warnings": 0, "findings": [],
         }  # fmt: skip
 
     def test_errors_exit_one_with_findings(self, design: DesignBuilder, run_cli: CliRunner) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from design_rig import DesignBuilder, load
+from design_rig import CliRunner, DesignBuilder, load
 from designkit.records import RecordLoader, Records
 
 HAZARD_FIELDS = ["trigger", "warning", "consequence", "resolution", "save_load"]
@@ -45,6 +45,35 @@ class TestSupersession:
         assert [d.id for d in records.standing("survival")] == ["0002-magnetic-slots"]
 
 
+class TestHandoff:
+    def test_ready_contract_becomes_a_brief_with_standing_decisions(
+        self, alone: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        alone.contract("pressure_leak", topic="survival", fields=LEAK,
+                       tests=["tests/campaign_hazard_identity_test.gd"])  # fmt: skip
+        code, payload = run_cli("handoff", "pressure_leak")
+        assert (code, payload["ok"], payload["owner"]) == (0, True, "docs/campaign-rules-canon.md")
+        assert payload["decisions"] == [
+            {"id": "0002-magnetic-slots", "chosen": "06:00 and 18:00", "status": "agreed"}
+        ]
+        assert payload["fields"]["warning"] == "120 min"
+
+    def test_open_and_missing_fields_refuse_the_handoff(
+        self, alone: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        fields = {**LEAK, "warning": "OPEN"}
+        del fields["save_load"]
+        alone.contract("pressure_leak", fields=fields)
+        code, payload = run_cli("handoff", "pressure_leak")
+        assert (code, payload["reason"], payload["open"]) == (1, "open", ["save_load", "warning"])
+        _, summary = run_cli("validate")
+        assert (summary["contracts"], summary["open_contracts"]) == (1, 1)
+
+    def test_unknown_contract_is_refused(self, alone: DesignBuilder, run_cli: CliRunner) -> None:
+        code, payload = run_cli("handoff", "ghost")
+        assert (code, payload["reason"]) == (3, "refused")
+
+
 class TestChecks:
     def test_decision_problems(self, alone: DesignBuilder) -> None:
         alone.decision("0004-open", status="open", chosen="Every 2 h")
@@ -75,3 +104,9 @@ class TestChecks:
         design.node("start")
         design.canon(("survival", "a.md"), ("survival", "b.md"))
         assert records_of(design)[1] == [("duplicate_id", "canon.json")]
+
+    def test_validate_reports_record_errors(self, alone: DesignBuilder, run_cli: CliRunner) -> None:
+        alone.decision("0004-open", status="open", chosen="Every 2 h")
+        code, payload = run_cli("validate")
+        assert (code, payload["decisions"], payload["errors"]) == (1, 4, 1)
+        assert payload["findings"][0]["rule"] == "open_with_answer"

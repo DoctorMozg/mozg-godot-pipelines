@@ -13,8 +13,9 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from designkit.contracts import ContractError, Json
-from designkit.design import Design, DesignLoader, Finding
+from designkit.design import Design, DesignLoader, Finding, Loaded
 from designkit.graph import ProgressionAnalysis
+from designkit.records import RecordLoader, Records, brief
 from designkit.render import Renderer
 from designkit.simulate import CampaignSimulation
 from designkit.sync import DriftCheck
@@ -47,6 +48,10 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "sync", parents=[shared], help="balance numbers against their copies in files and docs"
     )
+    handoff = commands.add_parser(
+        "handoff", parents=[shared], help="a coder brief for a contract with no OPEN field"
+    )
+    handoff.add_argument("contract", help="id of a contract in design/contracts")
     render = commands.add_parser(
         "render", parents=[shared], help="draw the graph and charts as SVG for the review hub"
     )
@@ -64,10 +69,39 @@ def _positive(text: str) -> int:
 
 
 def validate(root: Path) -> tuple[dict[str, Json], int]:
-    loaded = DesignLoader(root).load()
+    loaded, records = _load(root)
     nodes = len(loaded.design.nodes) if loaded.design else 0
-    payload = {"nodes": nodes, **_summary(loaded.findings)}
+    payload = {
+        "nodes": nodes,
+        "decisions": len(records.decisions),
+        "contracts": len(records.contracts),
+        "open_contracts": sum(bool(records.open_fields(c)) for c in records.contracts.values()),
+        **_summary(loaded.findings),
+    }
     return payload, EXIT_FAILED if loaded.errors else EXIT_OK
+
+
+def handoff(root: Path, contract_id: str) -> tuple[dict[str, Json], int]:
+    loaded, records = _load(root)
+    if loaded.design is None or loaded.errors:
+        return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
+    contract = records.contracts.get(contract_id)
+    if contract is None:
+        return {"reason": "refused", "detail": f"no contract {contract_id!r}"}, EXIT_REFUSED
+    still_open = records.open_fields(contract)
+    if still_open:
+        log.info("refused handoff of %s: %d open fields", contract_id, len(still_open))
+        return {"reason": "open", "contract": contract_id, "open": still_open}, EXIT_FAILED
+    return brief(records, contract), EXIT_OK
+
+
+def _load(root: Path) -> tuple[Loaded, Records]:
+    loaded = DesignLoader(root).load()
+    if loaded.design is None:
+        return loaded, Records()
+    records, found = RecordLoader(root).load(loaded.design.contract_fields)
+    loaded.findings = sorted(loaded.findings + found, key=lambda f: (f.where, f.rule, f.detail))
+    return loaded, records
 
 
 def report(
@@ -107,6 +141,8 @@ def main(argv: Sequence[str]) -> int:
         elif args.command == "sync":
             project = args.project.resolve()
             payload, code = report(root, None, lambda d: DriftCheck(d, project).run())
+        elif args.command == "handoff":
+            payload, code = handoff(root, args.contract)
         elif args.command == "render":
             payload, code = report(
                 root, None, lambda d: _rendered(Renderer(d, args.runs, args.seed).write(args.out))

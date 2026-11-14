@@ -10,6 +10,7 @@ from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
+from l10nkit.batch import BatchApply, BatchExport
 from l10nkit.check import StoreCheck
 from l10nkit.codescan import CodeScan
 from l10nkit.contracts import ContractError, Json
@@ -56,6 +57,20 @@ def _parser() -> argparse.ArgumentParser:
     build = commands.add_parser("build", help="write the Godot translation files into i18n/build")
     build.add_argument("--format", choices=("po", "csv"), default="po", help="csv needs Godot 4.6+")
     build.add_argument("--register", action="store_true", help="list the PO files in project.godot")
+    batch = commands.add_parser("batch", help="translation batches: export, then apply")
+    steps = batch.add_subparsers(dest="step", required=True)
+    export_batch = steps.add_parser("export", help="masked strings of one namespace and locale")
+    export_batch.add_argument("--ns", required=True)
+    export_batch.add_argument("--locale", required=True)
+    export_batch.add_argument(
+        "--state", action="append", choices=("missing", "stale", "machine", "translated")
+    )
+    export_batch.add_argument("--limit", type=int)
+    export_batch.add_argument("--out", type=Path, required=True)
+    apply = steps.add_parser("apply", help="write the filled items that pass the checks")
+    apply.add_argument("file", type=Path)
+    apply.add_argument("--kind", choices=("llm", "human"), default="llm")
+    apply.add_argument("--model", help="model id; required for --kind llm")
     pattern = commands.add_parser("pattern", help="declare or drop a pattern of runtime-built keys")
     pattern.add_argument("--ns", required=True)
     pattern.add_argument(
@@ -135,6 +150,23 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
         if args.command == "import":
             return CsvImport(store).run(path, args.ns or path.stem)
         return CsvExport(store).run(args.ns, path)
+    if args.command == "batch":
+        rules = PluralRules.load()
+        if args.step == "apply":
+            if args.kind == "llm" and not args.model:
+                raise StoreError("--kind llm needs --model, the provenance of the text")
+            return BatchApply(store, rules).run(args.file, args.kind, args.model)
+        states = args.state or ["missing", "stale"]
+        batch = BatchExport(store, rules).run(args.ns, args.locale, states, args.limit)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(
+            json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        return {
+            "out": str(args.out),
+            "items": len(batch["items"]),
+            "glossary": len(batch["glossary"]),
+        }
     if args.command == "pattern":
         namespace = store.namespaces().get(args.ns)
         if namespace is None:

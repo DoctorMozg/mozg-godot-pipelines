@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "mine_ticks",
+  "title": "Mine ticks",
+  "value": 40,
+  "unit": "ticks",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "mine_ticks"
+    },
+    {
+      "file": "design/economy.json",
+      "at": "gather_time"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "unit/1",
+  "id": "soldier",
+  "title": "Soldier",
+  "health": 100,
+  "damage": 10,
+  "cooldown": 30,
+  "reach": 1.5,
+  "speed": 0.1,
+  "cost": 20
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "unit/1",
+  "id": "worker",
+  "title": "Worker",
+  "health": 40,
+  "damage": 0,
+  "cooldown": 30,
+  "reach": 0,
+  "speed": 0.12
+}

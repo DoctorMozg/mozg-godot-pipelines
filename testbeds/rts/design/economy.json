@@ -1,0 +1,16 @@
+{
+  "schema": "economy/1",
+  "worker": "worker",
+  "workers": 30,
+  "carry": 5,
+  "gather_time": 40,
+  "trip_distance": 10,
+  "horizon": 600,
+  "sample_every": 100,
+  "army": {
+    "unit": "soldier",
+    "start": 220,
+    "train_time": 6,
+    "cap": 250
+  }
+}

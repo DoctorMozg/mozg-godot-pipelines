@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "worker_speed",
+  "title": "Worker speed",
+  "value": 0.12,
+  "unit": "m/tick",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "worker_speed"
+    },
+    {
+      "file": "design/units/worker.json",
+      "at": "speed"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "train_ticks",
+  "title": "Train ticks",
+  "value": 6,
+  "unit": "ticks",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "train_ticks"
+    },
+    {
+      "file": "design/economy.json",
+      "at": "army.train_time"
+    }
+  ]
+}

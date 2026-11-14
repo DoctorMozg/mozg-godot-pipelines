@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "worker_health",
+  "title": "Worker health",
+  "value": 40,
+  "unit": "hp",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "worker_health"
+    },
+    {
+      "file": "design/units/worker.json",
+      "at": "health"
+    }
+  ]
+}

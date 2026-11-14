@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "carry",
+  "title": "Carry",
+  "value": 5,
+  "unit": "ore",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "carry"
+    },
+    {
+      "file": "design/economy.json",
+      "at": "carry"
+    }
+  ]
+}

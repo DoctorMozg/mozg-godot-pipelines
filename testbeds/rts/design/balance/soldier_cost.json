@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "soldier_cost",
+  "title": "Soldier cost",
+  "value": 20,
+  "unit": "ore",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "soldier_cost"
+    },
+    {
+      "file": "design/units/soldier.json",
+      "at": "cost"
+    }
+  ]
+}

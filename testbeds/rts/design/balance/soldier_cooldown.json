@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "soldier_cooldown",
+  "title": "Soldier cooldown",
+  "value": 30,
+  "unit": "ticks",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "attack_cooldown"
+    },
+    {
+      "file": "design/units/soldier.json",
+      "at": "cooldown"
+    }
+  ]
+}

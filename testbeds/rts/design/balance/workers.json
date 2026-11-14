@@ -1,0 +1,20 @@
+{
+  "schema": "balance-number/1",
+  "id": "workers",
+  "title": "Workers",
+  "value": 30,
+  "unit": "units",
+  "status": "baseline",
+  "source": "testbeds/rts data/rules.tres at a2a900a",
+  "date": "2026-11-14",
+  "bindings": [
+    {
+      "file": "data/rules.tres",
+      "at": "start_workers"
+    },
+    {
+      "file": "design/economy.json",
+      "at": "workers"
+    }
+  ]
+}

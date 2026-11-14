@@ -15,6 +15,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DESIGNKIT = REPO_ROOT / "plugins" / "game-design" / "bin" / "designkit"
 KNOWN_GODOT = Path("/home/drmozg/Tools/Godot_v4.7.2-stable_linux.x86_64")
 TIMEOUT_S = 120
+# Set from the first measured run, 2026-11-14 (seed 7, Godot 4.7.2): 750 mined against 600.
+MINED_TOLERANCE = 0.25
 
 
 def _designkit(command: str, bed: str) -> dict[str, Any]:
@@ -48,7 +50,7 @@ def _measured(bed: str, script: str, scratch: Path) -> dict[str, str]:
     return dict(field.split("=", 1) for field in line.split()[1:])
 
 
-@pytest.mark.parametrize("bed", ["arena3d"])
+@pytest.mark.parametrize("bed", ["arena3d", "rts"])
 def test_design_numbers_match_the_bed(bed: str) -> None:
     validate, sync = _designkit("validate", bed), _designkit("sync", bed)
     assert (validate["ok"], validate["findings"]) == (True, [])
@@ -63,3 +65,12 @@ class TestPredictions:
         assert measured["result"] == "won"
         # Hits land on fixed cooldowns, so the closed form is exact: one enemy hit lands.
         assert float(measured["player_health"]) == encounter["health_left"] == 90
+
+    def test_rts_economy_predicts_the_ore_mined(self, tmp_path: Path) -> None:
+        timeline = _designkit("simulate", "rts")["economy"]["timeline"]
+        measured = _measured("rts", "res://tests/match_bot_test.gd", tmp_path)
+        mined, tick = (int(n) for n in measured["mined"].split("@"))
+        # The summary adds both sides; the model uses the mean field distance of 10, while the
+        # seeded fields lie 8 to 12 away, so a nearer one fits a third trip before tick 600.
+        predicted = 2 * next(s["mined"] for s in timeline if s["time"] == tick)
+        assert abs(predicted - mined) <= MINED_TOLERANCE * mined, (predicted, mined)

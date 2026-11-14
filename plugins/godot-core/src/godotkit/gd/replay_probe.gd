@@ -1,9 +1,12 @@
 extends Node
 ## godotkit replay probe, added as an autoload: presses the recorded actions on their physics frames,
 ## records action changes when asked, and prints the hash of the `playtest_state` node every K frames.
+## With a feel subject it also prints, every frame, where the subject is and whether the camera clips.
 
 const ARG_PREFIX: String = "--godotkit-replay="
 const STATE_GROUP: StringName = &"playtest_state"
+# Movers the camera ray looks past before it gives up on finding level geometry behind them.
+const MAX_MOVERS: int = 4
 
 var _frames: int = 0
 var _every: int = 1
@@ -14,6 +17,7 @@ var _frame: int = 0
 var _hashes: int = 0
 var _state_path: String = ""
 var _reported: bool = false
+var _subject: String = ""
 
 
 func _ready() -> void:
@@ -24,6 +28,7 @@ func _ready() -> void:
 	var every: int = config.get("every", 1)
 	_every = maxi(1, every)
 	_record = config.get("record", false)
+	_subject = config.get("subject", "")
 	var acts: Array = config.get("acts", [])
 	for act: Array in acts:
 		var frame: int = act[0]
@@ -38,6 +43,8 @@ func _physics_process(_delta: float) -> void:
 	var done: int = _frame - 1
 	if done > 0 and (done % _every == 0 or done == _frames):
 		_print_hash(done)
+	if done > 0 and not _subject.is_empty():
+		_print_feel(done)
 	if done >= _frames:
 		_report(done)
 		get_tree().quit()
@@ -66,6 +73,47 @@ func _print_hash(done: int) -> void:
 	var value: String = str(state.call(&"state_hash"))
 	_hashes += 1
 	print("GODOTKIT_REPLAY_HASH " + JSON.stringify({"f": done, "hash": value}))
+
+
+func _print_feel(done: int) -> void:
+	var scene: Node = get_tree().current_scene
+	var subject: Node3D = scene.get_node_or_null(_subject) as Node3D if scene else null
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var clip: bool = false
+	if camera != null:
+		clip = _camera_clips(camera, subject)
+	var at: Array = []
+	if subject != null:
+		at = [subject.global_position.x, subject.global_position.y, subject.global_position.z]
+	print("GODOTKIT_FEEL " + JSON.stringify({"f": done, "pos": at, "clip": clip}))
+
+
+# The camera clips when it sits inside a body or level geometry stands between it and the
+# subject; a character or rigid body crossing the view is a passing occluder, not a camera fault.
+func _camera_clips(camera: Camera3D, subject: Node3D) -> bool:
+	var space: PhysicsDirectSpaceState3D = camera.get_world_3d().direct_space_state
+	var point: PhysicsPointQueryParameters3D = PhysicsPointQueryParameters3D.new()
+	point.position = camera.global_position
+	if not space.intersect_point(point, 1).is_empty():
+		return true
+	if subject == null:
+		return false
+	var ray: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		camera.global_position, subject.global_position)
+	var excluded: Array[RID] = []
+	var body: CollisionObject3D = subject as CollisionObject3D
+	if body != null:
+		excluded.append(body.get_rid())
+	for attempt: int in MAX_MOVERS:
+		ray.exclude = excluded
+		var hit: Dictionary = space.intersect_ray(ray)
+		if hit.is_empty():
+			return false
+		var collider: Object = hit["collider"]
+		if not (collider is PhysicsBody3D and not collider is StaticBody3D):
+			return true
+		excluded.append(hit["rid"])
+	return false
 
 
 func _record_changes() -> void:

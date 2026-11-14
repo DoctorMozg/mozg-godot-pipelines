@@ -23,6 +23,13 @@ FPS = 60
 HASH_LINE = re.compile(r"^GODOTKIT_REPLAY_HASH (?P<json>\{.*\})$", re.M)
 ACT_LINE = re.compile(r"^GODOTKIT_REPLAY_ACT (?P<json>\{.*\})$", re.M)
 REPORT_LINE = re.compile(r"^GODOTKIT_REPLAY (?P<json>\{.*\})$", re.M)
+FEEL_LINE = re.compile(r"^GODOTKIT_FEEL (?P<json>\{.*\})$", re.M)
+
+
+class FeelSample(TypedDict):
+    f: int
+    pos: list[float]
+    clip: bool
 
 
 class Divergence(TypedDict):
@@ -43,6 +50,8 @@ class ReplayRequest:
     record_to: Path | None = None
     timeout_s: float = 300.0
     display: NativeDisplay | None = None
+    # A node path under the scene; each frame then samples its position and camera clipping.
+    subject: str | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +62,7 @@ class RunTrace:
     state: str
     hashes: dict[int, str]
     acts: tuple[Act, ...] = field(default=())
+    feel: tuple[FeelSample, ...] = field(default=())
 
 
 @dataclass(frozen=True)
@@ -102,6 +112,7 @@ class ReplayProbe:
             "every": request.every,
             "record": request.record_to is not None,
             "acts": [list(act) for act in acts],
+            "subject": request.subject or "",
         }
         # A person recording natively plays in real time; every other run is lockstep.
         lockstep = request.record_to is None or request.display is None
@@ -132,9 +143,13 @@ class ReplayProbe:
             (int(row["f"]), str(row["action"]), bool(row["pressed"]), float(row["strength"]))
             for row in (json.loads(m["json"]) for m in ACT_LINE.finditer(result.output))
         )
+        feel = tuple(
+            FeelSample(f=int(row["f"]), pos=[float(v) for v in row["pos"]], clip=bool(row["clip"]))
+            for row in (json.loads(m["json"]) for m in FEEL_LINE.finditer(result.output))
+        )
         frames = int(raw["frames"]) if report else None
         state = str(raw.get("state", ""))
-        return RunTrace(verdict, result.duration_s, frames, state, hashes, recorded)
+        return RunTrace(verdict, result.duration_s, frames, state, hashes, recorded, feel)
 
 
 def _validate(request: ReplayRequest) -> None:

@@ -98,7 +98,13 @@ class TestVerdict:
         runs = seen.read_text().splitlines()
         assert len(runs) == 4
         assert "--fixed-fps 60 -- --godotkit-replay=" in runs[0]
-        assert json.loads(runs[1]) == {"frames": 20, "every": 10, "record": False, "acts": []}
+        assert json.loads(runs[1]) == {
+            "frames": 20,
+            "every": 10,
+            "record": False,
+            "acts": [],
+            "subject": "",
+        }
 
     def test_runs_that_part_name_the_first_frame(
         self, fake_godot: FakeGodotFactory, make_project: ProjectFactory, tmp_path: Path

@@ -98,6 +98,7 @@ The locale (`ru`, `pt_BR`) and optionally one namespace; without one, every name
 - Japanese, Chinese and Korean have one plural form; Russian and Polish have three, Arabic six. `plural_count` in the item is the number to fill.
 - A language with longer words than the source (German, Russian) breaks `max_chars` first; rephrase before abbreviating, and never cut a token.
 - `l10nkit list --locale <locale> --state machine` lists everything still waiting for the owner's review.
+- `l10nkit shot --scene res://ui/hud.tscn --locale <locale>` draws the screens a batch changed, so the owner reviews each text in the hub as the game shows it. It needs a display (DISPLAY or xvfb-run); `window_clamped` means the screen is smaller than a requested size.
 - LLM error detection in game LQA peaks at F1 0.766 (AMTA 2026, Tian and Wu; Japanese hardest), so the judge narrows the owner's review and never replaces it.
 
 ## Common Rationalizations

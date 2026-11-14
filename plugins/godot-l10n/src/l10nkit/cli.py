@@ -19,11 +19,19 @@ from l10nkit.contracts import ContractError, Json
 from l10nkit.csvbuild import CsvBuild
 from l10nkit.csvio import CsvExport, CsvImport
 from l10nkit.events import EventLog
-from l10nkit.godot import GodotMissing, GodotRunFailed, GodotRunner, find_godot
+from l10nkit.godot import (
+    GodotMissing,
+    GodotRunFailed,
+    GodotRunner,
+    NoDisplay,
+    find_display,
+    find_godot,
+)
 from l10nkit.godot_project import ProjectSettings
 from l10nkit.measure import Measure
 from l10nkit.po import RES_BUILD, PluralRules, PoBuild
 from l10nkit.pseudo import PseudoRun
+from l10nkit.shot import ShotRun
 from l10nkit.status import STATES, Coverage, key_state
 from l10nkit.store import Store, StoreError
 
@@ -103,6 +111,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     pseudo.add_argument("--frames", type=int, default=3, help="frames to wait before reading")
     pseudo.add_argument("--timeout", type=float, default=120.0, help="seconds")
+    shot = commands.add_parser("shot", help="pictures of a scene in each locale, for review")
+    shot.add_argument("--scene", required=True, help="res:// path of the scene to draw")
+    shot.add_argument("--locale", action="append", default=[], help="default every locale")
+    shot.add_argument(
+        "--size", action="append", default=[], help="WIDTHxHEIGHT; default the project's"
+    )
+    shot.add_argument("--frames", type=int, default=3, help="frames drawn before the picture")
+    shot.add_argument("--timeout", type=float, default=120.0, help="seconds")
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     status = commands.add_parser("status", help="coverage per locale")
@@ -235,15 +251,25 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
         }  # fmt: skip
     if args.command == "pseudo":
         runner = GodotRunner(find_godot(os.environ), args.timeout)
-        if not (args.project / ".godot").is_dir():
-            done = runner.import_project(args.project)
-            if not done.ok:
-                raise GodotRunFailed(f"import failed: {done.reason}")
+        _import_once(runner, args.project)
         problems = PseudoRun(store, runner).run(args.scene, _sizes(args.size), args.frames)
         return {
             "scene": args.scene, "errors": sum(p.level == "error" for p in problems),
             "rules": dict(sorted(Counter(p.rule for p in problems).items())),
             "findings": [p.as_json() for p in problems[:SHOWN_FINDINGS]],
+        }  # fmt: skip
+    if args.command == "shot":
+        binary = find_godot(os.environ)
+        native = GodotRunner(binary, args.timeout, find_display(os.environ))
+        _import_once(GodotRunner(binary, args.timeout), args.project)
+        sizes = _sizes(args.size) or [ProjectSettings(args.project).viewport_size()]
+        po = PoBuild(store, PluralRules.load())
+        shots, problems = ShotRun(store, native, po).run(
+            args.scene, args.locale, sizes, args.frames
+        )
+        return {
+            "scene": args.scene, "errors": len(problems), "shots": shots,
+            "findings": [p.as_json() for p in problems],
         }  # fmt: skip
     if args.command == "build":
         if args.format == "csv":
@@ -260,6 +286,13 @@ def run(args: argparse.Namespace) -> dict[str, Json]:
             raise StoreError("--state needs --locale")
         return _listing(store, args)
     return Coverage(store).run(args.locale)
+
+
+def _import_once(runner: GodotRunner, project: Path) -> None:
+    if not (project / ".godot").is_dir():
+        done = runner.import_project(project)
+        if not done.ok:
+            raise GodotRunFailed(f"import failed: {done.reason}")
 
 
 def _sizes(given: Sequence[str]) -> list[tuple[int, int]]:
@@ -293,7 +326,7 @@ def main(argv: Sequence[str]) -> int:
             {"cmd": args.command, "ok": False, "reason": "godot_failed", "detail": str(error)},
             EXIT_FAILED,
         )
-    except (ContractError, GodotMissing) as error:
+    except (ContractError, GodotMissing, NoDisplay) as error:
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP
         )

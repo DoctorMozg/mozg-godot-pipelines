@@ -24,6 +24,7 @@ ECONOMY_FILE = "economy.json"
 @dataclass(frozen=True)
 class Army:
     unit: str
+    start: int
     train_time: float
     cap: int
 
@@ -55,7 +56,7 @@ class EconomyTimeline:
         batch = economy.workers * economy.carry
         army = economy.army
         cost = (self._units[army.unit].cost or 0.0) if army else 0.0
-        count = 0
+        count = army.start if army else 0
         mined = ore = 0.0
         trained_first: float | None = None
         samples: list[Json] = []
@@ -164,7 +165,8 @@ def economy_of(record: Mapping[str, Json]) -> Economy:
         trip_distance=float(record["trip_distance"]),
         horizon=float(record["horizon"]),
         sample_every=float(record["sample_every"]) if "sample_every" in record else None,
-        army=Army(str(army["unit"]), float(army["train_time"]), int(army["cap"])) if army else None,
+        army=Army(str(army["unit"]), int(army.get("start", 0)), float(army["train_time"]),
+                  int(army["cap"])) if army else None,
     )  # fmt: skip
 
 

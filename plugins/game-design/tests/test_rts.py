@@ -10,7 +10,7 @@ from designkit.rts import CounterMatrix, strength_ratio
 from designkit.units import Unit, UnitLoader
 
 # Worker, carry, mining and cost from testbeds/rts data/rules.tres at a2a900a; the field
-# sits 8 to 12 from the base. The army cap is the test's own.
+# sits 8 to 12 from the base. The army start and cap are the test's own.
 BED_ECONOMY: dict[str, Any] = {
     "schema": "economy/1", "worker": "worker", "workers": 30, "carry": 5, "gather_time": 40,
     "trip_distance": 10, "horizon": 600, "sample_every": 300,
@@ -50,11 +50,13 @@ class TestEconomy:
             {"time": 600, "mined": 300, "ore": 0, "army": 15},
         ]
 
-    def test_workers_filling_the_cap(self, rts: DesignBuilder, run_cli: CliRunner) -> None:
-        army = {**BED_ECONOMY["army"], "cap": 30}
+    def test_side_starting_at_the_cap(self, rts: DesignBuilder, run_cli: CliRunner) -> None:
+        # The rts bed spawns 220 soldiers beside its 30 workers, filling 250 places at once.
+        army = {**BED_ECONOMY["army"], "start": 220, "cap": 250}
         rts.write(rts.root / "economy.json", {**BED_ECONOMY, "army": army})
         economy = run_cli("simulate")[1]["economy"]
-        assert (economy["first_trained"], economy["timeline"][-1]["ore"]) == (None, 300)
+        last = economy["timeline"][-1]
+        assert (economy["first_trained"], last["ore"], last["army"]) == (None, 300, 220)
 
     def test_economy_problems(self, rts: DesignBuilder, run_cli: CliRunner) -> None:
         rts.unit("soldier", cost=0)

@@ -6,10 +6,7 @@
   "type": "object",
   "required": [
     "schema",
-    "title",
-    "stages",
-    "playstyles",
-    "terminal_kinds"
+    "title"
   ],
   "additionalProperties": false,
   "properties": {
@@ -19,6 +16,13 @@
     "title": {
       "type": "string",
       "minLength": 1
+    },
+    "model": {
+      "description": "Balance model the design data feeds; campaign (default) needs stages, playstyles and terminal_kinds.",
+      "enum": [
+        "campaign",
+        "combat"
+      ]
     },
     "stages": {
       "description": "Acts or phases in play order; each node names one by id.",
@@ -150,5 +154,26 @@
         }
       }
     }
-  }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "stages",
+        "playstyles",
+        "terminal_kinds"
+      ]
+    },
+    {
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "model": {
+          "enum": [
+            "combat"
+          ]
+        }
+      }
+    }
+  ]
 }

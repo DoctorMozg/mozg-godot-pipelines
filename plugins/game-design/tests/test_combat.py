@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from design_rig import DesignBuilder
+from design_rig import CliRunner, DesignBuilder
 from designkit.combat import CombatModel, Duel, EncounterRun
 from designkit.units import Encounter, Unit, UnitLoader, Wave
 
@@ -86,3 +86,36 @@ class TestEncounter:
         report, found = run_.run()
         assert [f.rule for f in found] == ["stalemate"]
         assert report["survived"] is False
+
+
+class TestCli:
+    @pytest.fixture
+    def combat(self, arena: DesignBuilder) -> DesignBuilder:
+        arena.write(arena.root / "design.json",
+                    {"schema": "design/1", "title": "Arena", "model": "combat"})  # fmt: skip
+        arena.encounter("one", {"unit": "enemy", "count": 1})
+        return arena
+
+    def test_validate_and_simulate_go_through_the_combat_model(
+        self, combat: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        code, payload = run_cli("validate")
+        assert (code, payload["model"], payload["nodes"]) == (0, "combat", 0)
+        code, payload = run_cli("simulate")
+        assert (code, payload["duels"][0]["health_left"], payload["encounters"][0]["survived"]) == (
+            0, 90, True
+        )  # fmt: skip
+
+    def test_unit_errors_fail_validate_and_block_simulate(
+        self, combat: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        combat.unit("statue", cooldown=0)
+        assert run_cli("validate")[1]["findings"][0]["rule"] == "not_positive"
+        code, payload = run_cli("simulate")
+        assert (code, payload["reason"]) == (1, "invalid")
+
+    def test_graph_commands_refuse_a_combat_design(
+        self, combat: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        code, payload = run_cli("analyze")
+        assert (code, payload["reason"]) == (3, "refused")

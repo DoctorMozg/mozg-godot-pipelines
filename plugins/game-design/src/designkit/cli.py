@@ -14,11 +14,11 @@ from pathlib import Path
 
 from designkit.cite import CitationCheck
 from designkit.contracts import ContractError, Json
-from designkit.design import Design, DesignLoader, Finding, Loaded
+from designkit.design import CAMPAIGN, Design, DesignLoader, Finding, Loaded
 from designkit.graph import ProgressionAnalysis
+from designkit.models import BalanceModel, balance_model
 from designkit.records import RecordLoader, Records, brief
 from designkit.render import Renderer
-from designkit.simulate import CampaignSimulation
 from designkit.sync import DriftCheck
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -77,9 +77,10 @@ def _positive(text: str) -> int:
 
 
 def validate(root: Path) -> tuple[dict[str, Json], int]:
-    loaded, records = _load(root)
+    loaded, records, _ = _load(root)
     nodes = len(loaded.design.nodes) if loaded.design else 0
     payload = {
+        "model": loaded.design.model if loaded.design else None,
         "nodes": nodes,
         "decisions": len(records.decisions),
         "contracts": len(records.contracts),
@@ -90,7 +91,7 @@ def validate(root: Path) -> tuple[dict[str, Json], int]:
 
 
 def handoff(root: Path, contract_id: str) -> tuple[dict[str, Json], int]:
-    loaded, records = _load(root)
+    loaded, records, _ = _load(root)
     if loaded.design is None or loaded.errors:
         return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
     contract = records.contracts.get(contract_id)
@@ -114,24 +115,34 @@ def cite_report(report: Path) -> tuple[dict[str, Json], int]:
     return {"cmd": "cite", "ok": code == EXIT_OK, "report": str(report), **result}, code
 
 
-def _load(root: Path) -> tuple[Loaded, Records]:
+def _load(root: Path) -> tuple[Loaded, Records, BalanceModel | None]:
     loaded = DesignLoader(root).load()
     if loaded.design is None:
-        return loaded, Records()
+        return loaded, Records(), None
     records, found = RecordLoader(root).load(loaded.design.contract_fields)
+    model = balance_model(loaded.design, root)
+    found += model.check()
     loaded.findings = sorted(loaded.findings + found, key=lambda f: (f.where, f.rule, f.detail))
-    return loaded, records
+    return loaded, records, model
 
 
 def report(
-    root: Path, out: Path | None, build: Callable[[Design], dict[str, Json]]
+    root: Path,
+    out: Path | None,
+    build: Callable[[Design, BalanceModel], dict[str, Json]],
+    campaign_only: bool = False,
 ) -> tuple[dict[str, Json], int]:
-    """Runs analyze or simulate on valid data, writing the full report to `out` if given."""
-    loaded = DesignLoader(root).load()
-    if loaded.design is None or loaded.errors:
+    """Runs a report command on valid data, writing the full report to `out` if given."""
+    loaded, _, model = _load(root)
+    if loaded.design is None or model is None or loaded.errors:
         # A dropped node would show up as a false unreachable or dead end; fix the data first.
         return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
-    result = build(loaded.design)
+    if campaign_only and loaded.design.model != CAMPAIGN:
+        detail = (
+            f"needs the campaign model's progression graph; this design is {loaded.design.model}"
+        )
+        return {"reason": "refused", "detail": detail}, EXIT_REFUSED
+    result = build(loaded.design, model)
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -158,20 +169,23 @@ def main(argv: Sequence[str]) -> int:
         )
     try:
         if args.command == "analyze":
-            payload, code = report(root, args.out, lambda d: ProgressionAnalysis(d).run())
+            payload, code = report(
+                root, args.out, lambda d, m: ProgressionAnalysis(d).run(), campaign_only=True
+            )
         elif args.command == "sync":
             project = args.project.resolve()
-            payload, code = report(root, None, lambda d: DriftCheck(d, project).run())
+            payload, code = report(root, None, lambda d, m: DriftCheck(d, project).run())
         elif args.command == "handoff":
             payload, code = handoff(root, args.contract)
         elif args.command == "render":
             payload, code = report(
-                root, None, lambda d: _rendered(Renderer(d, args.runs, args.seed).write(args.out))
+                root,
+                None,
+                lambda d, m: _rendered(Renderer(d, args.runs, args.seed).write(args.out)),
+                campaign_only=True,
             )
         elif args.command == "simulate":
-            payload, code = report(
-                root, args.out, lambda d: CampaignSimulation(d, args.runs, args.seed).run()
-            )
+            payload, code = report(root, args.out, lambda d, m: m.simulate(args.runs, args.seed))
             # The route of every terminal is in --out; the line stays short.
             for terminal in payload.get("terminals", []):
                 terminal.pop("route", None)

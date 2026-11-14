@@ -21,6 +21,7 @@ DESIGN_FILE = "design.json"
 NODE_DIR = "progression"
 HAZARD_DIR = "hazards"
 BALANCE_DIR = "balance"
+CAMPAIGN = "campaign"
 log = logging.getLogger(__name__)
 
 Level = Literal["error", "warning"]
@@ -118,6 +119,7 @@ class Node:
 @dataclass(frozen=True)
 class Design:
     title: str
+    model: str
     stages: tuple[str, ...]
     playstyles: tuple[str, ...]
     terminal_kinds: frozenset[str]
@@ -197,8 +199,10 @@ class DesignLoader:
         frame = self._reader.read(self._root / DESIGN_FILE, self._design_contract, findings)
         if frame is None:
             return Loaded(None, findings)
-        stages = [str(s["id"]) for s in frame["stages"]]
-        playstyles = [str(p["id"]) for p in frame["playstyles"]]
+        model = str(frame.get("model", CAMPAIGN))
+        stages = [str(s["id"]) for s in frame.get("stages", [])]
+        playstyles = [str(p["id"]) for p in frame.get("playstyles", [])]
+        terminal_kinds = [str(k) for k in frame.get("terminal_kinds", [])]
         pools = [_pool(record) for record in frame.get("pools", [])]
         names = (("stage", stages), ("playstyle", playstyles), ("pool", [p.id for p in pools]))
         for name, ids in names:
@@ -207,16 +211,17 @@ class DesignLoader:
                     Finding("error", "duplicate_id", DESIGN_FILE, f"{name} {duplicate!r} twice")
                 )
         known = _Known(set(stages), set(playstyles), {p.id for p in pools})
-        nodes = self._nodes(known, findings)
+        nodes = self._nodes(known, findings, required=model == CAMPAIGN)
         hazards = self._hazards(nodes, known, findings)
         targets: Mapping[str, Json] = frame.get("targets", {})
         gap = targets.get("max_gap_hours")
-        run_hours = _band(targets.get("run_hours"), frame["terminal_kinds"], findings)
+        run_hours = _band(targets.get("run_hours"), terminal_kinds, findings)
         design = Design(
             title=str(frame["title"]),
+            model=model,
             stages=tuple(stages),
             playstyles=tuple(playstyles),
-            terminal_kinds=frozenset(frame["terminal_kinds"]),
+            terminal_kinds=frozenset(terminal_kinds),
             max_gap_hours=float(gap) if gap is not None else None,
             run_hours=run_hours,
             pools={p.id: p for p in pools},
@@ -233,9 +238,9 @@ class DesignLoader:
         )  # fmt: skip
         return Loaded(design, sorted(findings, key=lambda f: (f.where, f.rule, f.detail)))
 
-    def _nodes(self, known: _Known, findings: list[Finding]) -> dict[str, Node]:
+    def _nodes(self, known: _Known, findings: list[Finding], required: bool) -> dict[str, Node]:
         folder = self._root / NODE_DIR
-        if not (folder.is_dir() and any(folder.glob("*.json"))):
+        if required and not (folder.is_dir() and any(folder.glob("*.json"))):
             findings.append(Finding("error", "no_nodes", NODE_DIR, f"no node files in {folder}"))
         records = self._reader.entities(NODE_DIR, self._node_contract, findings)
         parsed: dict[str, Node] = {}

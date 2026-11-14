@@ -117,6 +117,13 @@ class TestLoad:
     def test_no_nodes_is_an_error(self, design: DesignBuilder) -> None:
         assert rules(design) == [("no_nodes", "progression")]
 
+    def test_campaign_needs_stages_and_others_do_not(self, design: DesignBuilder) -> None:
+        design.write(design.root / "design.json", {"schema": "design/1", "title": "T"})
+        assert rules(design) == [("schema", "design.json")]
+        design.write(design.root / "design.json",
+                     {"schema": "design/1", "title": "T", "model": "combat"})  # fmt: skip
+        assert rules(design) == []
+
 
 class TestEconomyAndHazards:
     @pytest.fixture
@@ -208,7 +215,8 @@ class TestCli:
         code, payload = run_cli("validate")
         assert code == 0
         assert payload == {
-            "cmd": "validate", "ok": True, "nodes": 1, "decisions": 0, "contracts": 0,
+            "cmd": "validate", "ok": True, "model": "campaign", "nodes": 1, "decisions": 0,
+            "contracts": 0,
             "open_contracts": 0, "errors": 0, "warnings": 0, "findings": [],
         }  # fmt: skip
 

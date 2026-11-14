@@ -10,6 +10,7 @@ argument-hint: '[topic or open question; default: the open decisions]'
 
 > **Hard rules.** No hook guards design records, so every game-design skill repeats these.
 >
+> - `designkit` means `<plugin>/bin/designkit`, where `<plugin>` is this plugin's root, the parent of the `skills/` folder that holds this skill; the bare name works only where the host puts `bin/` on PATH (Claude Code does, Codex does not).
 > - A design answer is the owner's. Write `chosen` only from the owner's words in this session; a recommendation stays `recommended` until they agree.
 > - A settled decision record is never edited to change its answer. A new record lists it in `supersedes`.
 > - A field nobody has answered is `OPEN`, never a guessed, zero-cost or empty default; a field that does not apply is `N/A: <reason>`.

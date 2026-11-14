@@ -37,6 +37,8 @@
         "font",
         "shader",
         "text",
+        "graph",
+        "chart",
         "other"
       ]
     },

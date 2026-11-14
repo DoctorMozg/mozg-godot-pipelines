@@ -87,7 +87,9 @@ def _parser() -> argparse.ArgumentParser:
     note.add_argument("--body", required=True)
     note.add_argument("--version")
     note.add_argument("--reply-to", help="the event id this note answers")
-    note.add_argument("--region", help="xywh=percent:x,y,w,h or t=start,end; needs --version")
+    note.add_argument(
+        "--region", help="xywh=percent:x,y,w,h, t=start,end or node=<id>; needs --version"
+    )
     note.add_argument("--region-file", help="role of the file the region is on")
     note.add_argument("--frame", type=int, help="frame of a sprite or video the region is on")
 

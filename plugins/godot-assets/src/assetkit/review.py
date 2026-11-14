@@ -26,10 +26,15 @@ def check_region(region: Mapping[str, Json], version: Mapping[str, Json]) -> Non
     """Refuses a box outside the picture, a reversed time range or a file the version lacks."""
     selector = str(region.get("selector", ""))
     kind, _, values = selector.partition("=")
+    unknown = f"selector {selector!r} is none of xywh=percent:x,y,w,h, t=a,b or node=<id>"
+    if kind == "node" and values:
+        # A progression node of a design graph; the hub offers only nodes the drawing has.
+        _check_file(region, version)
+        return
     try:
         numbers = [float(n) for n in values.removeprefix("percent:").split(",")]
     except ValueError as error:
-        raise RegistryError(f"selector {selector!r} is not a media fragment") from error
+        raise RegistryError(unknown) from error
     if kind == "xywh" and values.startswith("percent:") and len(numbers) == 4:
         x, y, width, height = numbers
         # A box drawn to the very edge may round a hair past 100.
@@ -39,7 +44,11 @@ def check_region(region: Mapping[str, Json], version: Mapping[str, Json]) -> Non
         if len(numbers) == 2 and numbers[1] <= numbers[0]:
             raise RegistryError(f"time range {selector!r} ends before it starts")
     else:
-        raise RegistryError(f"selector {selector!r} is neither xywh=percent:x,y,w,h nor t=a,b")
+        raise RegistryError(unknown)
+    _check_file(region, version)
+
+
+def _check_file(region: Mapping[str, Json], version: Mapping[str, Json]) -> None:
     role = region.get("file")
     if role is not None and role not in {f["role"] for f in version["files"]}:
         raise RegistryError(f"version {version['id']} has no {role} file")

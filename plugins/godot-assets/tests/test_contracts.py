@@ -114,6 +114,7 @@ def test_broken_record_fails_both_checkers(name: str, message: str, mutate: Muta
     [
         {"selector": "xywh=percent:10,20.5,30,40", "file": "sheet", "frame": 3},
         {"selector": "t=1.5,2"},
+        {"selector": "node=R1D.done"},
     ],
 )
 def test_note_with_region_passes_both_checkers(region: dict[str, Any]) -> None:

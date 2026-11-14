@@ -95,7 +95,9 @@ class TestRegions:
             ({"selector": "xywh=percent:90,0,20,10"}, "leaves the picture"),
             ({"selector": "xywh=percent:0,0,0,10"}, "is empty"),
             ({"selector": "t=2,1"}, "ends before it starts"),
-            ({"selector": "xywh=1,2,3,4"}, "neither"),
+            ({"selector": "xywh=1,2,3,4"}, "none of"),
+            ({"selector": "node="}, "none of"),
+            ({"selector": "node=E01", "file": "sheet"}, "has no sheet file"),
             ({"selector": "t=1", "file": "sheet"}, "has no sheet file"),
         ],
     )
@@ -117,3 +119,9 @@ class TestRegions:
         review.note(NoteRequest(lane.asset, "eyes too big", version, region=region))
         [event] = _item(lane.registry)["events"]
         assert (event["region"], event["version_id"]) == (region, version)
+
+    def test_note_on_a_graph_node_is_kept(self, lane: Lane, review: Review) -> None:
+        version = lane.version(b"<svg/>")
+        review.note(NoteRequest(lane.asset, "too long", version, region={"selector": "node=E01"}))
+        [event] = _item(lane.registry)["events"]
+        assert event["region"] == {"selector": "node=E01"}

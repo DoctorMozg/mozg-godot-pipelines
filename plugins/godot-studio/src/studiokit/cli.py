@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from studiokit import hooks
+from studiokit.decisions import DecisionLog
 from studiokit.lanes import (
     OPEN,
     RISKS,
@@ -58,6 +59,12 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("id")
     brief = actions.add_parser("brief", help="the delegation brief a lane's subagent gets")
     brief.add_argument("id")
+    decision = commands.add_parser("decision", help="architecture decision records")
+    steps = decision.add_subparsers(dest="action", required=True)
+    record = steps.add_parser("new", help="write docs/decisions/NNN-<slug>.md from the template")
+    record.add_argument("--title", required=True)
+    record.add_argument("--option", action="append", required=True, help="one option to score")
+    steps.add_parser("lint", help="check every record: sections, scores, choice, triggers")
     merge = commands.add_parser("merge", help="merge a checked lane if the merged tree passes")
     merge.add_argument("id")
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
@@ -134,6 +141,18 @@ def _merge(store: LaneStore, lane_id: str) -> int:
     return EXIT_OK
 
 
+def _decision(args: argparse.Namespace) -> int:
+    log = DecisionLog(args.project.resolve())
+    if args.action == "new":
+        path = log.new(args.title, args.option)
+        emit({"cmd": "decision new", "ok": True, "path": str(path)})
+        return EXIT_OK
+    count, problems = log.lint()
+    rows = [{"file": p.file, "rule": p.rule, "detail": p.detail} for p in problems]
+    emit({"cmd": "decision lint", "ok": not problems, "records": count, "problems": rows})
+    return EXIT_FAILED if problems else EXIT_OK
+
+
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -144,6 +163,12 @@ def main(argv: Sequence[str]) -> int:
     if args.command == "hook":
         return hooks.run(args.event, sys.stdin.read())
     command = "merge" if args.command == "merge" else f"{args.command} {args.action}"
+    if args.command == "decision":
+        try:
+            return _decision(args)
+        except ValueError as error:
+            emit({"cmd": command, "ok": False, "reason": "refused", "detail": str(error)})
+            return EXIT_REFUSED
     try:
         store = LaneStore(args.project.resolve())
         if args.command == "merge":

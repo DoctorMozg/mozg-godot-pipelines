@@ -16,6 +16,7 @@ from audiokit.doctor import doctor, find_tool
 from audiokit.loops import LoopCheck, write_loop
 from audiokit.policy import load_policy
 from audiokit.records import CueSheet, Finding, RecordsError
+from audiokit.synth import synthesize
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 
@@ -31,6 +32,8 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("levels", help="peak, RMS, clipping, DC and edge silence of every cue file")
     commands.add_parser("loops", help="loop seams and each cue file's .import settings")
     commands.add_parser("buses", help="the bus layout and the buses scenes and scripts name")
+    synth = commands.add_parser("synth", help="render a procedural cue's files from its seed")
+    synth.add_argument("cue")
     loudness = commands.add_parser("loudness", help="BS.1770 loudness and true peak of cue files")
     loudness.add_argument("--ffmpeg", action="store_true", help="also report ffmpeg's ebur128")
     loop = commands.add_parser("loop", help="write a cue's loop points into its files' .import")
@@ -58,6 +61,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
     try:
         sheet = CueSheet(args.project.resolve())
+        if args.command == "synth":
+            rendered = synthesize(sheet, args.cue)
+            emit({"cmd": "synth", "ok": True, "cue": args.cue, "files": rendered})
+            return EXIT_OK
         if args.command == "buses":
             findings, unresolved = BusLint(sheet).run()
             emit(

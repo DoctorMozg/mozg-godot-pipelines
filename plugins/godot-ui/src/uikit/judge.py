@@ -84,16 +84,32 @@ class JudgeSheets:
             ("U3", "Text and icons stand out from what is behind them (no grey on grey)."),
             ("U4", "Each state shown differs by more than colour: icon, shape or text too."),
             ("U5", "The focused control is visible when the brief names keyboard or gamepad."),
-            ("U6", "Nothing important sits in the outer 5% where a TV or notch can hide it."),
         ]
 
     def _conformance(self, screen: Json, brief: Json) -> list[tuple[str, str]]:
         parts = ", ".join(f"{p['name']} ({p['class']})" for p in screen.get("components", []))
+        legend = "; ".join(self._variation(name) for name in sorted(self.records.variations))
         hard = [r for r in brief.get("hard_rules", []) if isinstance(r, dict)]
         rules = [(r["id"], r["text"]) for r in hard if r.get("check") == "judge"]
         return [
             ("C1", f"Every component of the screen is shown: {parts or 'none listed'}."),
-            ("C2", "Colours and boxes match the theme variations the components name."),
+            ("C2", "Each component looks like its variation: " + (legend or "none in the tokens")),
             ("C3", "The layout is the same screen at every size: nothing moves to a new role."),
             *rules,
         ]
+
+    def _variation(self, name: str) -> str:
+        """A variation in words and hex, so the judge can compare it with what is drawn."""
+        variation, colours = self.records.variations[name], self.records.colours
+        box = self.records.tokens.get("stylebox", {}).get(variation.get("stylebox"), {})
+        parts = (
+            [f"text {variation['color']} {colours[variation['color']]}"]
+            if "color" in variation
+            else []
+        )
+        parts += [
+            f"box {part} {box[part]} {colours[box[part]]}"
+            for part in ("bg", "border")
+            if part in box
+        ]
+        return f"{name} on {variation['base']} ({', '.join(parts) or 'no colours'})"

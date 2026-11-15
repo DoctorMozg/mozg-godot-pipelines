@@ -27,7 +27,7 @@ uikit check --shots <folder> --brief <surface>
 ```
 
 - `godotkit shot` writes `<W>x<H>.json` (window rects of visible Controls) and, natively, `<W>x<H>.png` per size, in one Godot process.
-- `uikit check` reads the JSON: off screen (beyond 0.5 px of the window), interactive targets under `min_target_px`, overlapping interactive controls that are not parent and child, a control present at one size only, a size with no file.
+- `uikit check` reads the JSON: font tokens drawn under `min_font_px` once stretch scales them, off screen (beyond 0.5 px of the window), interactive targets under `min_target_px`, overlapping interactive controls that are not parent and child, a control present at one size only, a size with no file.
 - Interactive means a Button family class, LineEdit, TextEdit, SpinBox, a slider, ItemList, Tree or TabBar.
 
 ## Judges

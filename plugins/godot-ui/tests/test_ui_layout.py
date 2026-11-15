@@ -18,7 +18,8 @@ SCORE = {"path": "Hud/Score", "class": "Label", "rect_px": [20, 20, 200, 30]}
 
 def layout(width: int, height: int, *controls: Doc) -> Doc:
     """The shape shot_probe.gd writes: size, window and visible controls."""
-    return {"size": [width, height], "window": [width, height], "controls": list(controls)}
+    window = [width, height]
+    return {"size": window, "window": window, "canvas": window, "controls": list(controls)}
 
 
 @pytest.fixture
@@ -96,3 +97,9 @@ def test_cli(ui: Path, shots: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(args) == EXIT_FAILED
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert [p["rule"] for p in out["problems"]] == ["target"]
+
+
+def test_stretch_shrinks_fonts_under_the_minimum(ui: Path, shots: Path) -> None:
+    stretched = layout(1280, 720, PAUSE, QUIT, SCORE) | {"canvas": [1920, 1080]}
+    (shots / "1280x720.json").write_text(json.dumps(stretched))
+    assert check(ui, shots) == [("1280x720.json", "font", "font body draws at 10.7 px, under 14")]

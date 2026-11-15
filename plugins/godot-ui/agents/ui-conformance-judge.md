@@ -22,7 +22,7 @@ Runs with Read alone: the judge runs for every capture, and a judge that a pictu
 ## How to answer
 
 - C1 names each component the record lists and where it is seen; one missing at any size fails.
-- C2 checks roles, not exact colour: a danger button drawn like a plain one fails.
+- C2 compares each component with the variation legend on the sheet by role, not exact hex: a danger button drawn like a plain one fails.
 - A brief rule is answered on what the captures show; a rule that needs input or motion is `unverified` with that reason.
 - `pass` unless a difference is plainly visible. A doubt passes.
 - `fail` needs `evidence`: size, control and what differs.

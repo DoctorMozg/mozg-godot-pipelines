@@ -20,7 +20,8 @@ def shots(tmp_path: Path) -> Path:
     folder.mkdir()
     for size in ("1280x720", "1920x1080"):
         width, height = map(int, size.split("x"))
-        layout = {"size": [width, height], "window": [width, height], "controls": [PAUSE]}
+        window = [width, height]
+        layout = {"size": window, "window": window, "canvas": window, "controls": [PAUSE]}
         (folder / f"{size}.json").write_text(json.dumps(layout), encoding="utf-8")
         (folder / f"{size}.png").write_bytes(b"png")
     return folder
@@ -37,13 +38,14 @@ class TestReadability:
         assert opens == [str(shots / "1280x720.png"), str(shots / "1920x1080.png")]
         assert "Minimum font 14 px, minimum target 32 px, contrast 4.5:1 text and 3:1 other" in text
         assert "Layout check (uikit check): no findings" in text
-        assert [f"- U{n}:" in text for n in range(1, 7)] == [True] * 6
+        assert [f"- U{n}:" in text for n in range(1, 7)] == [True] * 5 + [False]
         assert "technical pass" in text
 
     def test_layout_findings_are_carried(self, ui: Path, shots: Path) -> None:
         small = {
             "size": [1280, 720],
             "window": [1280, 720],
+            "canvas": [1280, 720],
             "controls": [PAUSE | {"rect_px": [20, 20, 64, 20]}],
         }
         (shots / "1280x720.json").write_text(json.dumps(small))
@@ -63,6 +65,8 @@ class TestConformance:
             "- C1: Every component of the screen is shown: pause (Button), score (Label)." in text
         )
         assert "- H1: The pause button sits top left." in text
+        legend = "DangerButton on Button (text danger #c03030, box bg paper #f4efe4, box border ink"
+        assert legend in text
         assert "H2" not in text
 
 

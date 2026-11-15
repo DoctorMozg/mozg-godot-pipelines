@@ -1,4 +1,4 @@
-"""Layout checks on the JSON that `godotkit shot` writes per size: bounds, targets, overlap."""
+"""Layout checks on the JSON that `godotkit shot` writes per size: bounds, targets, fonts."""
 
 from __future__ import annotations
 
@@ -67,6 +67,9 @@ class LayoutCheck:
             raise RecordsError(f"no brief {brief_id!r}")
         self.sizes: list[str] = brief["sizes"]
         self.min_target = float(brief["min_target_px"])
+        self.min_font = float(brief["min_font_px"])
+        fonts = records.tokens.get("font", {})
+        self.fonts = {role: float(font["size_px"]) for role, font in sorted(fonts.items())}
 
     def run(self, shots: Path) -> list[Finding]:
         layouts: dict[str, Json] = {}
@@ -88,7 +91,7 @@ class LayoutCheck:
     def _one(self, name: str, layout: Json) -> list[Finding]:
         width, height = layout["window"]
         boxes = _boxes(layout)
-        out = []
+        out = self._fonts(name, layout)
         for box in boxes:
             outside = (
                 box.x < -EDGE_SLACK_PX
@@ -111,6 +114,18 @@ class LayoutCheck:
                 if first.overlaps(second) and not first.contains_path(second):
                     out.append(Finding(name, "overlap", f"{first.path} overlaps {second.path}"))
         return out
+
+    def _fonts(self, name: str, layout: Json) -> list[Finding]:
+        """Stretch draws the canvas at window/canvas scale, so a token's px shrinks on screen."""
+        (width, height), (canvas_w, canvas_h) = layout["window"], layout["canvas"]
+        scale = min(width / canvas_w, height / canvas_h)
+        return [
+            Finding(
+                name, "font", f"font {role} draws at {px * scale:.1f} px, under {self.min_font:g}"
+            )
+            for role, px in self.fonts.items()
+            if px * scale < self.min_font
+        ]
 
     def _missing(self, layouts: dict[str, Json]) -> list[Finding]:
         paths = {

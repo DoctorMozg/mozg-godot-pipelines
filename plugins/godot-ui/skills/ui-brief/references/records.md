@@ -31,7 +31,8 @@ All three are JSON written by hand or by the agent and checked by `uikit lint`.
 ```
 
 - `font.body.size_px` becomes the Theme's `default_font_size`.
-- A variation sets `font_color` from `color`, `font_size` from `font` and the `normal` StyleBox from `stylebox`. Hover, pressed and focus boxes stay with Godot's default theme until a token names them.
+- A variation sets the font colour of every state (normal, hover, pressed, focus) from `color`, `font_size` from `font`, and the normal, hover and pressed StyleBoxes from `stylebox`; the focus outline stays Godot's. With one colour per state, hover shows no change until tokens name hover colours.
+- `min_font_px` is in window pixels: `uikit check` scales each font token by window/canvas at every size, so a 22 px token on a 1920x1080 base fails 18 at 1280x720 (14.7 px).
 - Godot 4.7.2 loaded the written Theme and applied a variation's colour, border and radius to a Button (2026-11-15).
 
 ## ui/screens/<surface>/<screen>.json

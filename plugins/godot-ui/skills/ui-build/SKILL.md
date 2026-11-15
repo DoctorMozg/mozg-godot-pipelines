@@ -99,5 +99,6 @@ A surface (all its screens) or one `SURFACE/SCREEN`, and the project path. Optio
 
 - **capture "the PNG is ... so the window did not resize"**: the window manager held the size; shoot on another display or with fewer sizes and report it.
 - **capture "wrote no PNG"**: no display; set `DISPLAY` or capture on the owner's machine. `--layout-only` cannot feed the hub.
+- **check `font`**: stretch draws a font token under the brief's minimum at a small size; raise the token or lower the base viewport size, with the owner.
 - **check `missing`**: a control shows at one size only; a size-dependent `visible` or an anchor pushes it out.
 - **scan `theme`**: `gui/theme/custom` is unset or points nowhere; hand the line from `uikit theme` to the owner of `project.godot`.

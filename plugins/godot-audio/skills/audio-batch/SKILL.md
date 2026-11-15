@@ -39,21 +39,21 @@ Cue ids or a kind, and the project path. Optional: a spend cap for the batch and
 
 ## Core Process
 
-1. **Lint and pick.** `audiokit lint` must print `"ok": true`. Split the batch by `source.type`: procedural cues go to step 2, fal cues to step 3. A cue with an `asset` gets a retake that names its parent; one without needs a license id from the owner.
+1. **Lint and pick.** `audiokit lint` must print `"ok": true`, apart from `files` problems for sounds not made yet. Split the batch by `source.type`: procedural cues go to step 2, fal cues to step 3. A cue with an `asset` gets a retake that names its parent; one without needs a license id from the owner.
 
 1. **Synth and register procedural cues.** `audiokit synth <cue>` renders every file of the cue, then `audiokit register <cue>` (plus `--license <id>` the first time) stages them as one version. Re-rendering an unchanged cue is refused as a repeat; change the seed or params in the cue for a new version.
 
 1. **Write each prompt from the cue.** The cue's `brief` names what is heard, its length and its mood; the prompt states the sound plainly, how it starts and ends, and "no music, no voice" where that holds. Keep it in the cue as `prompt`. `references/batch.md` has the template and the endpoint inputs.
 
-1. **Price before spending.** `falkit estimate --endpoint <endpoint> --input '<json>'` per cue; tell the owner the expected total, the worst case and the budget left from `falkit budget show`. Over the cap: stop and ask.
+1. **Plan and price.** Write the fal cues as one fal plan, a request per cue (`id` the cue, `kind` sound, the endpoint and its input), and run `falkit plan check <plan>`; the ledger export needs this plan later. Then `falkit estimate --plan <plan>`, and tell the owner the expected total, the worst case and the budget left from `falkit budget show`. Over the cap: stop and ask.
 
-1. **Generate through fal-media.** One call per cue through `fal-assets`, under fal-media's spend guard: `elevenlabs/sound-effects/v3` for effects and UI sounds, `fal-ai/stable-audio-25/text-to-audio` for beds and ambience. Fetch with `falkit fetch <call> --kind sound --out <folder outside res://>`, and note each call's tool use id from `falkit ledger show`.
+1. **Generate through fal-media.** One call per request through `fal-assets`, under fal-media's spend guard, with exactly the plan's input: `elevenlabs/sound-effects/v3` for effects and UI sounds, `fal-ai/stable-audio-25/text-to-audio` for beds and ambience. Fetch with `falkit fetch <call> --kind sound --out <folder outside res://>`, and note each call's tool use id from `falkit ledger show`.
 
-1. **Export the ledger.** `falkit ledger export --plan <plan> --call <tool use id> ... --out <new file>`.
+1. **Export the ledger.** `falkit ledger export --plan <plan> --call <tool use id> ... --out <new file>`; calls with the plan's input tie to its requests.
 
 1. **Register each file.** `audiokit register <cue> --ledger <file> --request-id <request id> --prompt '<prompt>'`, plus `--license <id>` for a new asset and `--file <name>` when the call returned several files. The JSON line gives the asset, version, parent and dollars charged.
 
-1. **Read the measures.** Each registered version carries its peak, RMS, LUFS and true peak; compare them with `audio/policy.json`, and name any figure outside it to the owner. A file that clips or is silent is regenerated before anyone listens.
+1. **Read the measures.** Each registered version carries its peak, RMS, LUFS and true peak; compare them with `audio/policy.json`, and name any figure outside it to the owner. A clipped or silent file is named first; a retake rarely fixes a model that masters hot, so ask before paying again.
 
 1. **Hand over to the owner.** Candidates wait in the review hub (`assetkit hub build`, then `review-hub`), where the owner plays each, A/B against the previous version, and approves or sends back. After approval, `assetkit promote <asset> --to res://<cue file>` places a fal file; then `audio-cues` imports, loops and checks it.
 

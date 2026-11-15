@@ -171,8 +171,6 @@
       "<length>": "the duration asked for, in seconds",
       "<mood or material>": "what the sound is made of or how it feels",
       "<recording character>": "dry or roomy, close or far",
-      "<endpoint>": "the fal endpoint id of the cue",
-      "<json>": "the request input as JSON",
       "<call>": "the fal call, by its tool use id",
       "<plan>": "the fal plan.json the export ties to",
       "<tool use id>": "the ledger's tool use id of a call",

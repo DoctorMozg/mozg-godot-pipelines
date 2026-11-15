@@ -43,7 +43,7 @@ The project path, and the cues or the check in question. Optional: the owner's p
 
 1. **Write the cue sheet.** `audio/cues.json` holds `mix_rate`, `buses` (Master and every bus the layout defines) and the `cues` map. A cue id is snake_case and every file is `<id>.<ext>` or `<id>_<n>.<ext>` under `audio/`; licensed packs stay in the git-ignored `audio/local/`. `references/records.md` has every field and rule.
 
-1. **Lint until clean.** `audiokit lint` must print `"ok": true`. It reports unknown kinds and buses, missing or misnamed files, loop fields Godot cannot honour (Ogg and MP3 loop forward only), sources without an endpoint or seed, and files under `audio/` no cue names.
+1. **Lint until clean.** `audiokit lint` must print `"ok": true`, apart from `files` problems for sounds not made yet. It reports unknown kinds and buses, missing or misnamed files, loop fields Godot cannot honour (Ogg and MP3 loop forward only), sources without an endpoint or seed, and files under `audio/` no cue names.
 
 1. **Set the policy with the owner.** `audio/policy.json` rules match files by glob, first match wins: codecs, channels, duration bounds, peak ceiling, edge silence, `.import` compress modes, loudness band, true-peak ceiling. Each figure names its source and date in the owner's note; no default ships.
 

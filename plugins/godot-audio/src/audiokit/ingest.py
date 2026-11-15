@@ -175,7 +175,8 @@ class Register:
         provenance += ["--prompt", request.prompt] if request.prompt else []
         usd = entry.get("usd_charged")
         provenance += ["--param", f"usd_charged={usd}"] if usd is not None else []
-        return Candidate([("main", path)], request.request_id[:8], provenance, usd)
+        # fal ids are UUIDv7: a prefix is a timestamp, shared by calls made a minute apart.
+        return Candidate([("main", path)], request.request_id, provenance, usd)
 
     def _local(self, cue_id: str, cue: Json) -> Candidate:
         source = cue["source"]

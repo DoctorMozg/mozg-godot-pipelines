@@ -104,7 +104,7 @@ def test_fal_call_becomes_a_measured_version(
         "v1",
         0.001,
     )
-    assert out["files"] == ["registry/staging/boom-a1b2/01a1dcf9/boom.wav"]
+    assert out["files"] == [f"registry/staging/boom-a1b2/{REQUEST}/boom.wav"]
     added = calls(kit)[-1]
     for pair in (
         ["--model", ENDPOINT],
@@ -125,10 +125,24 @@ def test_repeat_and_changed_file_are_refused(
     code, out = register(fal, capsys, *fal_args(tmp_path))
     assert (code, out["detail"]) == (
         EXIT_REFUSED,
-        "registry/staging/boom-a1b2/01a1dcf9 exists: this result is already registered",
+        f"registry/staging/boom-a1b2/{REQUEST} exists: this result is already registered",
     )
     (tmp_path / "fal/out/boom.wav").write_bytes(b"changed")
     assert "does not match the sha256" in register(fal, capsys, *fal_args(tmp_path))[1]["detail"]
+
+
+def test_a_retake_a_minute_later_is_a_new_version(
+    fal: Path, kit: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """UUIDv7 ids of calls made close together share their first eight characters."""
+    register(fal, capsys, *fal_args(tmp_path), "--license", "LicenseRef-unreviewed")
+    ledger = json.loads((tmp_path / "ledger.json").read_text())
+    retake = REQUEST[:9] + "0000" + REQUEST[13:]
+    ledger["entries"].append(ledger["entries"][0] | {"request_id": retake})
+    write(tmp_path, "ledger.json", ledger)
+    args = ("boom", "--ledger", str(tmp_path / "ledger.json"), "--request-id", retake)
+    code, out = register(fal, capsys, *args)
+    assert (code, out["version"], out["parent"]) == (EXIT_OK, "v2", "v1")
 
 
 @pytest.mark.parametrize(
@@ -152,7 +166,7 @@ def test_assetkit_says_no_and_nothing_stays_staged(
         monkeypatch.setenv(key, value)
     result = register(fal, capsys, *fal_args(tmp_path), "--license", "LicenseRef-unreviewed")
     assert (result[0], result[1]["detail"][: len(detail)]) == (code, detail)
-    assert not (fal / "registry/staging/boom-a1b2/01a1dcf9").exists()
+    assert not (fal / f"registry/staging/boom-a1b2/{REQUEST}").exists()
 
 
 def test_unknown_request(

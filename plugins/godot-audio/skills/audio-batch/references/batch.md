@@ -20,10 +20,13 @@ Write the sound, not the scene: "a short wooden knock, dry, sharp attack, fast d
 
 Set `seconds_total` on Stable Audio: the default writes 190 s for the same price.
 
+What came back on 2026-11-15 (one call each, measured by `audiokit register`): ElevenLabs sound effects at `mp3_44100_192` gave 44.1 kHz stereo MP3 of the asked length plus about 0.03 s, peaks -6.3 to -0.6 dBFS; Stable Audio 2.5 gave a 20 s 44.1 kHz stereo WAV peaking at 0 dBFS (4 clipped samples, +0.02 dBTP, -8.8 LUFS). Both rates differ from a 48 kHz mix, so `audiokit audit` reports them after promotion; converting is the owner's call.
+
 ## Flow per fal cue
 
 ```text
-falkit estimate --endpoint <endpoint> --input '<json>'
+falkit plan check <plan>
+falkit estimate --plan <plan>
 fal-assets: one call under the spend guard
 falkit fetch <call> --kind sound --out <folder outside res://>
 falkit ledger export --plan <plan> --call <tool use id> --out <new file>

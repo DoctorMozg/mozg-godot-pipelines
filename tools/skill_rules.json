@@ -101,6 +101,32 @@
     }
   },
   "godot-art": {
-    "placeholders": {}
+    "placeholders": {
+      "<families>": "the family names of the bible",
+      "<approved>": "how many roots are approved",
+      "<proposed>": "how many roots wait for the owner",
+      "<count>": "how many briefs exist",
+      "<problem count>": "how many problems artkit lint reported",
+      "<dependents, or none>": "the briefs artkit dependents listed, or none",
+      "<briefs>": "the brief ids of the batch",
+      "<charged>": "the dollars fal charged, from the ledger export",
+      "<estimate>": "the dollars falkit estimate gave before the batch",
+      "<asset and version per brief>": "each brief with the asset and version artkit register printed",
+      "<problems>": "the rules of the problems artkit audit reported",
+      "<pass or fail per candidate and judge>": "each candidate with the readability and style verdicts",
+      "<versions>": "the registered versions waiting for the owner's review",
+      "<hook>": "the brief's hook",
+      "<master style>": "the bible's master_style sentence",
+      "<family mode>": "the rendering mode of the brief's family",
+      "<readability note>": "the brief's readability note",
+      "<contrast plan>": "the brief's contrast plan",
+      "<forbidden and banned items, each turned into what the picture shows instead>": "the brief's forbidden list and the bible's banned list, worded positively",
+      "<subject identity, per root>": "what each root fixes, such as the scout's helmet and coat",
+      "<asset>": "an asset id from the registry",
+      "<project>": "the Godot project folder",
+      "<judge>": "the judge's name: readability or style",
+      "<verdict>": "the judge's verdict: pass or fail",
+      "<failed ids with evidence>": "each failed question id with the judge's evidence"
+    }
   }
 }

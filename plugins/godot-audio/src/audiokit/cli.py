@@ -13,6 +13,8 @@ from pathlib import Path
 from audiokit.audit import Audit, Levels, LoudnessCheck, Tools
 from audiokit.buses import BusLint
 from audiokit.doctor import doctor, find_tool
+from audiokit.ingest import Register, RegisterRequest
+from audiokit.kits import Kit, ToolFailed, ToolMissing
 from audiokit.loops import LoopCheck, write_loop
 from audiokit.policy import load_policy
 from audiokit.records import CueSheet, Finding, RecordsError
@@ -34,6 +36,15 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("buses", help="the bus layout and the buses scenes and scripts name")
     synth = commands.add_parser("synth", help="render a procedural cue's files from its seed")
     synth.add_argument("cue")
+    register = commands.add_parser(
+        "register", help="add a fal result or a cue's files as a version"
+    )
+    register.add_argument("cue")
+    register.add_argument("--ledger", type=Path, help="a falkit ledger export (fal results)")
+    register.add_argument("--request-id", help="the fal request to register from the ledger")
+    register.add_argument("--file", help="which fetched file, when the call has several")
+    register.add_argument("--prompt", help="the prompt sent, recorded as provenance")
+    register.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new asset")
     loudness = commands.add_parser("loudness", help="BS.1770 loudness and true peak of cue files")
     loudness.add_argument("--ffmpeg", action="store_true", help="also report ffmpeg's ebur128")
     loop = commands.add_parser("loop", help="write a cue's loop points into its files' .import")
@@ -61,6 +72,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
     try:
         sheet = CueSheet(args.project.resolve())
+        tools = Tools(find_tool("ffmpeg", os.environ), find_tool("ffprobe", os.environ))
+        if args.command == "register":
+            kit = Kit("assetkit", "godot-assets", os.environ)
+            request = RegisterRequest(
+                args.cue, args.ledger, args.request_id, args.file, args.prompt, args.license
+            )
+            emit({"cmd": "register", "ok": True, **Register(sheet, kit, tools).run(request)})
+            return EXIT_OK
         if args.command == "synth":
             rendered = synthesize(sheet, args.cue)
             emit({"cmd": "synth", "ok": True, "cue": args.cue, "files": rendered})
@@ -76,7 +95,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 }
             )
             return EXIT_FAILED if findings else EXIT_OK
-        tools = Tools(find_tool("ffmpeg", os.environ), find_tool("ffprobe", os.environ))
         if args.command in ("loops", "loop"):
             check = LoopCheck(sheet, load_policy(sheet.project), tools)
             if args.command == "loop":
@@ -144,3 +162,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RecordsError as error:
         emit({"cmd": args.command, "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
+    except ToolMissing as error:
+        emit({"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)})
+        return EXIT_SETUP
+    except ToolFailed as error:
+        emit({"cmd": args.command, "ok": False, "reason": "tool_failed", "detail": str(error)})
+        return EXIT_FAILED

@@ -100,6 +100,16 @@ class TestVerdict:
         assert '"sizes": [[1280, 720], [1024, 768]]' in log
         assert '"pixels": true' in log
 
+    def test_a_project_without_a_class_cache_is_imported_first(
+        self, fake_godot: FakeGodotFactory, make_project: ProjectFactory, tmp_path: Path
+    ) -> None:
+        seen = tmp_path / "seen"
+        output = "GODOTKIT_SHOT_INFO " + INFO + "\n" + _shot_line(SIZES[0], SIZES[0], False)
+        godot = fake_godot(output, shell=f'echo "$*" >> {seen}')
+        request = ShotRequest(make_project(CONTROL_SCRIPT, UI_SCENE), tmp_path / "out", SIZES[:1])
+        assert ShotTaker(GodotRunner(godot)).run(request).reason == "ok"
+        assert "--import" in seen.read_text().splitlines()[0]
+
     @pytest.mark.parametrize(
         ("lines", "display", "reason"),
         [

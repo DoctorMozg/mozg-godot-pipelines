@@ -138,6 +138,15 @@ class TestBootOverride:
         with pytest.raises(ValueError, match="refusing to replace"):
             BootGate(GodotRunner(fake_godot())).run(project, 30)
 
+    def test_imports_first_without_a_class_cache(
+        self, fake_godot: FakeGodotFactory, make_project: ProjectFactory, tmp_path: Path
+    ) -> None:
+        seen = tmp_path / "seen"
+        godot = fake_godot(_probe_line(), shell=f'echo "$*" >> {seen}')
+        outcome = BootGate(GodotRunner(godot)).run(make_project(CONTROL_SCRIPT, CONTROL_SCENE), 30)
+        assert outcome.reason == "ok"
+        assert "--import" in seen.read_text().splitlines()[0]
+
 
 class TestParseGate:
     def test_failed_scripts_are_listed(self, fake_godot: FakeGodotFactory, project: Path) -> None:

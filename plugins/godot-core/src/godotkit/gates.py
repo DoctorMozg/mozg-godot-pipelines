@@ -161,10 +161,15 @@ class StrictGate:
 class BootGate:
     """Adds the probe as an autoload through override.cfg, so the main scene starts as on F5."""
 
-    def __init__(self, runner: GodotRunner) -> None:
+    def __init__(self, runner: GodotRunner, importer: ProjectImporter | None = None) -> None:
         self._runner = runner
+        self._importer = importer or ProjectImporter(runner)
 
     def run(self, project: Path, timeout_s: float) -> BootOutcome:
+        # Without the class cache every class_name reference fails to parse.
+        if not (project / CLASS_CACHE).is_file():
+            log.info("no class cache in %s: importing before the boot gate", project)
+            self._importer.run(ImportRequest(project, timeout_s))
         probe = GD_DIR / "boot_probe.gd"
         with probe_override(project, f'[autoload]\n\nGodotkitProbe="*{probe}"\n', "boot probe"):
             result = self._runner.run(RunRequest(project, (), timeout_s))

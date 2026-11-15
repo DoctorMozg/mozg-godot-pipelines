@@ -6,14 +6,15 @@ A plugin marketplace for Godot 4 game development, for Claude Code and Codex. Ag
 
 ## Plugins
 
-| Plugin         | Kit         | Skills                                                                               | What it does                                                                                                     |
-| -------------- | ----------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `godot-core`   | `godotkit`  | `godot-init`, `godot-scene`, `godot-test`, `godot-verify`                            | Log-judged checks (import, parse, boot, tests), gate receipts and edit hooks                                     |
-| `godot-assets` | `assetkit`  | `asset-registry`, `review-hub`                                                       | Asset registry with immutable versions, review events, provenance and a folded status, plus a browser review hub |
-| `game-design`  | `designkit` | `gd-balance`, `gd-canon`, `gd-contracts`, `gd-interview`, `gd-research`, `gd-review` | Design decisions, canon and contracts as records, progression and balance models, sourced research, SVG charts   |
-| `godot-l10n`   | `l10nkit`   | `l10n-strings`, `l10n-translate`                                                     | Strings as records, built into PO files, checked for parity and leaks, translated in masked batches              |
+| Plugin         | Kit         | Skills                                                                                   | What it does                                                                                                                                |
+| -------------- | ----------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `godot-core`   | `godotkit`  | `godot-init`, `godot-scene`, `godot-test`, `godot-verify`, `godot-playtest`, `godot-bot` | Log-judged checks (import, parse, boot, tests), gate receipts and edit hooks                                                                |
+| `godot-assets` | `assetkit`  | `asset-registry`, `review-hub`                                                           | Asset registry with immutable versions, review events, provenance and a folded status, plus a browser review hub                            |
+| `game-design`  | `designkit` | `gd-balance`, `gd-canon`, `gd-contracts`, `gd-interview`, `gd-research`, `gd-review`     | Design decisions, canon and contracts as records, progression and balance models, sourced research, SVG charts                              |
+| `godot-l10n`   | `l10nkit`   | `l10n-strings`, `l10n-translate`                                                         | Strings as records, built into PO files, checked for parity and leaks, translated in masked batches                                         |
+| `godot-studio` | `studiokit` | `studio-lanes`, `studio-decide`                                                          | File-owned lanes in warm worktrees, ownership and frozen-test guards, a merge queue gated on the merged tree, architecture decision records |
 
-`godot-l10n` also ships the `l10n-judge` agent, which reviews translations in a fresh context.
+`godot-l10n` also ships the `l10n-judge` agent, which reviews translations in a fresh context. `godot-studio` ships the `architecture-reviewer` agent for high-risk lanes, and calls godot-core's `godotkit` for worktrees and the gate, so it needs godot-core installed too.
 
 The plan and the decisions behind it are in [docs/plan.md](docs/plan.md).
 
@@ -33,6 +34,7 @@ claude plugin install godot-core@mozg-godot
 claude plugin install godot-assets@mozg-godot
 claude plugin install game-design@mozg-godot
 claude plugin install godot-l10n@mozg-godot
+claude plugin install godot-studio@mozg-godot
 ```
 
 ### Codex
@@ -41,7 +43,7 @@ Codex reads `.claude-plugin/marketplace.json` directly, so there is no separate 
 
 ```bash
 codex plugin marketplace add /path/to/mozg-godot-plugins
-codex plugin add godot-core@mozg-godot   # likewise godot-assets, game-design, godot-l10n
+codex plugin add godot-core@mozg-godot   # likewise godot-assets, game-design, godot-l10n, godot-studio
 ```
 
 - Codex leaves a plugin's `bin/` off PATH. Each skill's hard rules give the kit path (`<plugin>/bin/<kit>`), so agents call kits by path. A shell outside an agent uses the installed copy under `~/.codex/plugins/cache/mozg-godot/<plugin>/<version>/bin/`.

@@ -200,6 +200,7 @@ def main(argv: Sequence[str]) -> int:
         "replay": cmd_play.replay,
         "perf": cmd_play.perf,
         "feel": cmd_play.feel,
+        "play": cmd_play.play,
         "gate": cmd_gate.gate,
     }
     return handlers[args.command](args, runner)

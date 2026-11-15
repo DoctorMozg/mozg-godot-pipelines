@@ -1,8 +1,9 @@
-"""Commands that play a scene on fixed physics frames: replay, perf and feel."""
+"""Commands that play a scene on fixed physics frames: replay, perf, feel and play sessions."""
 
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import asdict
 from pathlib import Path
 
@@ -10,8 +11,12 @@ from godotkit.actions import Recording
 from godotkit.cmd_godot import native_display
 from godotkit.display import NoDisplay
 from godotkit.feel import FeelConfig, FeelProbe
+from godotkit.gates import CLASS_CACHE
+from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_SETUP, MAX_ISSUES_SHOWN, emit
 from godotkit.perf import PerfConfig, ScaleProbe
+from godotkit.playclient import PlayClient
+from godotkit.playsession import SessionConfig
 from godotkit.replay import ReplayProbe, ReplayRequest, RunTrace
 from godotkit.runner import GodotRunner
 
@@ -120,6 +125,52 @@ def feel(args: argparse.Namespace, runner: GodotRunner) -> int:
     return EXIT_OK if outcome.ok else EXIT_FAILED
 
 
+def play(args: argparse.Namespace, runner: GodotRunner) -> int:
+    project = args.project.resolve()
+    client = PlayClient(project)
+    try:
+        if args.op == "start":
+            native_display(args.native)
+            # Without the class cache every class_name reference fails to parse.
+            if not (project / CLASS_CACHE).is_file():
+                ProjectImporter(runner).run(ImportRequest(project, args.timeout))
+            config = SessionConfig(
+                project,
+                runner.binary.path,
+                args.scene,
+                args.seed,
+                args.max_steps,
+                args.native,
+                args.timeout,
+                args.idle,
+            )
+            session, reply = client.start(config)
+            reply = {"session": session, **reply}
+        elif args.op == "step":
+            acts = [json.loads(text) for text in args.act]
+            message = {"op": "step", "act": acts, "frames": args.frames, "look": args.look}
+            reply = client.request(args.session, message, args.timeout)
+        else:
+            reply = client.request(args.session, {"op": args.op}, args.timeout)
+    except NoDisplay as error:
+        emit(
+            {
+                "cmd": "play",
+                "op": args.op,
+                "ok": False,
+                "reason": "no_display",
+                "detail": str(error),
+            }
+        )
+        return EXIT_SETUP
+    except (OSError, ValueError) as error:
+        emit({"cmd": "play", "op": args.op, "ok": False, "reason": "refused", "detail": str(error)})
+        return EXIT_REFUSED
+    ok = bool(reply.get("ok"))
+    emit({"cmd": "play", "op": args.op, **reply, "ok": ok})
+    return EXIT_OK if ok else EXIT_FAILED
+
+
 def add_parser(
     commands: argparse._SubParsersAction[argparse.ArgumentParser], native_help: str
 ) -> None:
@@ -158,6 +209,35 @@ def add_parser(
     feel_cmd.add_argument("--project", type=Path, default=Path.cwd())
     feel_cmd.add_argument("--native", action="store_true", help=native_help)
     feel_cmd.add_argument("--timeout", type=float, default=120.0, help="seconds per run")
+
+    play_cmd = commands.add_parser(
+        "play", help="a lockstep session: start, step with acts, end with a recording"
+    )
+    ops = play_cmd.add_subparsers(dest="op", required=True)
+    start = ops.add_parser("start", help="start the game with the bridge; prints the first view")
+    start.add_argument("--scene", help="res:// path of the scene; default: main")
+    start.add_argument("--seed", type=int, default=0, help="seed of the global random generator")
+    start.add_argument("--max-steps", type=int, default=200, help="steps before the session stops")
+    start.add_argument("--idle", type=float, default=900.0, help="seconds without a step: end")
+    start.add_argument("--native", action="store_true", help=native_help + "; allows --look")
+    step = ops.add_parser("step", help="play acts for some frames; prints the view after them")
+    step.add_argument(
+        "--act",
+        action="append",
+        default=[],
+        help='JSON act: {"kind": "action", "name": N, "hold_frames": 10}, '
+        '{"kind": "click", "target": "/root/..."} or {"kind": "do", "name": N, "args": {}}',
+    )
+    step.add_argument("--frames", type=int, default=1, help="physics frames the step runs")
+    step.add_argument("--look", action="store_true", help="save a screenshot (native only)")
+    end = ops.add_parser("end", help="end the session; writes actions.jsonl and judges the log")
+    for parser in (start, step, end):
+        parser.add_argument("--project", type=Path, default=Path.cwd())
+        parser.add_argument(
+            "--timeout", type=float, default=120.0, help="seconds for start-up or a step"
+        )
+    for parser in (step, end):
+        parser.add_argument("--session", required=True, help="the id `play start` printed")
 
 
 def _trace(trace: RunTrace) -> dict[str, object]:

@@ -57,7 +57,7 @@ class TraceStep:
 
     @property
     def state(self) -> dict[str, Json]:
-        return state_of(self.obs.get("entities", []))
+        return state_of(self.obs.get("entities", []), self.obs.get("ui", []))
 
     @property
     def errors(self) -> list[str]:

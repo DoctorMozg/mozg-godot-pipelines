@@ -150,7 +150,7 @@
   },
   "$defs": {
     "predicate": {
-      "description": "A state query compared with a value, or text that must stay out of the log. Queries name a playtest_observe node, then keys of its playtest_state(): Survival.day.",
+      "description": "A state query compared with a value, or text that must stay out of the log. Queries name a playtest_observe node, then keys of its playtest_state(): Survival.day. Under ui, a shown Control by node name, then a field of it: ui.Status.text; a predicate on a Control not shown is false.",
       "type": "object",
       "properties": {
         "id": {

@@ -82,6 +82,17 @@ class TestPredicates:
         state = state_of([{"path": "/root/Main/Survival", "state": {"day": 2}}])
         assert resolve(state, "Survival.day") == 2
 
+    def test_shown_controls_answer_ui_queries_and_a_hidden_one_is_false(self) -> None:
+        ui = [
+            {"path": "/root/Main/Status", "type": "Label", "text": "Day 2"},
+            {"path": "/root/Main/Popup/Status", "type": "Label", "text": "later"},
+        ]
+        state = state_of([], ui)
+        assert Predicate("ui.Status.text", "==", "Day 2").holds(state, [])
+        assert not Predicate("ui.Won.text", "!=", "").holds(state, [])
+        with pytest.raises(Unresolved, match=r"ui\.Status\.disabled"):
+            Predicate("ui.Status.disabled", "==", False).holds(state, [])
+
 
 class TestLintCommand:
     def test_lint_names_every_refused_file(

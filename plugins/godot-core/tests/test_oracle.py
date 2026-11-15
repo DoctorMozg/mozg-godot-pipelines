@@ -92,6 +92,22 @@ class TestOutcomes:
         verdict = judge(_step(0, "a"), _step(1, "b", wood=5), _step(2, "c", wood=5, farms=1))
         assert (verdict.result, verdict.passed_at_step, verdict.findings) == ("pass", 2, ())
 
+    def test_a_label_on_screen_meets_a_ui_goal(self, judge: Judge) -> None:
+        shown = TraceStep(
+            1,
+            10,
+            1.0,
+            {
+                "frame": 10,
+                "hash": "b",
+                "entities": [],
+                "ui": [{"path": "/root/Main/Result", "text": "Won"}],
+            },
+        )
+        success = [{"query": "ui.Result.text", "op": "==", "value": "Won"}]
+        verdict = judge(_step(0, "a"), shown, success=success, invariants=[], milestones=[])
+        assert (verdict.result, verdict.passed_at_step) == ("pass", 1)
+
     def test_the_same_states_for_the_window_are_a_suspected_softlock(self, judge: Judge) -> None:
         trace = [_step(n, "a" if n % 2 else "b") for n in range(6)]
         verdict = judge(*trace)

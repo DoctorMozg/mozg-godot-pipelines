@@ -15,6 +15,7 @@ from godotkit.contracts import Contract, Json
 log = logging.getLogger(__name__)
 
 DEFAULT_STUCK = 20
+UI = "ui"
 OPS: Mapping[str, Callable[[Json, Json], bool]] = {
     "==": operator.eq,
     "!=": operator.ne,
@@ -61,6 +62,11 @@ class Predicate:
             return not any(self.log_absent in line for line in log_lines)
         if self.query is None or self.op is None:
             raise Unresolved(f"a predicate needs query, op and value, got {self!r}")
+        root, name = self.query.split(".")[:2]
+        shown = state.get(UI)
+        if root == UI and isinstance(shown, Mapping) and name not in shown:
+            # Controls come and go with the screen; one not shown has nothing to compare.
+            return False
         got = resolve(state, self.query)
         if self.op in ORDERING and not (_is_number(got) and _is_number(self.value)):
             raise Unresolved(f"{self.query} is {got!r}; {self.op} needs a number")
@@ -118,9 +124,18 @@ class Scenario:
         )
 
 
-def state_of(entities: Sequence[Mapping[str, Json]]) -> dict[str, Json]:
-    """The query root: each playtest_observe node's state under its node name."""
-    return {str(entity["path"]).rsplit("/", 1)[-1]: entity["state"] for entity in entities}
+def state_of(
+    entities: Sequence[Mapping[str, Json]], ui: Sequence[Mapping[str, Json]] = ()
+) -> dict[str, Json]:
+    """The query root: each playtest_observe node's state under its node name, and under `ui` the
+    shown Controls by node name, the first in tree order when names repeat."""
+    state: dict[str, Json] = {_name(entity): entity["state"] for entity in entities}
+    controls: dict[str, Json] = {}
+    for control in ui:
+        fields = {key: value for key, value in control.items() if key != "path"}
+        controls.setdefault(_name(control), fields)
+    state[UI] = controls
+    return state
 
 
 def resolve(state: Mapping[str, Json], query: str) -> Json:
@@ -132,6 +147,10 @@ def resolve(state: Mapping[str, Json], query: str) -> Json:
             raise Unresolved(f"{query}: the observation has no {'.'.join(walked)}")
         value = value[key]
     return value
+
+
+def _name(node: Mapping[str, Json]) -> str:
+    return str(node["path"]).rsplit("/", 1)[-1]
 
 
 def _semantic_problems(raw: Mapping[str, Json]) -> list[str]:

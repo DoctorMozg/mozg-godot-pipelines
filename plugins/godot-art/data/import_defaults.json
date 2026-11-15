@@ -1,0 +1,19 @@
+{
+  "note": "Bits per pixel a texture takes once imported, by compress mode and alpha, plus size limits per target. A project overrides limits in art/policy.json.",
+  "bits_per_pixel": {
+    "vram_alpha": 8,
+    "vram_opaque": 4,
+    "vram_high_quality": 8,
+    "raw_alpha": 32,
+    "raw_opaque": 24
+  },
+  "bits_per_pixel_source": "Measured 2026-11-15 on Godot 4.7.2, Linux desktop (s3tc_bptc): .ctex payload of 256x256 PNGs imported headless. compress/mode 2 gave 8 bpp with alpha (BC3), 4 opaque (BC1), 8 with high_quality (BPTC); mode 3 gave 32 with alpha and 24 opaque.",
+  "raw_modes_note": "UNTESTED: modes 0 (lossless) and 1 (lossy) are counted as raw, since they are decompressed before upload (docs/research/27-rendering-vfx-import.md:143, 2026-11-13). Basis (mode 4) is counted as vram. A driver may pad 24 bpp to 32.",
+  "mipmap_factor": 1.334,
+  "mipmap_factor_source": "Measured 2026-11-15 on Godot 4.7.2: 87,460 / 65,588 bytes for the same 256x256 texture with and without mipmaps.",
+  "max_px": {
+    "mobile": 4096,
+    "web": 4096
+  },
+  "max_px_source": "UNTESTED: docs/research/27-rendering-vfx-import.md:149, 2026-11-13."
+}

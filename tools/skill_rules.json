@@ -149,5 +149,8 @@
       "<project>": "the Godot project folder",
       "<scene>": "the res:// path of the screen's scene"
     }
+  },
+  "godot-audio": {
+    "placeholders": {}
   }
 }

@@ -35,6 +35,8 @@ pythonpath = [
   "plugins/godot-art/tests",
   "plugins/godot-ui/src",
   "plugins/godot-ui/tests",
+  "plugins/godot-audio/src",
+  "plugins/godot-audio/tests",
 ]
 # Each suite runs in its own process (see the Makefile), so a bare pytest runs the repo tests.
 testpaths = ["tests"]

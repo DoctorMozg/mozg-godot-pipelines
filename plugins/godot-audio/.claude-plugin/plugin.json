@@ -1,0 +1,16 @@
+{
+  "name": "godot-audio",
+  "version": "0.1.0",
+  "description": "Game audio for Godot projects: a cue sheet, stdlib measures of peak, loudness and loop seams, import loop points, bus layout lint, seeded synth sounds, fal or synth output registered in the review hub",
+  "author": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "audio",
+    "sfx",
+    "loudness"
+  ]
+}

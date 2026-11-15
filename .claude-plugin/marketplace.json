@@ -92,6 +92,18 @@
         "theme",
         "accessibility"
       ]
+    },
+    {
+      "name": "godot-audio",
+      "source": "./plugins/godot-audio",
+      "description": "Game audio for Godot: cue sheet, loudness and loop checks, bus lint, synth, sounds in the review hub",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "audio",
+        "sfx",
+        "loudness"
+      ]
     }
   ]
 }

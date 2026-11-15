@@ -9,7 +9,9 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from artkit.records import ArtRecords, RecordsError
+from artkit.audit import MB, ImportAudit, load_defaults
+from artkit.policy import load_policy
+from artkit.records import ArtRecords, Finding, RecordsError
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 
@@ -22,6 +24,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("lint", help="check the art bible and every brief")
     dependents = commands.add_parser("dependents", help="briefs downstream of a root or brief")
     dependents.add_argument("id")
+    commands.add_parser("audit", help="texture imports against art/policy.json, and VRAM")
     return parser
 
 
@@ -29,11 +32,35 @@ def emit(payload: Mapping[str, object]) -> None:
     sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def _rows(findings: list[Finding]) -> list[dict[str, str]]:
+    return [{"file": f.file, "rule": f.rule, "detail": f.detail} for f in findings]
+
+
 def _lint(records: ArtRecords) -> int:
     findings = records.lint()
-    rows = [{"file": f.file, "rule": f.rule, "detail": f.detail} for f in findings]
+    rows = _rows(findings)
     emit({"cmd": "lint", "ok": not findings, "briefs": len(records.briefs), "problems": rows})
     return EXIT_FAILED if findings else EXIT_OK
+
+
+def _audit(project: Path) -> int:
+    policy = load_policy(project)
+    report = ImportAudit(project, policy, load_defaults()).run()
+    ranked = sorted(report.textures, key=lambda pair: pair[1], reverse=True)
+    largest = [{"file": t.source, "mb": round(size / MB, 2)} for t, size in ranked[:5]]
+    payload = {
+        "cmd": "audit",
+        "ok": not report.problems,
+        "target": policy.target,
+        "textures": len(report.textures),
+        "vram_mb": round(report.total_mb, 2),
+        "budget_mb": policy.budget_mb,
+        "largest": largest,
+        "skipped": report.skipped,
+        "problems": _rows(report.problems),
+    }
+    emit(payload)
+    return EXIT_FAILED if report.problems else EXIT_OK
 
 
 def main(argv: Sequence[str]) -> int:
@@ -43,8 +70,13 @@ def main(argv: Sequence[str]) -> int:
         format="artkit: %(message)s",
         stream=sys.stderr,
     )
+    project = args.project.resolve()
     try:
-        records = ArtRecords(args.project.resolve())
+        if not (project / "project.godot").is_file():
+            raise RecordsError(f"no project.godot in {project}")
+        if args.command == "audit":
+            return _audit(project)
+        records = ArtRecords(project)
         if args.command == "lint":
             return _lint(records)
         found = records.dependents(args.id)

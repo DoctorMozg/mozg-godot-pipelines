@@ -1,0 +1,44 @@
+{
+  "schema": "playtest-scenario/1",
+  "id": "match",
+  "goal": "A seeded bot match ends with a winner and the population cap holds",
+  "mode": "scripted_bot",
+  "persona": "explorer",
+  "seeds": [
+    7
+  ],
+  "success": [
+    {
+      "query": "Match.winner",
+      "op": ">=",
+      "value": 0
+    }
+  ],
+  "invariants": [
+    {
+      "id": "unit-cap",
+      "query": "Match.peak_units",
+      "op": "<=",
+      "value": 500
+    },
+    {
+      "id": "base-a",
+      "query": "Match.base_a",
+      "op": ">=",
+      "value": 0
+    },
+    {
+      "id": "base-b",
+      "query": "Match.base_b",
+      "op": ">=",
+      "value": 0
+    }
+  ],
+  "budget": {
+    "max_steps": 60,
+    "max_tokens": 1,
+    "max_wall_seconds": 300,
+    "max_frames": 6000,
+    "stuck_after_steps": 10
+  }
+}

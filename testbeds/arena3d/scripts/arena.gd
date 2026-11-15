@@ -18,6 +18,7 @@ var ticks: int = 0
 
 func _ready() -> void:
 	add_to_group(&"playtest_state")
+	add_to_group(&"playtest_observe")
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = seed_value
 	enemy.position = Vector3(rng.randf_range(-6.0, 6.0), 1.0, rng.randf_range(-7.0, -3.0))
@@ -43,6 +44,13 @@ func summary() -> String:
 		seed_value, result, ticks, player.health, enemy.health]
 
 
+# What a playtest bot or agent reads each step: the fight and positions on the floor plane.
+func playtest_state() -> Dictionary:
+	return {"result": result, "ticks": ticks, "player_health": player.health,
+		"enemy_health": enemy.health, "player": _flat(player.global_position),
+		"enemy": _flat(enemy.global_position), "exit": _flat(exit_area.global_position)}
+
+
 # What godotkit replay compares between runs: the fight's outcome and what the player sees.
 func state_hash() -> String:
 	var context: HashingContext = HashingContext.new()
@@ -50,6 +58,10 @@ func state_hash() -> String:
 	context.update(var_to_bytes([ticks, result, player.global_transform, player.velocity,
 		player.health, player.animation_state(), enemy.global_transform, enemy.health]))
 	return context.finish().hex_encode()
+
+
+func _flat(at: Vector3) -> Array[float]:
+	return [snappedf(at.x, 0.01), snappedf(at.z, 0.01)]
 
 
 func _on_enemy_died() -> void:

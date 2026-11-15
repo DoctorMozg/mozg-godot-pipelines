@@ -1,0 +1,46 @@
+{
+  "schema": "playtest-scenario/1",
+  "id": "fight",
+  "goal": "Beat the enemy, then reach the exit",
+  "mode": "scripted_bot",
+  "persona": "speedrunner",
+  "seeds": [
+    1
+  ],
+  "success": [
+    {
+      "query": "Arena.result",
+      "op": "==",
+      "value": "won"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "player-alive",
+      "query": "Arena.player_health",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "id": "inside-arena",
+      "query": "Arena.ticks",
+      "op": "<",
+      "value": 3600
+    }
+  ],
+  "milestones": [
+    {
+      "id": "enemy-down",
+      "query": "Arena.enemy_health",
+      "op": "==",
+      "value": 0,
+      "expect_within_steps": 40
+    }
+  ],
+  "budget": {
+    "max_steps": 400,
+    "max_tokens": 1,
+    "max_wall_seconds": 300,
+    "max_frames": 2400
+  }
+}

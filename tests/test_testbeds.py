@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -18,15 +19,19 @@ KNOWN_GODOT = Path("/home/drmozg/Tools/Godot_v4.7.2-stable_linux.x86_64")
 TIMEOUT_S = 120
 
 
-def _godotkit(*args: str) -> dict[str, Any]:
+def _env() -> dict[str, str]:
     env = dict(os.environ)
     if not env.get("GODOT_BIN") and KNOWN_GODOT.is_file():
         env["GODOT_BIN"] = str(KNOWN_GODOT)
+    return env
+
+
+def _godotkit(*args: str) -> dict[str, Any]:
     done = subprocess.run(
         [str(GODOTKIT), *args],
         capture_output=True,
         text=True,
-        env=env,
+        env=_env(),
         timeout=TIMEOUT_S * 2,
         check=False,
     )
@@ -109,6 +114,21 @@ class TestTestbeds:
         result = _godotkit("replay", "--project", testbed.folder, "--runs", "3", *replay)
         assert result["ok"], result
         assert all(run["hashes"] >= 10 for run in result["runs"])
+
+    def test_the_playtest_bot_passes_its_scenario(self, testbed: Bed) -> None:
+        folder = Path(testbed.folder)
+        bot = next((folder / "playtest" / "bots").glob("*.py"))
+        scenario = next((folder / "playtest" / "scenarios").glob("*.json"))
+        played = subprocess.run(
+            [sys.executable, str(bot), str(GODOTKIT), testbed.folder],
+            capture_output=True, text=True, env=_env(), timeout=TIMEOUT_S * 2, check=True,
+        )  # fmt: skip
+        session = played.stdout.strip().splitlines()[-1]
+        # A bot spends no model tokens while it plays, so its measured cost is zero.
+        cost = ("--tokens-in", "0", "--tokens-out", "0", "--usd", "0")
+        args = ("--project", testbed.folder, "--session", session, "--scenario", str(scenario))
+        result = _godotkit("playtest", "judge", *args, *cost)
+        assert (result["result"], result["findings"]) == ("pass", []), result
 
 
 def _arena_copy(tmp_path: Path) -> Path:

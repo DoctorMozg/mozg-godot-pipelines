@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass, field
 
 from audiokit.headers import AudioInfo, HeaderError, read_info
+from audiokit.loudness import Loudness, ffmpeg_loudness, measure_loudness
 from audiokit.policy import Policy, Rule
 from audiokit.records import CueSheet, Finding
 from audiokit.samples import Measures, decode, measure
@@ -78,6 +79,52 @@ class Levels:
         if rule.max_edge_silence_s is not None and edges > rule.max_edge_silence_s:
             detail = f"{edges:.3f} s of silence at an edge, over {rule.max_edge_silence_s:g} s"
             out.append(Finding(source, "silence", detail))
+        return out
+
+
+@dataclass
+class LoudnessReport:
+    files: dict[str, dict[str, object]] = field(default_factory=dict)
+    problems: list[Finding] = field(default_factory=list)
+
+
+class LoudnessCheck:
+    """BS.1770 in the standard library; with `compare`, ffmpeg's ebur128 figures beside it."""
+
+    def __init__(self, sheet: CueSheet, policy: Policy, tools: Tools) -> None:
+        self.sheet, self.policy, self.tools = sheet, policy, tools
+
+    def run(self, compare: bool) -> LoudnessReport:
+        report = LoudnessReport()
+        for source in cue_files(self.sheet):
+            path = self.sheet.project / source
+            try:
+                found = measure_loudness(decode(path, self.tools.ffmpeg, self.tools.ffprobe))
+            except HeaderError as error:
+                report.problems.append(Finding(source, "not_measured", str(error)))
+                continue
+            row: dict[str, object] = dict(found.as_json())
+            if compare and self.tools.ffmpeg:
+                row["ffmpeg"] = ffmpeg_loudness(path, self.tools.ffmpeg).as_json()
+            report.files[source] = row
+            report.problems += self._check(source, found, self.policy.rule_for(source))
+        log.info("loudness: %d files, %d problems", len(report.files), len(report.problems))
+        return report
+
+    def _check(self, source: str, found: Loudness, rule: Rule | None) -> list[Finding]:
+        if rule is None:
+            return []
+        out = []
+        if rule.lufs_i and found.lufs_i is None:
+            detail = "shorter than one 400 ms block or silent; judge it by peak and RMS"
+            out.append(Finding(source, "loudness", detail))
+        elif rule.lufs_i and not rule.lufs_i[0] <= (found.lufs_i or 0.0) <= rule.lufs_i[1]:
+            low, high = rule.lufs_i
+            detail = f"{found.lufs_i:.1f} LUFS, outside {low:g} to {high:g} for {rule.glob}"
+            out.append(Finding(source, "loudness", detail))
+        limit, peak = rule.max_true_peak_dbtp, found.true_peak_dbtp
+        if limit is not None and peak is not None and peak > limit:
+            out.append(Finding(source, "true_peak", f"{peak:.2f} dBTP, over {limit:g}"))
         return out
 
 

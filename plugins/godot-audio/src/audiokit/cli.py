@@ -10,7 +10,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from audiokit.audit import Audit, Levels, Tools
+from audiokit.audit import Audit, Levels, LoudnessCheck, Tools
 from audiokit.buses import BusLint
 from audiokit.doctor import doctor, find_tool
 from audiokit.loops import LoopCheck, write_loop
@@ -31,6 +31,8 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("levels", help="peak, RMS, clipping, DC and edge silence of every cue file")
     commands.add_parser("loops", help="loop seams and each cue file's .import settings")
     commands.add_parser("buses", help="the bus layout and the buses scenes and scripts name")
+    loudness = commands.add_parser("loudness", help="BS.1770 loudness and true peak of cue files")
+    loudness.add_argument("--ffmpeg", action="store_true", help="also report ffmpeg's ebur128")
     loop = commands.add_parser("loop", help="write a cue's loop points into its files' .import")
     loop.add_argument("cue")
     return parser
@@ -86,6 +88,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 }
             )
             return EXIT_FAILED if loops.problems else EXIT_OK
+        if args.command == "loudness":
+            if args.ffmpeg and tools.ffmpeg is None:
+                raise RecordsError("--ffmpeg asks for ffmpeg, which is not installed")
+            found = LoudnessCheck(sheet, load_policy(sheet.project), tools).run(args.ffmpeg)
+            emit(
+                {
+                    "cmd": "loudness",
+                    "ok": not found.problems,
+                    "files": found.files,
+                    "problems": rows(found.problems),
+                    "note": "measured, not heard",
+                }
+            )
+            return EXIT_FAILED if found.problems else EXIT_OK
         if args.command == "levels":
             levels = Levels(sheet, load_policy(sheet.project), tools).run()
             measured = {source: m.as_json() for source, m in levels.files.items()}

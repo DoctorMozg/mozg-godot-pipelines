@@ -26,6 +26,8 @@ class Rule:
     max_peak_dbfs: float | None = None
     max_edge_silence_s: float | None = None
     compress_modes: tuple[int, ...] | None = None
+    lufs_i: tuple[float, float] | None = None
+    max_true_peak_dbtp: float | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,10 @@ def _positive(raw: dict[str, Json], name: str) -> float | None:
     return float(value)
 
 
+def _level(value: Json) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value <= 0
+
+
 def _rule(raw: Json) -> Rule:
     if not isinstance(raw, dict) or not isinstance(raw.get("glob"), str):
         raise RecordsError(f"{POLICY_FILE}: every rule needs a glob, got {raw!r}")
@@ -59,6 +65,19 @@ def _rule(raw: Json) -> Rule:
     modes = raw.get("compress_modes")
     if modes is not None and (not isinstance(modes, list) or not set(modes) <= {0, 1, 2}):
         raise RecordsError(f"{POLICY_FILE}: compress_modes are WAV modes 0 to 2, got {modes!r}")
+    band = raw.get("lufs_i")
+    if band is not None and not (
+        isinstance(band, list)
+        and len(band) == 2
+        and all(_level(v) for v in band)
+        and band[0] < band[1]
+    ):
+        raise RecordsError(f"{POLICY_FILE}: lufs_i is [low, high] in LUFS, got {band!r}")
+    true_peak = raw.get("max_true_peak_dbtp")
+    if true_peak is not None and not _level(true_peak):
+        raise RecordsError(
+            f"{POLICY_FILE}: max_true_peak_dbtp is a level at most 0, got {true_peak!r}"
+        )
     channels = raw.get("channels")
     if channels not in (None, 1, 2):
         raise RecordsError(f"{POLICY_FILE}: channels is 1 or 2, got {channels!r}")
@@ -71,6 +90,8 @@ def _rule(raw: Json) -> Rule:
         max_peak_dbfs=None if peak is None else float(peak),
         max_edge_silence_s=_positive(raw, "max_edge_silence_s"),
         compress_modes=None if modes is None else tuple(modes),
+        lufs_i=None if band is None else (float(band[0]), float(band[1])),
+        max_true_peak_dbtp=None if true_peak is None else float(true_peak),
     )
 
 

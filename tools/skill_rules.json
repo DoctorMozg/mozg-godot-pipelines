@@ -11,7 +11,20 @@
       "<reach change>": "max files reached now and its change against the base commit",
       "<pattern>": "a regular expression",
       "<count>": "a finding count from the survey",
-      "<file contents>": "the full text of a file to write"
+      "<file contents>": "the full text of a file to write",
+      "<plugin>": "this plugin's root, the parent of the skills folder",
+      "<scenario id>": "a playtest scenario id, such as first-day",
+      "<persona>": "a scenario persona: novice, speedrunner, explorer or adversarial",
+      "<seed>": "a scenario seed",
+      "<session>": "a play session id, such as 20261115-043625-9b5b",
+      "<result>": "a judged run result: pass, fail_bug, fail_stuck, fail_budget, fail_unmet or invalid",
+      "<cost>": "measured tokens in and out and dollars, or none",
+      "<finding id>": "a playtest finding id, such as f-0123456789ab",
+      "<class>": "a finding class: bug, suspected_softlock, difficulty_or_agent_limit, observation or ux_hypothesis",
+      "<confidence>": "confirmed, replay_failed or unreplayed",
+      "<title>": "a finding title",
+      "<what the bridge could not do, or nothing>": "acts or views a flow needed that the play bridge lacks",
+      "<what changed between runs, or nothing>": "the bot rules changed between runs of one scenario"
     }
   },
   "godot-assets": {

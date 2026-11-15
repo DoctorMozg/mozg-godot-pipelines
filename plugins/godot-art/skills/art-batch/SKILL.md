@@ -42,7 +42,7 @@ Brief ids or a family, and the project path. Optional: a cap on spend for this b
 
 1. **Write each prompt from its brief.** The hook first, then the master style and family mode from the bible, the readability note, the contrast plan, and the forbidden and banned lists as plain positive wording ("a plain background", not "no text"). Root files go in as reference pictures. `references/batch.md` has the template.
 
-1. **Price before spending.** Stills: one fal plan for the batch through `fal-plan`, then `falkit estimate --plan PLAN`. Models: `falkit estimate --endpoint <mesh endpoint> --input '<json>'` per brief, with `face_count` set from the family's triangle budget. Tell the owner the expected total, the worst case and `falkit budget show`'s budget left. Over the batch cap: stop and ask.
+1. **Price before spending.** Stills: one fal plan for the batch through `fal-plan`, then `falkit estimate --plan PLAN`. Models: `falkit estimate --endpoint <mesh endpoint> --input '<json>'` per brief, with `face_count` set from the family's triangle budget. Tell the owner the expected total, the worst case and `falkit budget show`'s budget left; before a Hunyuan 3D model, also its license regions and 40,000-face floor (`references/batch.md`). Over the batch cap: stop and ask.
 
 1. **Generate through fal-media.** Stills run with `fal-run`. A model is one `submit_job` per brief under fal-media's spend guard, then `falkit fetch`. Note each model call's tool use id from `falkit ledger show`. fal-media 0.24.0 cannot fetch a mesh (`kind must be one of ...`), and `artkit register` refuses a call with no fetched file: while that holds, submit no model, since it would be charged and left unregistered.
 

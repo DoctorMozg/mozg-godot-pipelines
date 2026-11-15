@@ -187,7 +187,7 @@ Confidence: high.
 
 **F22. No game-specific study on deduplicating findings was found.** Tools from mobile apps exist (TANGO, ICSE 2021: top-2 accuracy 83%; JANUS, ICSE 2024) but are video-based and untested on games. For this suite, deterministic fingerprints are recommended over LLM similarity: oracle type, scene path, failing assertion ID, top stack frame and normalised error text. UNVERIFIED as a published game practice.
 
-**F23. Cost per scenario.** The only published per-action figure is MIMIC's: $0.05–0.06 with GPT-4o (2025 prices), 12.4 s per action, and "thousands of USD" for the whole study. Derived estimate for a 150-action scenario: about $8–9 and about 31 minutes. UNTESTED for Claude models and for a compact text state. The tool should record measured token use per run instead of shipping this estimate.
+**F23. Cost per scenario.** The only published per-action figure is MIMIC's: $0.05–0.06 with GPT-4o (2025 prices), 12.4 s per action, and "thousands of USD" for the whole study. Derived estimate for a 150-action scenario: about $8–9 and about 31 minutes. UNTESTED for Claude models and for a compact text state. The tool should record measured token use per run instead of shipping this estimate. Measured 2026-11-15 (docs/plan.md, P6): Opus 5.5 headless on AloneGodot, $0.65 for 6 steps and 14 agent turns, 382 s.
 
 ### 6. When non-LLM bots are the better tool
 

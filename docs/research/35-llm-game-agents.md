@@ -245,6 +245,7 @@ Cost is driven mostly by output and reasoning length, not by game length.
 - Totals: roughly $0.60 to $7 per scenario run and 3 to 15 minutes of wall-clock.
 - If decisions are made every 0.5 seconds of game time with raw keys, a 5-minute scenario needs about 600 decisions and 1 hour or more of wall-clock. This is impractical.
 - Confidence: medium. The arithmetic is checkable; the latency figure comes from other harnesses.
+- Measured 2026-11-15 (docs/plan.md, P6): Opus 5.5 headless in Claude Code on AloneGodot, 6 steps and 14 turns over 382 s cost $0.65, about $0.05 a turn, with about 52k prompt tokens a turn, nearly all cache reads.
 
 ### 6. Which genres are realistic today
 

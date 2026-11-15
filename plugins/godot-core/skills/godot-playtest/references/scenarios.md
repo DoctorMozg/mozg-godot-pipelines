@@ -51,6 +51,7 @@ A scenario is one JSON file at `<project>/playtest/scenarios/<id>.json`, checked
 - Prefer `playtest_observe` state over UI text when the game has it: text changes with translation and copy edits.
 - An invariant states a rule of the game (health never below 0, gold never negative, unit count under the cap). A rule broken once is a bug with a replay; keep invariants to rules the owner would call a bug.
 - Budget `max_tokens` counts measured input plus output tokens of the playing agent; cached prompt tokens count as input.
+- Cache reads dominate it: the AloneGodot pilot (Opus 5.5 headless, 2026-11-15) spent 723,528 tokens in over 14 agent turns, about 52k a turn, for $0.65. Size `max_tokens` at about 60k per expected turn.
 
 ## Game hooks
 

@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot, cmd_play, hooks
+from godotkit import cmd_baseline, cmd_files, cmd_gate, cmd_godot, cmd_play, cmd_playtest, hooks
 from godotkit.doctor import Doctor
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.output import EXIT_OK, EXIT_SETUP, emit
@@ -93,6 +93,7 @@ def _parser() -> argparse.ArgumentParser:
     shot.add_argument("--timeout", type=float, default=120.0)
 
     cmd_play.add_parser(commands, NATIVE_HELP)
+    cmd_playtest.add_parser(commands)
 
     test = commands.add_parser("test", help="run the test entries, all or those a change affects")
     test.add_argument("--project", type=Path, default=Path.cwd())
@@ -184,6 +185,8 @@ def main(argv: Sequence[str]) -> int:
         return cmd_godot.lsp(args, locator)
     if args.command == "baseline":
         return cmd_baseline.baseline(args, locator)
+    if args.command == "playtest" and args.op == "lint":
+        return cmd_playtest.lint(args)
     try:
         binary = locator.locate()
     except GodotNotFound as error:

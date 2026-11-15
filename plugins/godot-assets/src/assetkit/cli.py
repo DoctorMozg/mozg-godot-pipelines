@@ -85,6 +85,9 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument(
         "--media", action="append", default=[], help="KEY=VALUE, such as hframes=4 or fps=12"
     )
+    add.add_argument(
+        "--param", action="append", default=[], help="generation KEY=VALUE, such as usd=0.06"
+    )
 
     note = commands.add_parser("note", parents=[shared], help="add a note to an asset")
     note.add_argument("asset")
@@ -189,8 +192,10 @@ class Commands:
             for name in ("provider", "model", "prompt", "job_id", "seed")
             if getattr(args, name) is not None
         }
+        if args.param:
+            generation["params"] = dict(_pair("--param", pair) for pair in args.param)
         files = tuple(_role_and_path(pair) for pair in args.file)
-        media = dict(_media_pair(pair) for pair in args.media)
+        media = dict(_pair("--media", pair) for pair in args.media)
         spec = VersionSpec(files, provenance, self._author, generation or None, args.parent, media)
         return {"version": self._registry.add_version(args.asset, spec)}
 
@@ -353,10 +358,10 @@ def _emit(payload: dict[str, Json], code: int) -> int:
     return code
 
 
-def _media_pair(pair: str) -> tuple[str, Json]:
+def _pair(flag: str, pair: str) -> tuple[str, Json]:
     key, sep, raw = pair.partition("=")
     if not sep or not key:
-        raise Refused(f"--media takes KEY=VALUE, got {pair!r}")
+        raise Refused(f"{flag} takes KEY=VALUE, got {pair!r}")
     for number in (int, float):
         try:
             return key, number(raw)

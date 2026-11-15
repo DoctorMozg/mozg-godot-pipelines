@@ -56,6 +56,7 @@ An asset id (such as `door-mc5b`) or the file at hand. Without one, run `assetki
 
    - `--origin` is human, generated, licensed or procedural. Licensed work adds `--source-url`, `--creator` and `--attribution`.
    - A second file goes in as `--file ROLE=PATH` (`source`, `preview`, `frame1`, `frame2`). Sprite sheets add `--media hframes=4 --media fps=12`.
+   - What the call cost and the settings that shaped it go in as `--param usd_charged=0.06 --param face_count=40000`.
    - An edit of an earlier version names it with `--parent <version>`, and `--human-edited` when a person changed AI output.
 
 1. Answer retakes before new work. `assetkit pending --project P` lists each one with the owner's reason and region notes, such as `xywh=percent:25,50,50,50` on frame 2. A new version answers the retake; a note never does.

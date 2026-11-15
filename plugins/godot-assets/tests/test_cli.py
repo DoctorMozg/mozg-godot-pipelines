@@ -84,6 +84,18 @@ def test_version_records_media_measurements(run_cli: CliRunner, asset: str) -> N
     assert run_cli(*add, "--media", "hframes")[1]["reason"] == "refused"
 
 
+def test_version_records_generation_params(run_cli: CliRunner, asset: str) -> None:
+    add = ("version", "add", asset, "--file", "art/hero.png", "--origin", "generated")
+    made = ("--provider", "fal", "--model", "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d")
+    params = ("--param", "usd_charged=0.675", "--param", "face_count=40000")
+    code, payload = run_cli(*add, *made, *params)
+    assert (code, payload["version"]["generation"]["params"]) == (
+        0,
+        {"usd_charged": 0.675, "face_count": 40000},
+    )
+    assert run_cli(*add, *made, "--param", "=1")[1]["detail"] == "--param takes KEY=VALUE, got '=1'"
+
+
 def test_note_with_a_region(run_cli: CliRunner, asset: str) -> None:
     version = _version(run_cli, asset)
     note = ("note", asset, "--body", "seam", "--version", version, "--region", "t=0.5,0.75")

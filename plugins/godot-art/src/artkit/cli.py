@@ -56,6 +56,8 @@ def _audit(project: Path) -> int:
         "vram_mb": round(report.total_mb, 2),
         "budget_mb": policy.budget_mb,
         "largest": largest,
+        "models": len(report.models),
+        "triangles": sum(stats.triangles for _, stats in report.models),
         "skipped": report.skipped,
         "problems": _rows(report.problems),
     }

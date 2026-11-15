@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from artkit.glb import GlbError, GlbStats, read_glb
 from artkit.images import ImageError, ImageInfo, read_info
 from artkit.policy import POLICY_FILE, Policy
 from artkit.records import Finding
@@ -52,6 +53,7 @@ class Texture:
 @dataclass
 class AuditReport:
     textures: list[tuple[Texture, float]] = field(default_factory=list)
+    models: list[tuple[str, GlbStats]] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     problems: list[Finding] = field(default_factory=list)
 
@@ -83,6 +85,10 @@ def load_defaults() -> dict[str, float]:
     }
 
 
+def _hidden(relative: Path) -> bool:
+    return any(part.startswith(".") for part in relative.parts)
+
+
 class ImportAudit:
     """Every texture import of a project, checked against the policy of its folder."""
 
@@ -91,9 +97,7 @@ class ImportAudit:
 
     def run(self) -> AuditReport:
         report = AuditReport()
-        for path in sorted(self.project.rglob("*.import")):
-            if any(part.startswith(".") for part in path.relative_to(self.project).parts):
-                continue
+        for path in self._files("*.import"):
             values = read_import(path)
             if values.get("importer") != "texture":
                 continue
@@ -102,12 +106,38 @@ class ImportAudit:
                 size = texture.vram_bytes(self.defaults)
                 report.textures.append((texture, size))
                 report.problems += self._check(texture, size)
+        for path in self._files("*.glb"):
+            report.problems += self._model(path.relative_to(self.project).as_posix(), report)
         budget = self.policy.budget_mb
         if budget is not None and report.total_mb > budget:
             detail = f"textures need about {report.total_mb:.1f} MB of VRAM, budget {budget} MB"
             report.problems.append(Finding(POLICY_FILE.as_posix(), "vram_budget", detail))
-        log.info("audited %d textures, %.1f MB", len(report.textures), report.total_mb)
+        log.info(
+            "audited %d textures (%.1f MB) and %d models",
+            len(report.textures), report.total_mb, len(report.models),
+        )  # fmt: skip
         return report
+
+    def _files(self, pattern: str) -> list[Path]:
+        """Project files, leaving out dot folders such as .godot and .git."""
+        found = self.project.rglob(pattern)
+        return sorted(p for p in found if not _hidden(p.relative_to(self.project)))
+
+    def _model(self, source: str, report: AuditReport) -> list[Finding]:
+        try:
+            stats = read_glb(self.project / source)
+        except GlbError as error:
+            return [Finding(source, "unreadable", str(error))]
+        report.models.append((source, stats))
+        rule = self.policy.rule_for(source)
+        found = []
+        if rule and rule.max_triangles is not None and stats.triangles > rule.max_triangles:
+            detail = f"{stats.triangles} triangles, {rule.glob} allows {rule.max_triangles}"
+            found.append(Finding(source, "triangles", detail))
+        if rule and rule.max_materials is not None and stats.materials > rule.max_materials:
+            detail = f"{stats.materials} materials, {rule.glob} allows {rule.max_materials}"
+            found.append(Finding(source, "materials", detail))
+        return found
 
     def _texture(self, values: dict[str, str], report: AuditReport) -> Texture | None:
         source = values.get("source_file", "").removeprefix("res://")

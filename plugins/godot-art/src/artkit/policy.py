@@ -23,6 +23,8 @@ class Rule:
     compress_modes: tuple[int, ...] | None = None
     max_px: int | None = None
     max_texture_mb: float | None = None
+    max_triangles: int | None = None
+    max_materials: int | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,11 @@ def _number(value: object, name: str) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         raise RecordsError(f"{POLICY_FILE}: {name} must be a positive number, got {value!r}")
     return float(value)
+
+
+def _whole(value: object, name: str) -> int | None:
+    number = _number(value, name)
+    return None if number is None else int(number)
 
 
 def load_policy(project: Path) -> Policy:
@@ -64,13 +71,14 @@ def load_policy(project: Path) -> Policy:
             raise RecordsError(f"{POLICY_FILE}: compress_modes are 0 to 4, got {modes!r}")
         if raw.get("mipmaps") not in (None, True, False):
             raise RecordsError(f"{POLICY_FILE}: mipmaps is true or false, got {raw['mipmaps']!r}")
-        max_px = _number(raw.get("max_px"), "max_px")
         rule = Rule(
             raw["glob"],
             mipmaps=raw.get("mipmaps"),
             compress_modes=None if modes is None else tuple(modes),
-            max_px=None if max_px is None else int(max_px),
+            max_px=_whole(raw.get("max_px"), "max_px"),
             max_texture_mb=_number(raw.get("max_texture_mb"), "max_texture_mb"),
+            max_triangles=_whole(raw.get("max_triangles"), "max_triangles"),
+            max_materials=_whole(raw.get("max_materials"), "max_materials"),
         )
         rules.append(rule)
     budget = _number(data.get("vram_budget_mb"), "vram_budget_mb")

@@ -30,6 +30,7 @@ class TestPolicyFile:
             {"rules": [{"glob": "*", "compress_modes": [7]}]},
             {"vram_budget_mb": -1},
             {"rules": [{"glob": "*", "mipmaps": "yes"}]},
+            {"rules": [{"glob": "*", "max_triangles": 0}]},
         ],
     )
     def test_bad_policy_is_refused(self, project: Path, bad: dict[str, object]) -> None:

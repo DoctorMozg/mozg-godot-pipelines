@@ -66,13 +66,16 @@ class TestVram:
             ({"compress__mode": 2}, False, 32768),
             ({"compress__mode": 2}, True, 65536),
             ({"compress__mode": 2, "compress__high_quality": "true"}, False, 65536),
-            ({"compress__mode": 3}, False, 196608),
+            ({"compress__mode": 3}, False, 262144),
             ({"compress__mode": 0}, True, 262144),
+            # Lossless and lossy are decompressed before upload; Vulkan pads opaque to 32 bpp.
+            ({"compress__mode": 0}, False, 262144),
+            ({"compress__mode": 1}, False, 262144),
             ({"compress__mode": 2, "mipmaps__generate": "true"}, False, 32768 * 1.334),
             ({"compress__mode": 3, "process__size_limit": 128}, True, 65536),
         ],
     )
-    def test_matches_the_measured_ctex_payloads(
+    def test_matches_the_measured_footprint(
         self, project: Path, params: dict[str, object], alpha: bool, expected: float
     ) -> None:
         write_texture(project, "t.png", png(256, 256, alpha=alpha), **params)

@@ -5,10 +5,10 @@
     "vram_opaque": 4,
     "vram_high_quality": 8,
     "raw_alpha": 32,
-    "raw_opaque": 24
+    "raw_opaque": 32
   },
-  "bits_per_pixel_source": "Measured 2026-11-15 on Godot 4.7.2, Linux desktop (s3tc_bptc): .ctex payload of 256x256 PNGs imported headless. compress/mode 2 gave 8 bpp with alpha (BC3), 4 opaque (BC1), 8 with high_quality (BPTC); mode 3 gave 32 with alpha and 24 opaque.",
-  "raw_modes_note": "UNTESTED: modes 0 (lossless) and 1 (lossy) are counted as raw, since they are decompressed before upload (docs/research/27-rendering-vfx-import.md:143, 2026-11-13). Basis (mode 4) is counted as vram. A driver may pad 24 bpp to 32.",
+  "bits_per_pixel_source": "Measured 2026-11-15 on Godot 4.7.2, Linux desktop (s3tc_bptc): .ctex payload of 256x256 PNGs imported headless. compress/mode 2 gave 8 bpp with alpha (BC3), 4 opaque (BC1), 8 with high_quality (BPTC); mode 3 gave 32 with alpha and 24 opaque on disk; raw_opaque is 32 from the GPU measure in raw_modes_note.",
+  "raw_modes_note": "Measured 2026-11-15 on Godot 4.7.2, Linux, RTX 4090: RENDERING_INFO_TEXTURE_MEM_USED after loading 1024x1024 PNGs. Modes 0 (lossless) and 1 (lossy) took 4,194,304 bytes with or without alpha on Forward+ (Vulkan), so opaque raw is counted at 32 bpp; mode 2 took 1,048,576 with alpha and 524,288 opaque, as the .ctex payloads. The Compatibility renderer (OpenGL) reported 24 bpp opaque and 32 with alpha, each times 4/3. Basis (mode 4) is counted as vram, UNTESTED.",
   "mipmap_factor": 1.334,
   "mipmap_factor_source": "Measured 2026-11-15 on Godot 4.7.2: 87,460 / 65,588 bytes for the same 256x256 texture with and without mipmaps.",
   "max_px": {

@@ -87,6 +87,7 @@ class PseudoRun:
 def judge(scene: str, shot: Mapping[str, Json]) -> list[Finding]:
     """Leaks and overflow among the visible text nodes Godot reported at one window size."""
     width, height = (int(n) for n in shot["size"])
+    right, bottom = (float(n) for n in shot["canvas"])
     found: list[Finding] = []
     for node in shot["nodes"]:
         if node["class"] in INPUT_CLASSES:
@@ -98,7 +99,7 @@ def judge(scene: str, shot: Mapping[str, Json]) -> list[Finding]:
                 Finding("error", "untranslated", where, f"{shown[:60]!r} came from no key")
             )
         x, y, w, h = node["rect"]
-        if x < -SLACK_PX or y < -SLACK_PX or x + w > width + SLACK_PX or y + h > height + SLACK_PX:
+        if x < -SLACK_PX or y < -SLACK_PX or x + w > right + SLACK_PX or y + h > bottom + SLACK_PX:
             found.append(Finding("error", "off_screen", where, f"{shown[:40]!r} at {node['rect']}"))
         if node["clipped"]:
             found.append(Finding("error", "clipped", where, f"{shown[:40]!r} is cut to {w:.0f} px"))

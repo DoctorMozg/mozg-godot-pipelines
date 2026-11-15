@@ -55,7 +55,7 @@ class TestPseudoText:
 
 class TestJudge:
     def test_leak_offscreen_overflow_and_skips(self) -> None:
-        shot = {"size": [800.0, 600.0], "nodes": [
+        shot = {"size": [800.0, 600.0], "canvas": [800.0, 600.0], "nodes": [
             {"path": "A", "class": "Label", "shown": "[Ĥî~]", "translatable": True,
              "rect": [0, 0, 50, 20], "clipped": False},
             {"path": "B", "class": "Label", "shown": "Hi", "translatable": True,
@@ -71,6 +71,14 @@ class TestJudge:
             ("untranslated", "res://s.tscn:B@800x600"), ("clipped", "res://s.tscn:B@800x600"),
             ("off_screen", "res://s.tscn:C@800x600"),
         ]  # fmt: skip
+
+    def test_stretched_canvas_bounds_the_rects(self) -> None:
+        score = {"path": "Score", "class": "Label", "shown": "[Šçöŕé]", "translatable": True,
+                 "rect": [1769.0, 28.0, 135.0, 31.0], "clipped": False}  # fmt: skip
+        shot = {"size": [1280, 720], "canvas": [1920.0, 1080.0], "nodes": [score]}
+        assert judge("res://hud.tscn", shot) == []
+        moved = shot | {"canvas": [1280.0, 720.0]}
+        assert [f.rule for f in judge("res://hud.tscn", moved)] == ["off_screen"]
 
 
 @pytest.mark.live_godot

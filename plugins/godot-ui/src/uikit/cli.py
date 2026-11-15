@@ -10,6 +10,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from uikit.capture import Capture, Kits
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
 from uikit.layout import LayoutCheck
 from uikit.records import Finding, RecordsError, UiRecords
@@ -31,6 +32,9 @@ def _parser() -> argparse.ArgumentParser:
     tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
     commands.add_parser("theme", help="write ui/build/theme.tres from the tokens")
     commands.add_parser("scan", help="check project.godot, the screens' scenes and scripts")
+    capture = commands.add_parser("capture", help="shoot a screen at its sizes into the hub")
+    capture.add_argument("screen", help="SURFACE/SCREEN, as under ui/screens/")
+    capture.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new capture asset")
     check = commands.add_parser("check", help="layout checks on godotkit shot JSON")
     check.add_argument("--shots", type=Path, required=True, help="folder godotkit shot wrote")
     check.add_argument("--brief", required=True, help="brief whose sizes and minimums apply")
@@ -98,6 +102,14 @@ def main(argv: Sequence[str]) -> int:
     project = args.project.resolve()
     try:
         records = UiRecords(project)
+        if args.command == "capture":
+            kits = Kits(
+                Kit("godotkit", "godot-core", os.environ),
+                Kit("assetkit", "godot-assets", os.environ),
+            )
+            done = Capture(records, kits).run(args.screen, args.license)
+            emit({"cmd": "capture", "ok": True, **done})
+            return EXIT_OK
         if args.command == "check":
             findings = LayoutCheck(records, args.brief).run(args.shots.resolve())
             emit(

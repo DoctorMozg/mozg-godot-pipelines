@@ -113,6 +113,14 @@ class TestManifests:
         suite.plugin("alpha").plugin("bundle", dependencies="alpha")
         assert suite.build().problems() == ["plugins/bundle: 'dependencies' must be a list"]
 
+    def test_plugin_with_skills_may_not_list_dependencies(self, suite: SuiteBuilder) -> None:
+        skill = {"skills/tool/SKILL.md": "---\nname: tool\n---\n"}
+        suite.plugin("alpha").plugin("bundle", dependencies=["alpha"], files=skill)
+        assert suite.build().problems() == [
+            "plugins/bundle: a plugin with skills lists 'dependencies', which keeps its skills "
+            "from loading; only a bundle without skills may"
+        ]
+
     def test_dependency_in_object_form_resolves(self, suite: SuiteBuilder) -> None:
         suite.plugin("alpha").plugin("bundle", dependencies=[{"name": "alpha", "version": "1"}])
         assert suite.build().problems() == []

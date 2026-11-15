@@ -111,6 +111,12 @@ class SuiteRules:
             if not isinstance(dependencies, list):
                 problems.append(f"plugins/{plugin.folder}: 'dependencies' must be a list")
                 continue
+            # On 2026-11-14 a dependency silently kept godot-studio's own skills from loading.
+            if dependencies and (plugin.path / "skills").is_dir():
+                problems.append(
+                    f"plugins/{plugin.folder}: a plugin with skills lists 'dependencies', "
+                    "which keeps its skills from loading; only a bundle without skills may"
+                )
             for dependency in self._dependency_names(dependencies):
                 if dependency not in listed or dependency == own:
                     problems.append(f"plugins/{plugin.folder} depends on unknown {dependency}")

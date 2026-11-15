@@ -130,6 +130,9 @@ class ArtRecords:
                 yield Finding(name, "root", f"root {root_id} status must be one of {ROOT_STATUSES}")
             if root.get("status") == "approved" and not root.get("approved_at"):
                 yield Finding(name, "root", f"root {root_id} is approved without approved_at")
+            file = root.get("file")
+            if file is not None and not (self.project / str(file)).is_file():
+                yield Finding(name, "root", f"root {root_id} names file {file}, which is missing")
             family = root.get("family")
             if family is not None and family not in self.families:
                 yield Finding(name, "root", f"root {root_id} names unknown family {family}")

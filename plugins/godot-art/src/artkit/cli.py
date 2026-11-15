@@ -12,6 +12,7 @@ from pathlib import Path
 
 from artkit.audit import MB, ImportAudit, load_defaults
 from artkit.ingest import Ingest, RegisterRequest
+from artkit.judge import KINDS, JudgeSheets
 from artkit.kits import AssetKit, ToolFailed, ToolMissing
 from artkit.pixels import RasterError, decode_png
 from artkit.policy import load_policy
@@ -33,6 +34,10 @@ def _parser() -> argparse.ArgumentParser:
     check = commands.add_parser("precheck", help="subject against ground contrast of a PNG")
     check.add_argument("file", type=Path)
     check.add_argument("--brief", help="brief whose family names the grounds a sprite sits on")
+    judge = commands.add_parser("judge", help="write a judge sheet for one candidate")
+    judge.add_argument("brief")
+    judge.add_argument("file", type=Path)
+    judge.add_argument("--kind", choices=KINDS, required=True)
     register = commands.add_parser("register", help="add a fal call's file to the brief's asset")
     register.add_argument("brief")
     register.add_argument("--ledger", type=Path, required=True, help="falkit ledger export")
@@ -114,6 +119,11 @@ def main(argv: Sequence[str]) -> int:
         if args.command == "precheck":
             return _precheck(project, args.file, args.brief)
         records = ArtRecords(project)
+        if args.command == "judge":
+            sheet = JudgeSheets(records).write(args.brief, args.file.resolve(), args.kind)
+            emit({"cmd": "judge", "ok": True, "sheet": str(sheet.path), "code": sheet.code,
+                  "opens": list(sheet.opens), "facts": sheet.facts})  # fmt: skip
+            return EXIT_OK
         if args.command == "register":
             fields = ("brief", "ledger", "request_id", "file", "prompt", "license")
             request = RegisterRequest(**{name: getattr(args, name) for name in fields})

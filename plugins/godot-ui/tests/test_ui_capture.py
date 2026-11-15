@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from uifixtures import Doc, screen_doc, write
-from uikit.cli import EXIT_OK, EXIT_REFUSED, main
+from uikit.cli import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, main
 
 GODOTKIT = """
 import json, os, sys
@@ -38,6 +38,8 @@ if args[0] == "new":
     payload = {"ok": True, "asset": {"id": "hud-main-a1b2"}}
 elif args[0] == "status":
     payload = {"ok": True, "assets": [{"current_version": f"v{done}" if done else None}]}
+elif os.environ.get("STUB_REFUSE_VERSION") or ("--param" in args and "--provider" not in args):
+    payload = {"ok": False, "detail": "/generation: missing required 'provider'"}
 else:
     versions.write_text(str(done + 1))
     payload = {"ok": True, "version": {"id": f"v{done + 1}"}}
@@ -90,6 +92,7 @@ def test_first_capture_makes_the_asset_and_a_version(
     added = calls(kits)[-1]
     assert added[:6] == ["version", "add", "hud-main-a1b2", "--project", str(screen), "--origin"]
     assert ["--file", f"1920x1080={files['1920x1080']}"] == added[9:11]
+    assert added[13:15] == ["--media", "sizes=1280x720,1920x1080"]
     record = json.loads((screen / "ui/screens/hud/main.json").read_text())
     assert record["capture"] == "hud-main-a1b2"
 
@@ -127,6 +130,21 @@ def test_refusals(
     assert (code, out["detail"]) == (EXIT_REFUSED, detail)
     recorded = calls(kits) if (kits / "calls.jsonl").exists() else []
     assert [call[0] for call in recorded if call[0] == "version"] == []
+    assert staged_shots(screen) == []
+
+
+def staged_shots(project: Path) -> list[Path]:
+    folder = project / "registry/staging/ui/hud-main"
+    return list(folder.iterdir()) if folder.is_dir() else []
+
+
+def test_refused_version_leaves_no_shots(
+    screen: Path, kits: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STUB_REFUSE_VERSION", "1")
+    code, out = capture(screen, capsys, "--license", "LicenseRef-project")
+    assert (code, out["reason"]) == (EXIT_FAILED, "tool_failed")
+    assert staged_shots(screen) == []
 
 
 def test_screen_without_a_scene(ui: Path, kits: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from uikit.kits import Kit, KitJson
-from uikit.records import SCREEN_DIR, RecordsError, UiRecords
+from uikit.kits import Kit, KitJson, ToolFailed
+from uikit.records import SCREEN_DIR, Json, RecordsError, UiRecords
 
 log = logging.getLogger(__name__)
 
@@ -35,9 +36,20 @@ class Capture:
         screen = self.records.screens.get(screen_id)
         if not isinstance(screen, dict) or not isinstance(screen.get("scene"), str):
             raise RecordsError(f"screen {screen_id!r} needs a record with a scene")
-        sizes: list[str] = self.records.briefs[screen_id.split("/")[0]]["sizes"]
         stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
         out = CAPTURE_DIR / screen_id.replace("/", "-") / stamp
+        try:
+            return self._capture(screen_id, screen, out, license_id)
+        except (ToolFailed, RecordsError):
+            # A run that added no version leaves no PNGs behind for the next run to trip over.
+            if (self.project / out).exists():
+                shutil.rmtree(self.project / out)
+            raise
+
+    def _capture(
+        self, screen_id: str, screen: Json, out: Path, license_id: str | None
+    ) -> dict[str, object]:
+        sizes: list[str] = self.records.briefs[screen_id.split("/")[0]]["sizes"]
         shot = self.kits.godot.run(
             "shot",
             "--project",
@@ -56,7 +68,8 @@ class Capture:
         parent = current["assets"][0].get("current_version")
         args = ["version", "add", asset, "--project", str(self.project), "--origin", "procedural"]
         args += [arg for size in sizes for arg in ("--file", f"{size}={files[size]}")]
-        args += ["--param", f"scene={screen['scene']}", "--param", f"sizes={','.join(sizes)}"]
+        # media, not param: param fills the generation block, which needs a provider and model.
+        args += ["--media", f"scene={screen['scene']}", "--media", f"sizes={','.join(sizes)}"]
         args += ["--parent", parent] if parent else []
         version = self.kits.assets.run(*args)
         log.info("captured %s at %s as %s", screen_id, ",".join(sizes), asset)

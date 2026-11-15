@@ -29,7 +29,13 @@ corner_radius_bottom_left = 6
 default_font_size = 16
 DangerButton/base_type = &"Button"
 DangerButton/colors/font_color = Color(0.752941, 0.188235, 0.188235, 1)
+DangerButton/colors/font_hover_color = Color(0.752941, 0.188235, 0.188235, 1)
+DangerButton/colors/font_pressed_color = Color(0.752941, 0.188235, 0.188235, 1)
+DangerButton/colors/font_hover_pressed_color = Color(0.752941, 0.188235, 0.188235, 1)
+DangerButton/colors/font_focus_color = Color(0.752941, 0.188235, 0.188235, 1)
 DangerButton/styles/normal = SubResource("StyleBoxFlat_panel")
+DangerButton/styles/hover = SubResource("StyleBoxFlat_panel")
+DangerButton/styles/pressed = SubResource("StyleBoxFlat_panel")
 """
 
 

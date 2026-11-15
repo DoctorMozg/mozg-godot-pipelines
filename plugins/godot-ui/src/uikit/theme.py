@@ -12,6 +12,16 @@ log = logging.getLogger(__name__)
 THEME_FILE = Path("ui") / "build" / "theme.tres"
 SIDES = ("left", "top", "right", "bottom")
 CORNERS = ("top_left", "top_right", "bottom_right", "bottom_left")
+# One colour for every state a player sees: Godot 4.7.2 drew a focused variation button
+# in the default theme's light focus colour on the token's paper box (2026-11-15).
+FONT_STATES = (
+    "font_color",
+    "font_hover_color",
+    "font_pressed_color",
+    "font_hover_pressed_color",
+    "font_focus_color",
+)
+BOX_STATES = ("normal", "hover", "pressed")
 
 
 def _num(value: float) -> str:
@@ -67,16 +77,14 @@ class ThemeWriter:
     def _variation(self, name: str, variation: Json) -> list[str]:
         out = [f'{name}/base_type = &"{variation["base"]}"']
         if "color" in variation:
-            out.append(
-                f"{name}/colors/font_color = {_colour(self.records.colours[variation['color']])}"
-            )
+            colour = _colour(self.records.colours[variation["color"]])
+            out += [f"{name}/colors/{state} = {colour}" for state in FONT_STATES]
         if "font" in variation:
             size = self.tokens["font"][variation["font"]]["size_px"]
             out.append(f"{name}/font_sizes/font_size = {size}")
         if "stylebox" in variation:
-            out.append(
-                f'{name}/styles/normal = SubResource("StyleBoxFlat_{variation["stylebox"]}")'
-            )
+            box = f'SubResource("StyleBoxFlat_{variation["stylebox"]}")'
+            out += [f"{name}/styles/{state} = {box}" for state in BOX_STATES]
         return out
 
 

@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
+from uikit.layout import LayoutCheck
 from uikit.records import Finding, RecordsError, UiRecords
 from uikit.scan import StaticScan
 from uikit.theme import THEME_FILE, write_theme
@@ -30,6 +31,9 @@ def _parser() -> argparse.ArgumentParser:
     tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
     commands.add_parser("theme", help="write ui/build/theme.tres from the tokens")
     commands.add_parser("scan", help="check project.godot, the screens' scenes and scripts")
+    check = commands.add_parser("check", help="layout checks on godotkit shot JSON")
+    check.add_argument("--shots", type=Path, required=True, help="folder godotkit shot wrote")
+    check.add_argument("--brief", required=True, help="brief whose sizes and minimums apply")
     return parser
 
 
@@ -94,6 +98,17 @@ def main(argv: Sequence[str]) -> int:
     project = args.project.resolve()
     try:
         records = UiRecords(project)
+        if args.command == "check":
+            findings = LayoutCheck(records, args.brief).run(args.shots.resolve())
+            emit(
+                {
+                    "cmd": "check",
+                    "ok": not findings,
+                    "brief": args.brief,
+                    "problems": rows(findings),
+                }
+            )
+            return EXIT_FAILED if findings else EXIT_OK
         if args.command == "scan":
             findings = StaticScan(records).run()
             emit({"cmd": "scan", "ok": not findings, "problems": rows(findings)})

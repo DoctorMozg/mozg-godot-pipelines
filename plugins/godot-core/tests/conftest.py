@@ -147,3 +147,39 @@ def install_addon() -> AddonInstaller:
                 target.write_bytes(bundle.read(member))
 
     return install
+
+
+# Stands in for play_bridge.gd: every step advances its frames, presses come back as act rows.
+FAKE_BRIDGE = """
+import json, socket, sys
+config = json.load(open(sys.argv[1].split("=", 1)[1]))
+sock = socket.create_connection(("127.0.0.1", config["port"]))
+lines = sock.makefile("rw")
+def send(message):
+    lines.write(json.dumps(message) + "\\n"); lines.flush()
+def obs(frame, acts):
+    send({"t": "obs", "id": 0, "frame": frame, "hash": f"h{frame}", "acts": acts})
+send({"t": "hello", "v": 1, "token": config["token"], "godot": "fake", "physics_tps": 60,
+      "actions": ["walk"], "catalogue": []})
+json.loads(lines.readline())
+frame, steps = 0, 0
+obs(0, [])
+for line in lines:
+    message = json.loads(line)
+    if message["t"] != "step":
+        break
+    steps += 1
+    rows = [{"f": frame + 1, "action": act["name"], "pressed": True, "strength": 1.0}
+            for act in message["act"] if act["kind"] == "action"]
+    frame += message["frames"]
+    obs(frame, rows)
+print(f"MOZG_PLAY_SUMMARY status=ended steps={steps} frames={frame} errors=0")
+"""
+
+
+@pytest.fixture
+def bridged_godot(fake_godot: FakeGodotFactory, tmp_path: Path) -> GodotBinary:
+    """A fake Godot that speaks the bridge protocol, as play_bridge.gd does."""
+    script = tmp_path / "fake_bridge.py"
+    script.write_text(FAKE_BRIDGE)
+    return fake_godot(shell=f'python3 {script} "${{@: -1}}"')

@@ -44,7 +44,7 @@ Brief ids or a family, and the project path. Optional: a cap on spend for this b
 
 1. **Price before spending.** Stills: one fal plan for the batch through `fal-plan`, then `falkit estimate --plan PLAN`. Models: `falkit estimate --endpoint <mesh endpoint> --input '<json>'` per brief, with `face_count` set from the family's triangle budget. Tell the owner the expected total, the worst case and `falkit budget show`'s budget left; before a Hunyuan 3D model, also its license regions and 40,000-face floor (`references/batch.md`). Over the batch cap: stop and ask.
 
-1. **Generate through fal-media.** Stills run with `fal-run`. A model is one `submit_job` per brief under fal-media's spend guard, then `falkit fetch`. Note each model call's tool use id from `falkit ledger show`. fal-media 0.24.0 cannot fetch a mesh (`kind must be one of ...`), and `artkit register` refuses a call with no fetched file: while that holds, submit no model, since it would be charged and left unregistered.
+1. **Generate through fal-media.** Stills run with `fal-run`. A model is one `submit_job` per brief under fal-media's spend guard, then `falkit fetch`. Note each model call's tool use id from `falkit ledger show`. A mesh fetch needs fal-media 0.27.0 or later, which checks the GLB and its OBJ, MTL and texture files; an older fal-media cannot fetch one, and `artkit register` refuses a call with no fetched file.
 
 1. **Export the ledger.** `falkit ledger export --plan PLAN --call <tool use id> ... --out <new file>`: the plan ties the stills, each `--call` adds a model call.
 
@@ -67,7 +67,7 @@ Brief ids or a family, and the project path. Optional: a cap on spend for this b
 ## Techniques
 
 - Retakes name their parent: `artkit register` asks assetkit for the current version, so a redraw of the same brief is version two with version one as parent.
-- A model's `face_count` is the cheapest budget control: the mesh arrives near the count asked (39,988 triangles for 40,000 on 2026-11-15). Hunyuan 3D v3.1 pro takes no fewer than 40,000 (`falkit schema`), so a lower `max_triangles` needs decimation outside fal.
+- A model's `face_count` is the cheapest budget control: the mesh arrives near the count asked (39,988 triangles for 40,000 on 2026-11-15). Hunyuan 3D v3.1 pro takes no fewer than 40,000 (`falkit schema`); Trellis 2's `decimation_target` goes lower (19,462 triangles for 20,000 at 512p on 2026-11-16).
 - Fetch into a folder outside `res://`; `artkit register` copies each file into `registry/staging/<asset>/`, which Godot ignores.
 - Judge sheets live under `.mozg/art/judging/`; delete them after the owner's review.
 

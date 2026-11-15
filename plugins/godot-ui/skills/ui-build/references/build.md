@@ -29,6 +29,7 @@ uikit check --shots <folder> --brief <surface>
 - `godotkit shot` writes `<W>x<H>.json` (window rects of visible Controls) and, natively, `<W>x<H>.png` per size, in one Godot process.
 - `uikit check` reads the JSON: font tokens drawn under `min_font_px` once stretch scales them, off screen (beyond 0.5 px of the window), interactive targets under `min_target_px`, overlapping interactive controls that are not parent and child, a control present at one size only, a size with no file.
 - Interactive means a Button family class, LineEdit, TextEdit, SpinBox, a slider, ItemList, Tree or TabBar.
+- No safe-area margin is checked, and no title-safe figure ships. On Godot 4.7.2, Linux X11 (2026-11-15), `DisplayServer.get_display_safe_area()` returned the desktop's usable rect (the screen minus panels: 3774x2120 at 66,40 on a 3840x2160 screen), and headless returned an empty rect; TV, console and notched mobile screens are UNTESTED.
 
 ## Judges
 

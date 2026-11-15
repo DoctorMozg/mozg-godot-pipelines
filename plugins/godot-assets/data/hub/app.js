@@ -185,6 +185,7 @@ if (staticData) {
   items = staticData.items;
   render();
   window.HubStrings.render(staticData.strings, stringContext);
+  window.HubFindings.render(staticData.findings, stringContext);
 } else {
   const stream = new EventSource(`api/stream?token=${encodeURIComponent(token)}`);
   stream.addEventListener("items", (event) => {
@@ -193,6 +194,7 @@ if (staticData) {
     setConnection("live");
     render();
     window.HubStrings.render(snapshot.strings, stringContext);
+    window.HubFindings.render(snapshot.findings, stringContext);
   });
   stream.addEventListener("error", () => setConnection("offline"));
 }

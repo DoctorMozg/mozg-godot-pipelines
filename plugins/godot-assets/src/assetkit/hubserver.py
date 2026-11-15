@@ -26,7 +26,7 @@ from assetkit.review import NoteRequest, Review
 log = logging.getLogger(__name__)
 
 MAX_BODY = 64 * 1024
-PAGE_FILES = ("index.html", "viewers.js", "strings.js", "app.js", "app.css")
+PAGE_FILES = ("index.html", "viewers.js", "strings.js", "findings.js", "app.js", "app.css")
 PAGE_ROUTES = {"/" if name == "index.html" else f"/{name}": name for name in PAGE_FILES}
 PAGE_POLICY = "default-src 'self'; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'"
 # A registered SVG or HTML file must not run script in the hub's origin.

@@ -43,9 +43,26 @@
         <tbody id="string-rows"></tbody>
       </table>
     </section>
+    <section id="findings" class="strings findings" hidden>
+      <h2>Playtest findings</h2>
+      <label>Status
+        <select id="finding-status">
+          <option value="">all</option>
+          <option>open</option>
+          <option>accepted</option>
+          <option>dismissed</option>
+          <option>rerun</option>
+        </select>
+      </label>
+      <table>
+        <thead><tr><th>Finding</th><th>Evidence</th><th>Class</th><th>Status</th><th></th></tr></thead>
+        <tbody id="finding-rows"></tbody>
+      </table>
+    </section>
     <script src="items.js"></script>
     <script src="viewers.js"></script>
     <script src="strings.js"></script>
+    <script src="findings.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

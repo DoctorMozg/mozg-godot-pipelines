@@ -38,7 +38,7 @@ def test_static_build_embeds_items_and_points_at_the_project(
 
 def test_page_loads_only_its_own_scripts() -> None:
     html = (PAGE_DIR / "index.html").read_text()
-    assert html.count("<script src=") == 4
+    assert html.count("<script src=") == 5
     assert "<script>" not in html
     assert "onclick" not in html
 

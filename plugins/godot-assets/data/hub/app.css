@@ -174,3 +174,7 @@ body {
 .pill.machine { background: var(--pending); }
 .pill.translated { background: var(--final); }
 .pill.reviewed { background: var(--approved); }
+.pill.open, .pill.rerun { background: var(--pending); }
+.pill.accepted, .pill.bug { background: var(--rejected); }
+.pill.dismissed { background: var(--stale); }
+.findings pre { white-space: pre-wrap; margin: 2px 0; }

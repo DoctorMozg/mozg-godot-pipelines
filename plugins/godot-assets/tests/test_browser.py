@@ -20,7 +20,7 @@ from assetkit.hub import PAGE_DIR, build_static
 from assetkit.hubserver import HubConfig, HubServer
 from assetkit.registry import AssetSpec, Registry, VersionSpec
 from assetkit.review import Review
-from assetkit_rig import HUMAN, Lane, png, tiny_png, write_shots, write_strings
+from assetkit_rig import HUMAN, Lane, png, tiny_png, write_finding, write_shots, write_strings
 from chrome_rig import Chrome, find_chrome
 
 pytestmark = pytest.mark.live_browser
@@ -147,6 +147,19 @@ def test_string_review_in_the_served_page(chrome: Chrome, hub: HubServer) -> Non
     chrome.wait_for(page, f"{_row('UI_EXIT@fr')}.dataset.state === 'reviewed'")
     [event] = [json.loads(p.read_text()) for p in (project / "i18n" / "events").glob("*.json")]
     assert (event["item"], event["decision"], event["author"]) == ("UI_EXIT@fr", "approve", "owner")
+    assert chrome.errors == []
+
+
+def test_finding_review_in_the_served_page(chrome: Chrome, hub: HubServer) -> None:
+    project = hub.registry.project
+    finding_id = write_finding(project, screenshot="playtest/shots/s1.png")
+    (project / "playtest" / "shots").mkdir()
+    (project / "playtest" / "shots" / "s1.png").write_bytes(tiny_png())
+    page = chrome.open(hub.url)
+    chrome.wait_for(page, f"{_row(finding_id)}?.dataset.status === 'open'")
+    chrome.wait_for(page, f"{_row(finding_id, 'img')}?.naturalWidth === 1")
+    chrome.evaluate(page, f"{_row(finding_id, '[data-decision=approve]')}.click()")
+    chrome.wait_for(page, f"{_row(finding_id)}.dataset.status === 'accepted'")
     assert chrome.errors == []
 
 

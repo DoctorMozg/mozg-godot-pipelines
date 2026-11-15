@@ -12,7 +12,7 @@ from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.replay import ReplayProbe, ReplayRequest
 from godotkit.runner import GodotRunner
-from godotkit_rig import HEALTHY_SCRIPT, CliRunner, FakeGodotFactory, ProjectFactory
+from godotkit_rig import HEALTHY_SCRIPT, UI_SCRIPT, CliRunner, FakeGodotFactory, ProjectFactory
 
 HEADER = '{"schema": "godotkit-actions/1", "frames": 20, "every": 10}\n'
 WALK = (
@@ -103,6 +103,8 @@ class TestVerdict:
             "every": 10,
             "record": False,
             "acts": [],
+            "gestures": [],
+            "at": [],
             "subject": "",
         }
 
@@ -242,3 +244,24 @@ class TestRealGodot:
         )
         assert (code, payload["reason"]) == (EXIT_FAILED, "mismatch")
         assert payload["divergence"]["frame"] == 10  # type: ignore[index]
+
+    def test_clicks_and_semantic_calls_replay_on_their_frames(
+        self,
+        real_godot: GodotBinary,
+        make_project: ProjectFactory,
+        run_cli: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        script = tmp_path / "ui.jsonl"
+        script.write_text(
+            '{"schema": "godotkit-actions/1", "frames": 10}\n'
+            '{"f": 3, "click": "/root/Main/Start"}\n'
+            '{"f": 4, "do": "build", "args": {"kind": "farm"}}\n'
+            '{"f": 2, "hash": "clicks=0 built= held=0"}\n'
+            '{"f": 7, "hash": "clicks=1 built=build:farm held=0"}\n'
+        )
+        project = make_project(UI_SCRIPT)
+        code, payload = run_cli(
+            ["replay", "--project", str(project), "--actions", str(script)], real_godot
+        )
+        assert (code, payload["reason"]) == (EXIT_OK, "ok"), payload

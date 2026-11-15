@@ -120,6 +120,18 @@ def _arena_copy(tmp_path: Path) -> Path:
 
 
 @pytest.mark.live_godot
+def test_injected_probes_load_under_the_strict_profile(tmp_path: Path) -> None:
+    # A probe that fails to parse is silently absent, and the game then runs until the timeout.
+    project = _arena_copy(tmp_path)
+    probes = project / "zz_godotkit_probes"
+    probes.mkdir()
+    for script in (REPO_ROOT / "plugins" / "godot-core" / "src" / "godotkit" / "gd").glob("*.gd"):
+        shutil.copy(script, probes / script.name)
+    result = _godotkit("check", "--strict", "--project", str(project))
+    assert result["ok"], result
+
+
+@pytest.mark.live_godot
 class TestFeelFaults:
     def test_a_controller_one_frame_late_is_reported_for_every_action(self, tmp_path: Path) -> None:
         arena = _arena_copy(tmp_path)

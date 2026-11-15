@@ -1,10 +1,12 @@
 extends Node
-## godotkit replay probe, added as an autoload: presses the recorded actions on their physics frames,
-## records action changes when asked, and prints the hash of the `playtest_state` node every K frames.
+## godotkit replay probe, added as an autoload: presses the recorded actions and replays clicks and
+## semantic calls on their physics frames, records action changes when asked, and prints the hash
+## of the `playtest_state` node every K frames and on the frames a recording hashed.
 ## With a feel subject it also prints, every frame, where the subject is and whether the camera clips.
 
 const ARG_PREFIX: String = "--godotkit-replay="
 const STATE_GROUP: StringName = &"playtest_state"
+const ACTOR_GROUP: StringName = &"playtest_actor"
 # Movers the camera ray looks past before it gives up on finding level geometry behind them.
 const MAX_MOVERS: int = 4
 
@@ -12,6 +14,8 @@ var _frames: int = 0
 var _every: int = 1
 var _record: bool = false
 var _acts: Dictionary[int, Array] = {}
+var _gestures: Dictionary[int, Array] = {}
+var _at: Dictionary[int, bool] = {}
 var _held: Dictionary[StringName, float] = {}
 var _frame: int = 0
 var _hashes: int = 0
@@ -35,13 +39,27 @@ func _ready() -> void:
 		if not _acts.has(frame):
 			_acts[frame] = []
 		_acts[frame].append(act)
+	var gestures: Array = config.get("gestures", [])
+	for gesture: Dictionary in gestures:
+		var at: int = gesture["f"]
+		if not _gestures.has(at):
+			_gestures[at] = []
+		_gestures[at].append(gesture)
+	var hashed: Array = config.get("at", [])
+	for frame: int in hashed:
+		_at[frame] = true
+	# Headless windows are 64x64 px; the project's size keeps clicks and layout as designed.
+	if DisplayServer.get_name() == "headless":
+		var width: int = ProjectSettings.get_setting("display/window/size/viewport_width")
+		var height: int = ProjectSettings.get_setting("display/window/size/viewport_height")
+		get_window().size = Vector2i(width, height)
 
 
 # At the start of physics frame n the game has completed n - 1 frames: hash first, then press.
 func _physics_process(_delta: float) -> void:
 	_frame += 1
 	var done: int = _frame - 1
-	if done > 0 and (done % _every == 0 or done == _frames):
+	if done > 0 and (done % _every == 0 or done == _frames or _at.has(done)):
 		_print_hash(done)
 	if done > 0 and not _subject.is_empty():
 		_print_feel(done)
@@ -57,6 +75,14 @@ func _physics_process(_delta: float) -> void:
 		Input.parse_input_event(event)
 	# Buffered events would reach the game a frame late; the recording counts this frame.
 	Input.flush_buffered_events()
+	for gesture: Dictionary in _gestures.get(_frame, []):
+		if gesture.has("click"):
+			var path: String = gesture["click"]
+			_click(path)
+		else:
+			var action: String = gesture["do"]
+			var args: Dictionary = gesture.get("args", {})
+			_call(action, args)
 	if _record:
 		_record_changes()
 
@@ -114,6 +140,35 @@ func _camera_clips(camera: Camera3D, subject: Node3D) -> bool:
 			return true
 		excluded.append(hit["rid"])
 	return false
+
+
+func _click(path: String) -> void:
+	var control: Control = get_node_or_null(NodePath(path)) as Control
+	if control == null or not control.is_visible_in_tree():
+		push_error("godotkit replay: no visible Control at %s on frame %d" % [path, _frame])
+		return
+	var centre: Vector2 = control.get_global_transform_with_canvas() * (control.size * 0.5)
+	var at: Vector2 = get_viewport().get_final_transform() * centre
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.position = at
+	motion.global_position = at
+	Input.parse_input_event(motion)
+	for down: bool in [true, false]:
+		var button: InputEventMouseButton = InputEventMouseButton.new()
+		button.button_index = MOUSE_BUTTON_LEFT
+		button.pressed = down
+		button.position = at
+		button.global_position = at
+		Input.parse_input_event(button)
+	Input.flush_buffered_events()
+
+
+func _call(action: String, args: Dictionary) -> void:
+	var actor: Node = get_tree().get_first_node_in_group(ACTOR_GROUP)
+	if actor == null or not actor.has_method(&"playtest_do"):
+		push_error("godotkit replay: no %s node for %s on frame %d" % [ACTOR_GROUP, action, _frame])
+		return
+	actor.call(&"playtest_do", action, args)
 
 
 func _record_changes() -> void:

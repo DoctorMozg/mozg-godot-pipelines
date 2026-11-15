@@ -30,6 +30,45 @@ script = ExtResource("1")
 """
 
 HEALTHY_SCRIPT = 'extends Node\n\nfunc _ready() -> void:\n\tprint("main ready")\n'
+# A button outside the 64 px headless window, a semantic action and a held-frame counter; the
+# hash shows each, so a replay or a play session proves what reached the game.
+UI_SCRIPT = """extends Node
+
+var clicks: int = 0
+var built: Array[String] = []
+var held: int = 0
+
+
+func _ready() -> void:
+	add_to_group(&"playtest_state")
+	add_to_group(&"playtest_actor")
+	InputMap.add_action(&"walk")
+	var button: Button = Button.new()
+	button.name = "Start"
+	button.text = "Start"
+	button.position = Vector2(600, 400)
+	button.size = Vector2(100, 40)
+	button.pressed.connect(func() -> void: clicks += 1)
+	add_child(button)
+
+
+func _physics_process(_delta: float) -> void:
+	if Input.is_action_pressed(&"walk"):
+		held += 1
+
+
+func playtest_actions() -> Array[Dictionary]:
+	return [{"name": "build", "args": {"kind": "text"}}]
+
+
+func playtest_do(action: String, args: Dictionary) -> Dictionary:
+	built.append("%s:%s" % [action, args.get("kind", "")])
+	return {"ok": true}
+
+
+func state_hash() -> String:
+	return "clicks=%d built=%s held=%d" % [clicks, ",".join(built), held]
+"""
 # Godot prints SCRIPT ERROR for this and still exits 0: the trap the log judge exists for.
 NULL_CALL_SCRIPT = (
     'extends Node\n\nfunc _ready() -> void:\n\tvar thing: Object = null\n\tthing.call("missing")\n'

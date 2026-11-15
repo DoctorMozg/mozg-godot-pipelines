@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from godotkit.actions import Recording
+from godotkit.actions import Gesture, Recording
 
 HEADER = '{"schema": "godotkit-actions/1", "frames": 20, "every": 10}\n'
 WALK = (
@@ -32,6 +32,8 @@ class TestRecording:
             (HEADER + '{"f": 2, "action": "walk", "pressed": "yes"}\n', "pressed"),
             (HEADER + '{"f": 2, "action": "walk", "pressed": true, "strength": 2}\n', "strength"),
             (HEADER + "not json\n", "not JSON"),
+            (HEADER + '{"f": 2, "click": ""}\n', "click"),
+            (HEADER + '{"f": 2, "do": "build", "args": [1]}\n', "args"),
         ],
     )
     def test_a_malformed_file_is_refused_with_its_line(
@@ -43,7 +45,13 @@ class TestRecording:
             Recording.read(path)
 
     def test_a_written_recording_reads_back_and_is_never_replaced(self, tmp_path: Path) -> None:
-        made = Recording("res://main.tscn", 20, 10, ((3, "walk", True, 1.0),), {10: "a", 20: "b"})
+        gestures = (
+            Gesture(4, "click", "/root/Main/Start"),
+            Gesture(5, "do", "build", {"kind": "farm", "at": [3, 4]}),
+        )
+        made = Recording(
+            "res://main.tscn", 20, 10, ((3, "walk", True, 1.0),), {10: "a", 20: "b"}, gestures
+        )
         target = tmp_path / "out" / "rec.jsonl"
         made.write(target)
         assert Recording.read(target) == made

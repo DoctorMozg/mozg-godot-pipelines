@@ -106,12 +106,15 @@ class ReplayProbe:
         return ReplayOutcome(reason, tuple(traces), divergence)
 
     def _once(self, request: ReplayRequest) -> RunTrace:
-        acts = request.recording.acts if request.recording else ()
+        recording = request.recording or Recording(None, None, None, (), {})
         config = {
             "frames": request.frames,
             "every": request.every,
             "record": request.record_to is not None,
-            "acts": [list(act) for act in acts],
+            "acts": [list(act) for act in recording.acts],
+            "gestures": [gesture.row() for gesture in recording.gestures],
+            # A play session hashes on the frames it stopped at, not on a fixed period.
+            "at": sorted(recording.hashes),
             "subject": request.subject or "",
         }
         # A person recording natively plays in real time; every other run is lockstep.
@@ -180,7 +183,8 @@ def _divergence(traces: list[RunTrace], recording: Recording | None) -> Divergen
         if found:
             return found
     if recording and recording.hashes:
-        return _first_difference(recording.hashes, first, "mismatch")
+        got = {frame: first[frame] for frame in recording.hashes if frame in first}
+        return _first_difference(recording.hashes, got, "mismatch")
     return None
 
 

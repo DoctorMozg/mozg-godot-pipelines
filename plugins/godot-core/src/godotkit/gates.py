@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from godotkit.baseline import Baseline
-from godotkit.importer import OVERRIDE_FILE, ImportRequest, ProjectImporter
+from godotkit.importer import OVERRIDE_FILE, ProjectImporter
 from godotkit.lint import Finding
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest, RunResult
@@ -39,7 +39,6 @@ SHADER_FAILED = re.compile(
     r"^.*(?:Shader compilation failed|not supported in Dummy renderer).*$", re.M
 )
 BOOT_LINE = re.compile(r"^GODOTKIT_BOOT (?P<json>\{.*\})$", re.M)
-CLASS_CACHE = Path(".godot") / "global_script_class_cache.cfg"
 # Parse gate failures pinned to a file; a crash or timeout is never baselined.
 FILE_REASONS = frozenset(
     {"parse_error", "script_error", "shader_error", "engine_error", "test_failures"}
@@ -127,11 +126,7 @@ class ParseGate:
         self._importer = importer or ProjectImporter(runner)
 
     def run(self, project: Path, timeout_s: float) -> ParseOutcome:
-        # Without the class cache every class_name reference looks like a parse error.
-        imported_first = not (project / CLASS_CACHE).is_file()
-        if imported_first:
-            log.info("no class cache in %s: importing before the parse gate", project)
-            self._importer.run(ImportRequest(project, timeout_s))
+        imported_first = self._importer.import_if_fresh(project, timeout_s, "parse gate")
         script = str(GD_DIR / "parse_gate.gd")
         result = self._runner.run(RunRequest(project, ("-s", script), timeout_s))
         verdict = LogJudge(PARSE_SUMMARY).judge(result.output, result.exit_code, result.timed_out)
@@ -166,10 +161,7 @@ class BootGate:
         self._importer = importer or ProjectImporter(runner)
 
     def run(self, project: Path, timeout_s: float) -> BootOutcome:
-        # Without the class cache every class_name reference fails to parse.
-        if not (project / CLASS_CACHE).is_file():
-            log.info("no class cache in %s: importing before the boot gate", project)
-            self._importer.run(ImportRequest(project, timeout_s))
+        self._importer.import_if_fresh(project, timeout_s, "boot gate")
         probe = GD_DIR / "boot_probe.gd"
         with probe_override(project, f'[autoload]\n\nGodotkitProbe="*{probe}"\n', "boot probe"):
             result = self._runner.run(RunRequest(project, (), timeout_s))

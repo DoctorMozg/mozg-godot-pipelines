@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from godotkit.baseline import BASELINE_FILE, Baseline, Growth
-from godotkit.gates import CLASS_CACHE
+from godotkit.importer import CLASS_CACHE
 from godotkit.lint import Finding
 from godotkit.locate import GodotBinary
 from godotkit_rig import CliRunner, FakeGodotFactory, ProjectFactory

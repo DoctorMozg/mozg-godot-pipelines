@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import TypedDict
 
 from godotkit.display import NativeDisplay
-from godotkit.gates import CLASS_CACHE, GD_DIR, probe_override
-from godotkit.importer import ImportRequest, ProjectImporter
+from godotkit.gates import GD_DIR, probe_override
+from godotkit.importer import ProjectImporter
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest, RunResult
 
@@ -93,10 +93,7 @@ class ShotTaker:
             raise ValueError("no sizes to capture")
         if request.frames < 1:
             raise ValueError(f"frames must be at least 1, got {request.frames}")
-        # Without the class cache every class_name reference fails to parse.
-        if not (request.project / CLASS_CACHE).is_file():
-            log.info("no class cache in %s: importing before the shot", request.project)
-            self._importer.run(ImportRequest(request.project, request.timeout_s))
+        self._importer.import_if_fresh(request.project, request.timeout_s, "shot")
         out = request.out.resolve()
         out.mkdir(parents=True, exist_ok=True)
         config = {

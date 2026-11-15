@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from godotkit.actions import Recording
-from godotkit.gates import CLASS_CACHE
+from godotkit.importer import CLASS_CACHE
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED
 from godotkit.replay import ReplayProbe, ReplayRequest

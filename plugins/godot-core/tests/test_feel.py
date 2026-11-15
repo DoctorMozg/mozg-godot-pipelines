@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from godotkit.feel import PRESS_AT, FeelConfig, FeelProbe, _longest_stuck, _response
-from godotkit.gates import CLASS_CACHE
+from godotkit.importer import CLASS_CACHE
 from godotkit.replay import FeelSample, ReplayProbe
 from godotkit.runner import GodotRunner
 from godotkit_rig import HEALTHY_SCRIPT, FakeGodotFactory, ProjectFactory

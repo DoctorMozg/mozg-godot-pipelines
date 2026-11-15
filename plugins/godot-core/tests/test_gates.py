@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, ShaderFailure, shader_failures
-from godotkit.importer import OVERRIDE_FILE
+from godotkit.gates import BootGate, ParseGate, ShaderFailure, shader_failures
+from godotkit.importer import CLASS_CACHE, OVERRIDE_FILE
 from godotkit.locate import GodotBinary
 from godotkit.output import EXIT_FAILED, EXIT_OK
 from godotkit.runner import GodotRunner

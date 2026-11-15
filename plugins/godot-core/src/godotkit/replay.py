@@ -12,8 +12,8 @@ from typing import TypedDict
 
 from godotkit.actions import Act, Recording
 from godotkit.display import NativeDisplay
-from godotkit.gates import CLASS_CACHE, GD_DIR, probe_override
-from godotkit.importer import ImportRequest, ProjectImporter
+from godotkit.gates import GD_DIR, probe_override
+from godotkit.importer import ProjectImporter
 from godotkit.logjudge import LogJudge, Verdict
 from godotkit.runner import GodotRunner, RunRequest
 
@@ -83,10 +83,7 @@ class ReplayProbe:
 
     def run(self, request: ReplayRequest) -> ReplayOutcome:
         _validate(request)
-        # Without the class cache every class_name reference fails to parse.
-        if not (request.project / CLASS_CACHE).is_file():
-            log.info("no class cache in %s: importing before the replay", request.project)
-            self._importer.run(ImportRequest(request.project, request.timeout_s))
+        self._importer.import_if_fresh(request.project, request.timeout_s, "replay")
         traces: list[RunTrace] = []
         for number in range(1, request.runs + 1):
             trace = self._once(request)

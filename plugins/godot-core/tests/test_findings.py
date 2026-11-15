@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from godotkit.findings import FindingStore, ReplayConfirmer, RunInfo
-from godotkit.gates import CLASS_CACHE
+from godotkit.importer import CLASS_CACHE
 from godotkit.oracle import Finding, Kind, Text
 from godotkit.replay import ReplayProbe
 from godotkit.runner import GodotRunner

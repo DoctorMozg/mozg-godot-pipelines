@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from godotkit.importer import OVERRIDE_FILE, ImportRequest, ProjectImporter
+from godotkit.importer import CLASS_CACHE, OVERRIDE_FILE, ImportRequest, ProjectImporter
 from godotkit.output import EXIT_FAILED, EXIT_OK
 from godotkit.runner import GodotRunner
 from godotkit_rig import CliRunner, FakeGodotFactory, ProjectFactory
@@ -13,6 +13,7 @@ from godotkit_rig import CliRunner, FakeGodotFactory, ProjectFactory
 # $3 is the project folder: the fake is called as `fake --headless --path P --import`.
 CREATE_UID = 'touch "$3/main.gd.uid"'
 SHOW_OVERRIDE = 'cat "$3/override.cfg" 2>/dev/null'
+MARK_IMPORT = 'touch "$3/imported.mark"'
 
 
 class TestImporter:
@@ -60,6 +61,24 @@ class TestImporter:
                 ImportRequest(git_project, single_thread=True)
             )
         assert (git_project / OVERRIDE_FILE).read_text() == "[display]\n"
+
+
+class TestImportIfFresh:
+    def test_a_project_with_no_class_cache_is_imported_first(
+        self, fake_godot: FakeGodotFactory, git_project: Path
+    ) -> None:
+        importer = ProjectImporter(GodotRunner(fake_godot(shell=MARK_IMPORT)))
+        assert importer.import_if_fresh(git_project, 60.0, "parse gate")
+        assert (git_project / "imported.mark").is_file()
+
+    def test_a_project_with_a_class_cache_is_left_alone(
+        self, fake_godot: FakeGodotFactory, git_project: Path
+    ) -> None:
+        (git_project / CLASS_CACHE).parent.mkdir(exist_ok=True)
+        (git_project / CLASS_CACHE).write_text("list=[]\n")
+        importer = ProjectImporter(GodotRunner(fake_godot(shell=MARK_IMPORT)))
+        assert not importer.import_if_fresh(git_project, 60.0, "parse gate")
+        assert not (git_project / "imported.mark").exists()
 
 
 class TestImportCli:

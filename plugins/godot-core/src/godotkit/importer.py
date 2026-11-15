@@ -14,6 +14,7 @@ from godotkit.worktree import GitError, git
 log = logging.getLogger(__name__)
 
 OVERRIDE_FILE = "override.cfg"
+CLASS_CACHE = Path(".godot") / "global_script_class_cache.cfg"
 # Multi-threaded import is the default; the switch exists for importers that are not thread-safe.
 SINGLE_THREAD_OVERRIDE = "[editor]\n\nimport/use_multiple_threads=false\n"
 
@@ -49,6 +50,15 @@ class ProjectImporter:
     def __init__(self, runner: GodotRunner, status: StatusReader = git_changes) -> None:
         self._runner = runner
         self._status = status
+
+    def import_if_fresh(self, project: Path, timeout_s: float, purpose: str) -> bool:
+        """Imports a project that has no class cache yet; True when it did."""
+        # Without the class cache every class_name reference looks like a parse error.
+        if (project / CLASS_CACHE).is_file():
+            return False
+        log.info("no class cache in %s: importing before the %s", project, purpose)
+        self.run(ImportRequest(project, timeout_s))
+        return True
 
     def run(self, request: ImportRequest) -> ImportReport:
         project = request.project

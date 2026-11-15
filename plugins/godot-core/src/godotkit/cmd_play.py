@@ -11,8 +11,7 @@ from godotkit.actions import Recording
 from godotkit.cmd_godot import native_display
 from godotkit.display import NoDisplay
 from godotkit.feel import FeelConfig, FeelProbe
-from godotkit.gates import CLASS_CACHE
-from godotkit.importer import ImportRequest, ProjectImporter
+from godotkit.importer import ProjectImporter
 from godotkit.output import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_SETUP, MAX_ISSUES_SHOWN, emit
 from godotkit.perf import PerfConfig, ScaleProbe
 from godotkit.playclient import PlayClient
@@ -131,9 +130,7 @@ def play(args: argparse.Namespace, runner: GodotRunner) -> int:
     try:
         if args.op == "start":
             native_display(args.native)
-            # Without the class cache every class_name reference fails to parse.
-            if not (project / CLASS_CACHE).is_file():
-                ProjectImporter(runner).run(ImportRequest(project, args.timeout))
+            ProjectImporter(runner).import_if_fresh(project, args.timeout, "play session")
             config = SessionConfig(
                 project,
                 runner.binary.path,

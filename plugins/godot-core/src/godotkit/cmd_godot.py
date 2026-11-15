@@ -12,7 +12,7 @@ from pathlib import Path
 from godotkit.baseline import Baseline
 from godotkit.depgraph import DependencyGraph
 from godotkit.display import NativeDisplay, NoDisplay, find_display
-from godotkit.gates import CLASS_CACHE, BootGate, ParseGate, StrictGate, judge_parse
+from godotkit.gates import BootGate, ParseGate, StrictGate, judge_parse
 from godotkit.importer import ImportRequest, ProjectImporter
 from godotkit.locate import GodotLocator, GodotNotFound
 from godotkit.logjudge import LogJudge
@@ -184,10 +184,10 @@ def test(args: argparse.Namespace, runner: GodotRunner) -> int:
         selected = entries
         if changed is not None:
             selected = select_affected(entries, DependencyGraph.scan(project), changed)
-        imported_first = not args.list and not (project / CLASS_CACHE).is_file()
-        if imported_first:
-            # Suites extend class_name types (GdUnitTestSuite, GutTest) that resolve through it.
-            ProjectImporter(runner).run(ImportRequest(project, args.timeout))
+        # Suites extend class_name types (GdUnitTestSuite, GutTest) that resolve through the cache.
+        imported_first = not args.list and ProjectImporter(runner).import_if_fresh(
+            project, args.timeout, "tests"
+        )
         results: tuple[EntryResult, ...] = ()
         if not args.list:
             results = SuiteRunner(runner, args.jobs, args.timeout).run(project, selected, display)

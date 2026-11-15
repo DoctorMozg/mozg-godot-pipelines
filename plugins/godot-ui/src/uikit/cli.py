@@ -12,6 +12,7 @@ from pathlib import Path
 
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
 from uikit.records import Finding, RecordsError, UiRecords
+from uikit.theme import THEME_FILE, write_theme
 from uikit.tokens import contrast, write_css
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -26,6 +27,7 @@ def _parser() -> argparse.ArgumentParser:
     tokens = commands.add_parser("tokens", help="tokens.css, or contrast of the declared pairs")
     tokens.add_argument("action", choices=("css", "contrast"))
     tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
+    commands.add_parser("theme", help="write ui/build/theme.tres from the tokens")
     return parser
 
 
@@ -90,6 +92,18 @@ def main(argv: Sequence[str]) -> int:
     project = args.project.resolve()
     try:
         records = UiRecords(project)
+        if args.command == "theme":
+            write_theme(records)
+            line = f'gui/theme/custom="res://{THEME_FILE.as_posix()}"'
+            emit(
+                {
+                    "cmd": "theme",
+                    "ok": True,
+                    "theme": THEME_FILE.as_posix(),
+                    "project_setting": line,
+                }
+            )
+            return EXIT_OK
         if args.command == "tokens":
             return _tokens(records, args.action, args.brief)
         return _lint(records)

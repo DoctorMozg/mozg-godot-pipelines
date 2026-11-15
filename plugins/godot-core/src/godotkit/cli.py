@@ -187,6 +187,8 @@ def main(argv: Sequence[str]) -> int:
         return cmd_baseline.baseline(args, locator)
     if args.command == "playtest" and args.op == "lint":
         return cmd_playtest.lint(args)
+    if args.command == "playtest" and args.no_replay:
+        return cmd_playtest.judge(args, None)
     try:
         binary = locator.locate()
     except GodotNotFound as error:
@@ -204,6 +206,7 @@ def main(argv: Sequence[str]) -> int:
         "perf": cmd_play.perf,
         "feel": cmd_play.feel,
         "play": cmd_play.play,
+        "playtest": cmd_playtest.judge,
         "gate": cmd_gate.gate,
     }
     return handlers[args.command](args, runner)

@@ -158,7 +158,8 @@ lines = sock.makefile("rw")
 def send(message):
     lines.write(json.dumps(message) + "\\n"); lines.flush()
 def obs(frame, acts):
-    send({"t": "obs", "id": 0, "frame": frame, "hash": f"h{frame}", "acts": acts})
+    send({"t": "obs", "id": 0, "frame": frame, "hash": f"h{frame}", "acts": acts,
+          "entities": [{"path": "/root/Main", "state": {"frame": frame}}]})
 send({"t": "hello", "v": 1, "token": config["token"], "godot": "fake", "physics_tps": 60,
       "actions": ["walk"], "catalogue": []})
 json.loads(lines.readline())

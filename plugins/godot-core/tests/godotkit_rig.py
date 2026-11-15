@@ -42,6 +42,7 @@ var held: int = 0
 func _ready() -> void:
 	add_to_group(&"playtest_state")
 	add_to_group(&"playtest_actor")
+	add_to_group(&"playtest_observe")
 	InputMap.add_action(&"walk")
 	var button: Button = Button.new()
 	button.name = "Start"
@@ -64,6 +65,10 @@ func playtest_actions() -> Array[Dictionary]:
 func playtest_do(action: String, args: Dictionary) -> Dictionary:
 	built.append("%s:%s" % [action, args.get("kind", "")])
 	return {"ok": true}
+
+
+func playtest_state() -> Dictionary:
+	return {"clicks": clicks, "held": held}
 
 
 func state_hash() -> String:

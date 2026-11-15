@@ -10,10 +10,12 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from studiokit import hooks
 from studiokit.lanes import (
     OPEN,
     RISKS,
     GodotKit,
+    Lane,
     LaneError,
     LaneOpener,
     LaneRequest,
@@ -45,11 +47,37 @@ def _parser() -> argparse.ArgumentParser:
     listing.add_argument("--all", action="store_true")
     show = actions.add_parser("show", help="one lane record")
     show.add_argument("id")
+    brief = actions.add_parser("brief", help="the delegation brief a lane's subagent gets")
+    brief.add_argument("id")
+    hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
+    hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     return parser
 
 
 def emit(payload: Mapping[str, object]) -> None:
     sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def render_brief(lane: Lane) -> str:
+    """The seven fields every AloneGodot delegation carried (research 07, section 1.2)."""
+    project = Path(lane.worktree) / lane.project
+    forbid = "; ".join(lane.forbid) or "anything outside the owned files"
+    checks = [*lane.checks, f"godotkit gate --project {project}"]
+    return "\n".join(
+        [
+            f"Lane {lane.id}: {lane.task}",
+            f"- Base: {lane.base[:12]}. Diffs and checks compare against it.",
+            f"- Source of truth: {lane.task}. Read it; this brief does not repeat it.",
+            f"- Own only: {', '.join(lane.owns)}. Single-writer files (project.godot, the main "
+            "scene, the theme) change through a request file under .mozg/requests/.",
+            f"- Do not touch: {forbid}.",
+            f"- Isolation: work only in {project} on branch {lane.branch}. Other lanes run in "
+            "parallel; preserve their work.",
+            "- Checks: " + "; ".join(f"`{check}`" for check in checks) + ".",
+            f"- Return: branch, commit and check results. Commit on {lane.branch}; do not merge "
+            "or push, the orchestrator owns the merge queue.",
+        ]
+    )
 
 
 def _lane(args: argparse.Namespace, store: LaneStore) -> int:
@@ -64,6 +92,8 @@ def _lane(args: argparse.Namespace, store: LaneStore) -> int:
         lanes = [lane for lane in store.all() if args.all or lane.status == OPEN]
         rows = [{k: getattr(lane, k) for k in ("id", "status", "risk", "task")} for lane in lanes]
         emit({"cmd": "lane list", "ok": True, "lanes": rows})
+    elif args.action == "brief":
+        emit({"cmd": "lane brief", "ok": True, "brief": render_brief(store.get(args.id))})
     else:
         emit({"cmd": "lane show", "ok": True, "lane": store.get(args.id).to_json()})
     return EXIT_OK
@@ -76,6 +106,8 @@ def main(argv: Sequence[str]) -> int:
         format="studiokit: %(message)s",
         stream=sys.stderr,
     )
+    if args.command == "hook":
+        return hooks.run(args.event, sys.stdin.read())
     command = f"{args.command} {args.action}"
     try:
         return _lane(args, LaneStore(args.project.resolve()))

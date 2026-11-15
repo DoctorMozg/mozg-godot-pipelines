@@ -156,6 +156,10 @@ class LaneStore:
             raise LaneError(f"no lane {lane_id!r}; `studiokit lane list` shows the lanes")
         return Lane.from_json(json.loads(path.read_text(encoding="utf-8")))
 
+    def lane_at(self, worktree: Path) -> Lane | None:
+        """The lane whose worktree is this folder, or None for the main checkout and others."""
+        return next((lane for lane in self.all() if Path(lane.worktree) == worktree), None)
+
     def save(self, lane: Lane) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         text = json.dumps(lane.to_json(), indent=2, ensure_ascii=False) + "\n"
@@ -163,7 +167,8 @@ class LaneStore:
 
     def overlaps(self, owns: Sequence[str]) -> list[Overlap]:
         """Each open lane that already owns a file these globs would own, with one such file."""
-        tracked = git(self.main, "ls-files", "-z").split("\0")
+        # Owned globs are relative to the project folder, as in architecture.json.
+        tracked = git(self.repo, "ls-files", "-z").split("\0")
         found: list[Overlap] = []
         for lane in (lane for lane in self.all() if lane.status == OPEN):
             literals = [g for g in (*owns, *lane.owns) if not _GLOB_CHARS.intersection(g)]

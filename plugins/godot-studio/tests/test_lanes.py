@@ -96,3 +96,21 @@ class TestRefusals:
         code, out = new_lane("hud", "scripts/hud.gd")
         assert (code, out["reason"]) == (2, "setup")
         assert not (repo / ".git" / "mozg" / "lanes" / "hud.json").exists()
+
+
+class TestBrief:
+    def test_the_brief_carries_the_seven_delegation_fields(
+        self, new_lane: NewLane, run_cli: CliRunner
+    ) -> None:
+        extra = ("--forbid", "no gameplay edits", "--check", "godotkit test --since main")
+        _, opened = new_lane("hud", "scripts/hud.gd", extra=extra)
+        _, out = run_cli("lane", "brief", "hud")
+        lines = out["brief"].splitlines()
+        heads = [line.split(":")[0] for line in lines[1:]]
+        assert heads == [
+            "- Base", "- Source of truth", "- Own only", "- Do not touch", "- Isolation",
+            "- Checks", "- Return",
+        ]  # fmt: skip
+        assert opened["lane"]["base"][:12] in lines[1]
+        assert "`godotkit test --since main`; `godotkit gate --project" in out["brief"]
+        assert "do not merge or push" in lines[-1]

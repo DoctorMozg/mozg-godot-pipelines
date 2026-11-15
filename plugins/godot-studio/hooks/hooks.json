@@ -1,0 +1,17 @@
+{
+  "description": "In a lane worktree, edits stay inside the files the lane owns",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/studiokit\" hook pre-edit",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

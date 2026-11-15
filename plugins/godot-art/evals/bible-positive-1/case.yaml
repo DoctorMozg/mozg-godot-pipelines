@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: bible-positive-1
+description: "Literal: write the art bible for a Godot game."
+tags: [art-bible, positive]
+runs: 3
+execution:
+  prompt: >-
+    My Godot strategy game needs an art bible before we make any more pictures: a master style, families for unit portraits and cards, approved reference roots and a palette. Set it up in art/bible.json.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-bible"'

@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: bible-negative-1
+description: "Near-miss: generating from ready briefs belongs to art-batch."
+tags: [art-bible, negative]
+runs: 3
+execution:
+  prompt: >-
+    The art briefs for my Godot game's unit portraits pass lint. Generate the six portraits on fal, register them in the asset registry and run the readability and style judges.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-bible"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-batch"'

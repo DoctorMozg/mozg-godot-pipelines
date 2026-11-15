@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: batch-positive-2
+description: "Paraphrase: make a 3D model from a brief and check its budget."
+tags: [art-batch, positive]
+runs: 3
+execution:
+  prompt: >-
+    Make the crate prop from its art brief as a GLB on fal, keep it under the triangle budget in art/policy.json, add it to the asset registry and audit the import in my Godot game.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-batch"'

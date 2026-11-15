@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: bible-positive-2
+description: "Paraphrase: brief an asset and replace a style root."
+tags: [art-bible, positive]
+runs: 3
+execution:
+  prompt: >-
+    The painterly reference we used for the cards is rejected. Replace that root with the new flat one and tell me which card briefs in my Godot project need redrawing, then brief a new scout portrait.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-bible"'

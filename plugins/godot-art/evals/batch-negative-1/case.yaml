@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: batch-negative-1
+description: "Near-miss: setting the style and roots belongs to art-bible."
+tags: [art-batch, negative]
+runs: 3
+execution:
+  prompt: >-
+    Before anything is generated for my Godot game, decide the master art style and the palette with me, and write the reference roots and briefs for the hero and the enemy faction.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-batch"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?art-bible"'

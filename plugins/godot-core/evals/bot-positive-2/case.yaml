@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: bot-positive-2
+description: "Held-out phrasing: soak an RTS match and check the unit cap."
+tags: [godot-bot, positive]
+runs: 3
+execution:
+  prompt: >-
+    Run my Godot RTS skirmish start to finish with an automated player and check that the 500 unit cap never breaks.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-bot"'

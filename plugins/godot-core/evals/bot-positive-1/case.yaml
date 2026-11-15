@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: bot-positive-1
+description: "Literal: a scripted bot for a real-time arena."
+tags: [godot-bot, positive]
+runs: 3
+execution:
+  prompt: >-
+    Write a scripted bot that plays the arena level of my Godot game in real time and tell me whether the level can be beaten.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-bot"'

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: playtest-positive-2
+description: "Held-out phrasing: have an agent try the tutorial and file what breaks."
+tags: [godot-playtest, positive]
+runs: 3
+execution:
+  prompt: >-
+    Can you have an AI player go through the turn-based tutorial of my Godot 4 project and log any bugs it runs into for my review?
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-playtest"'

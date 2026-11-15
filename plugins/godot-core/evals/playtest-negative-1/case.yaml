@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: playtest-negative-1
+description: "Near-miss: a real-time fight belongs to godot-bot."
+tags: [godot-playtest, negative]
+runs: 3
+execution:
+  prompt: >-
+    Write a bot that plays the boss fight in my Godot 3D action game at full speed and check whether it can win without dying.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-playtest"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-bot"'

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: playtest-positive-1
+description: "Literal: playtest a menu flow as a new player."
+tags: [godot-playtest, positive]
+runs: 3
+execution:
+  prompt: >-
+    Playtest the main menu and options screen of my Godot game as a first-time player and tell me where a new player gets stuck.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?godot-playtest"'

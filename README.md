@@ -15,8 +15,9 @@ A plugin marketplace for Godot 4 game development, for Claude Code and Codex. Ag
 | `godot-studio` | `studiokit` | `studio-lanes`, `studio-decide`                                                          | File-owned lanes in warm worktrees, ownership and frozen-test guards, a merge queue gated on the merged tree, architecture decision records                                         |
 | `godot-art`    | `artkit`    | `art-bible`, `art-batch`                                                                 | Art bible and briefs with approved roots, fal output registered with its cost and prompt, import and GLB budget audits, readability and style judges                                |
 | `godot-ui`     | `uikit`     | `ui-brief`, `ui-build`                                                                   | UI briefs and design tokens, a generated Godot Theme, scene scans, layout checks at every size, HTML prototype and handoff, captures in the hub, readability and conformance judges |
+| `godot-audio`  | `audiokit`  | `audio-cues`, `audio-batch`                                                              | A cue sheet and audio policy, header, level, loop seam and BS.1770 loudness checks, bus layout lint, seeded synth sounds, fal and synth output registered for listening in the hub  |
 
-`godot-l10n` also ships the `l10n-judge` agent, which reviews translations in a fresh context. `godot-studio` ships the `architecture-reviewer` agent for high-risk lanes, and calls godot-core's `godotkit` for worktrees and the gate, so it needs godot-core installed too. `godot-art` ships the `art-readability-judge` and `art-style-judge` agents, calls godot-assets' `assetkit` to register versions, and leaves generation to the fal-media plugin of the mozg-video marketplace. `godot-ui` ships the `ui-readability-judge` and `ui-conformance-judge` agents and calls godot-core's `godotkit`, godot-assets' `assetkit` and godot-l10n's `l10nkit`.
+`godot-l10n` also ships the `l10n-judge` agent, which reviews translations in a fresh context. `godot-studio` ships the `architecture-reviewer` agent for high-risk lanes, and calls godot-core's `godotkit` for worktrees and the gate, so it needs godot-core installed too. `godot-art` ships the `art-readability-judge` and `art-style-judge` agents, calls godot-assets' `assetkit` to register versions, and leaves generation to the fal-media plugin of the mozg-video marketplace. `godot-ui` ships the `ui-readability-judge` and `ui-conformance-judge` agents and calls godot-core's `godotkit`, godot-assets' `assetkit` and godot-l10n's `l10nkit`. `godot-audio` ships no judge, because an agent cannot hear: its reports say "measured, not heard" and the owner listens in the hub. It calls godot-assets' `assetkit` and leaves generation to fal-media.
 
 The plan and the decisions behind it are in [docs/plan.md](docs/plan.md).
 
@@ -39,6 +40,7 @@ claude plugin install godot-l10n@mozg-godot
 claude plugin install godot-studio@mozg-godot
 claude plugin install godot-art@mozg-godot
 claude plugin install godot-ui@mozg-godot
+claude plugin install godot-audio@mozg-godot
 ```
 
 ### Codex
@@ -47,7 +49,7 @@ Codex reads `.claude-plugin/marketplace.json` directly, so there is no separate 
 
 ```bash
 codex plugin marketplace add /path/to/mozg-godot-plugins
-codex plugin add godot-core@mozg-godot   # likewise godot-assets, game-design, godot-l10n, godot-studio, godot-art, godot-ui
+codex plugin add godot-core@mozg-godot   # likewise godot-assets, game-design, godot-l10n, godot-studio, godot-art, godot-ui, godot-audio
 ```
 
 - Codex leaves a plugin's `bin/` off PATH. Each skill's hard rules give the kit path (`<plugin>/bin/<kit>`), so agents call kits by path. A shell outside an agent uses the installed copy under `~/.codex/plugins/cache/mozg-godot/<plugin>/<version>/bin/`.

@@ -82,6 +82,22 @@
     }
   },
   "godot-studio": {
-    "placeholders": {}
+    "placeholders": {
+      "<id>": "a lane id, such as hud",
+      "<status>": "a lane status (open or merged) or a record status (proposed, accepted, rejected or superseded by NNN)",
+      "<risk>": "a lane risk: low, normal or high",
+      "<commit or none>": "the merge commit of a merged lane, or none",
+      "<rule list, or none>": "the rules of the problems studiokit lane check reported, or none",
+      "<request files, or none>": "request files under .mozg/requests/ that a merge listed, or none",
+      "<next ready lane or task, or what waits for the owner>": "what the orchestrator does next",
+      "<the brief from studiokit lane brief, verbatim>": "the brief text that studiokit lane brief printed",
+      "<named commit>": "the main commit a merge refusal named",
+      "<lane project>": "the project folder inside the lane's worktree",
+      "<record>": "a decision record file name, such as 003-save-system.md",
+      "<title>": "a decision title",
+      "<option and total, per option>": "each option with the sum of its four scores",
+      "<chosen option, or open>": "the option the owner chose, or open",
+      "<triggers>": "the Revisit when triggers of the record"
+    }
   }
 }

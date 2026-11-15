@@ -12,8 +12,5 @@
     "orchestration",
     "worktrees",
     "merge-queue"
-  ],
-  "dependencies": [
-    "godot-core"
   ]
 }

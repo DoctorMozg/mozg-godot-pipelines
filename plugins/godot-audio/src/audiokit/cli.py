@@ -12,6 +12,7 @@ from pathlib import Path
 
 from audiokit.audit import Audit, Levels, Tools
 from audiokit.doctor import doctor, find_tool
+from audiokit.loops import LoopCheck, write_loop
 from audiokit.policy import load_policy
 from audiokit.records import CueSheet, Finding, RecordsError
 
@@ -27,6 +28,9 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("lint", help="check audio/cues.json and the files under audio/")
     commands.add_parser("audit", help="header facts of every cue file against the policy")
     commands.add_parser("levels", help="peak, RMS, clipping, DC and edge silence of every cue file")
+    commands.add_parser("loops", help="loop seams and each cue file's .import settings")
+    loop = commands.add_parser("loop", help="write a cue's loop points into its files' .import")
+    loop.add_argument("cue")
     return parser
 
 
@@ -50,8 +54,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
     try:
         sheet = CueSheet(args.project.resolve())
+        tools = Tools(find_tool("ffmpeg", os.environ), find_tool("ffprobe", os.environ))
+        if args.command in ("loops", "loop"):
+            check = LoopCheck(sheet, load_policy(sheet.project), tools)
+            if args.command == "loop":
+                written = write_loop(sheet, args.cue, check.rates())
+                emit({"cmd": "loop", "ok": True, "cue": args.cue, "written": written})
+                return EXIT_OK
+            loops = check.run()
+            seams = {source: s.as_json() for source, s in loops.seams.items()}
+            emit(
+                {
+                    "cmd": "loops",
+                    "ok": not loops.problems,
+                    "seams": seams,
+                    "problems": rows(loops.problems),
+                    "note": "measured, not heard",
+                }
+            )
+            return EXIT_FAILED if loops.problems else EXIT_OK
         if args.command == "levels":
-            tools = Tools(find_tool("ffmpeg", os.environ), find_tool("ffprobe", os.environ))
             levels = Levels(sheet, load_policy(sheet.project), tools).run()
             measured = {source: m.as_json() for source, m in levels.files.items()}
             emit(

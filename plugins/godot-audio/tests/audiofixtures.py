@@ -91,3 +91,59 @@ def pcm16(path: Path, samples: list[int], channels: int = 1) -> Path:
         out.setframerate(RATE)
         out.writeframes(struct.pack(f"<{len(samples)}h", *samples))
     return path
+
+
+# The .import text Godot 4.7.2 wrote for a WAV and an Ogg on 2026-11-15, uid and hash shortened.
+WAV_IMPORT = """[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ddbn5inpupmly"
+path="res://.godot/imported/{name}-0057.sample"
+
+[deps]
+
+source_file="res://{source}"
+dest_files=["res://.godot/imported/{name}-0057.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
+"""
+OGG_IMPORT = """[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dco06bwurpyy5"
+path="res://.godot/imported/{name}-439d.oggvorbisstr"
+
+[deps]
+
+source_file="res://{source}"
+dest_files=["res://.godot/imported/{name}-439d.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
+"""
+
+
+def imported(project: Path, source: str) -> Path:
+    """The .import Godot 4.7.2 writes for this file with default settings."""
+    template = OGG_IMPORT if source.endswith(".ogg") else WAV_IMPORT
+    path = project / f"{source}.import"
+    path.write_text(template.format(name=Path(source).name, source=source), encoding="utf-8")
+    return path

@@ -25,6 +25,7 @@ class Rule:
     max_duration_s: float | None = None
     max_peak_dbfs: float | None = None
     max_edge_silence_s: float | None = None
+    compress_modes: tuple[int, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,9 @@ def _rule(raw: Json) -> Rule:
         isinstance(peak, bool) or not isinstance(peak, (int, float)) or peak > 0
     ):
         raise RecordsError(f"{POLICY_FILE}: max_peak_dbfs is a dBFS level at most 0, got {peak!r}")
+    modes = raw.get("compress_modes")
+    if modes is not None and (not isinstance(modes, list) or not set(modes) <= {0, 1, 2}):
+        raise RecordsError(f"{POLICY_FILE}: compress_modes are WAV modes 0 to 2, got {modes!r}")
     channels = raw.get("channels")
     if channels not in (None, 1, 2):
         raise RecordsError(f"{POLICY_FILE}: channels is 1 or 2, got {channels!r}")
@@ -66,6 +70,7 @@ def _rule(raw: Json) -> Rule:
         max_duration_s=_positive(raw, "max_duration_s"),
         max_peak_dbfs=None if peak is None else float(peak),
         max_edge_silence_s=_positive(raw, "max_edge_silence_s"),
+        compress_modes=None if modes is None else tuple(modes),
     )
 
 

@@ -46,6 +46,20 @@ class TestRunner:
         assert "godotkit-user-" in line
         assert not Path(line.split("=", 1)[1]).exists()
 
+    def test_a_spawned_run_logs_to_the_file_with_user_data_in_the_given_folder(
+        self, fake_godot: FakeGodotFactory, make_project: ProjectFactory, tmp_path: Path
+    ) -> None:
+        log_path, scratch = tmp_path / "godot.log", tmp_path / "user"
+        scratch.mkdir()
+        with log_path.open("wb") as log_file:
+            process = GodotRunner(fake_godot("spawned\n")).spawn(
+                RunRequest(make_project(HEALTHY_SCRIPT)), scratch, log_file
+            )
+            assert process.wait(timeout=10) == 0
+        lines = log_path.read_text().splitlines()
+        assert "spawned" in lines
+        assert f"XDG_DATA_HOME={scratch / 'xdg_data_home'}" in lines
+
     def test_timeout_keeps_partial_output(
         self, fake_godot: FakeGodotFactory, make_project: ProjectFactory
     ) -> None:

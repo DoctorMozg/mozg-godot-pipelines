@@ -9,6 +9,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 from godotkit.display import NativeDisplay
 from godotkit.locate import GodotBinary
@@ -52,10 +53,7 @@ class GodotRunner:
         return (*head, "--path", str(request.project), *request.args)
 
     def run(self, request: RunRequest) -> RunResult:
-        if not (request.project / "project.godot").is_file():
-            raise ValueError(f"not a Godot project (no project.godot): {request.project}")
-        if request.timeout_s <= 0:
-            raise ValueError(f"timeout must be positive, got {request.timeout_s}")
+        _check(request)
         command = self.command_for(request)
         with tempfile.TemporaryDirectory(prefix="godotkit-user-") as scratch:
             env = self._isolated_env(Path(scratch))
@@ -87,6 +85,17 @@ class GodotRunner:
                 timed_out=False,
             )
 
+    def spawn(
+        self, request: RunRequest, scratch: Path, log_file: BinaryIO
+    ) -> subprocess.Popen[bytes]:
+        """Starts Godot without waiting; the caller owns the process, the log and `scratch`."""
+        _check(request)
+        command = self.command_for(request)
+        log.info("starting %s", " ".join(command))
+        return subprocess.Popen(
+            command, env=self._isolated_env(scratch), stdout=log_file, stderr=subprocess.STDOUT
+        )
+
     def _isolated_env(self, scratch: Path) -> dict[str, str]:
         env = dict(self._base_env)
         # user:// resolves under XDG_DATA_HOME on Linux; settings and caches follow the other two.
@@ -95,6 +104,13 @@ class GodotRunner:
             folder.mkdir()
             env[name] = str(folder)
         return env
+
+
+def _check(request: RunRequest) -> None:
+    if not (request.project / "project.godot").is_file():
+        raise ValueError(f"not a Godot project (no project.godot): {request.project}")
+    if request.timeout_s <= 0:
+        raise ValueError(f"timeout must be positive, got {request.timeout_s}")
 
 
 def _text(raw: bytes | str | None) -> str:

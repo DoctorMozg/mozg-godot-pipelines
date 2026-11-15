@@ -6,9 +6,14 @@ import json
 import socket
 import threading
 from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import pytest
 from godotkit.bridge import Bridge, BridgeError, BridgeListener, LineChannel, parse_act
+from godotkit.gates import GD_DIR, probe_override
+from godotkit.locate import GodotBinary
+from godotkit.runner import GodotRunner, RunRequest
+from godotkit_rig import UI_SCRIPT, ProjectFactory
 
 FakeBridge = Callable[[Callable[[LineChannel], None]], None]
 
@@ -137,3 +142,37 @@ class TestLockstep:
         bridge = Bridge(*listener.accept(5.0))
         with pytest.raises(ValueError, match="frames"):
             bridge.step([], 0, None, 5.0)
+
+
+@pytest.mark.live_godot
+class TestRealGodot:
+    def test_the_injected_bridge_holds_clicks_and_ends_with_a_summary(
+        self, real_godot: GodotBinary, make_project: ProjectFactory, tmp_path: Path
+    ) -> None:
+        project, listener = make_project(UI_SCRIPT), BridgeListener()
+        config = tmp_path / "bridge.json"
+        config.write_text(json.dumps({"port": listener.port, "token": listener.token}))
+        user, log_path = tmp_path / "user", tmp_path / "godot.log"
+        user.mkdir()
+        args = ("--fixed-fps", "60", "--", f"--godotkit-play={config}")
+        override = f'[autoload]\n\nGodotkitPlay="*{GD_DIR / "play_bridge.gd"}"\n'
+        with probe_override(project, override, "bridge test"), log_path.open("wb") as out:
+            process = GodotRunner(real_godot).spawn(RunRequest(project, args, 60.0), user, out)
+            try:
+                bridge = Bridge(*listener.accept(30.0))
+            except BridgeError:
+                process.kill()
+                raise
+        try:
+            assert bridge.welcome(7, 30.0)["ui"][0]["path"] == "/root/Main/Start"
+            walk = parse_act({"kind": "action", "name": "walk", "hold_frames": 10})
+            assert bridge.step([walk], 1, None, 30.0)["held"] == {"walk": 9}
+            assert bridge.step([], 30, None, 30.0)["hash"] == "clicks=0 built= held=10"
+            click = parse_act({"kind": "click", "target": "/root/Main/Start"})
+            assert bridge.step([click], 1, "look.png", 30.0)["hash"].startswith("clicks=1")  # type: ignore[union-attr]
+            assert bridge.step([], 1, None, 30.0)["look"] is None
+        finally:
+            bridge.end()
+            process.wait(timeout=30)
+            listener.close()
+        assert "MOZG_PLAY_SUMMARY status=ended steps=4 frames=33 errors=0" in log_path.read_text()

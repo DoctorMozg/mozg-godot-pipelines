@@ -26,12 +26,6 @@ def _patch(cwd: Path, *lines: str) -> str:
     )
 
 
-@pytest.fixture
-def lane(new_lane: CliRunner) -> Path:
-    """A lane that owns the HUD script and every test."""
-    return Path(new_lane("hud", "scripts/hud.gd", "tests/*")[1]["lane"]["worktree"])
-
-
 class TestLaneEdits:
     def test_owned_files_and_request_files_pass(self, lane: Path) -> None:
         for name in ("scripts/hud.gd", "tests/ui/test_hud.gd", ".mozg/requests/theme.md"):

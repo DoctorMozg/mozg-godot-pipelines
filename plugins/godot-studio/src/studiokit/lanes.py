@@ -26,6 +26,8 @@ LANE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 RISKS = ("low", "normal", "high")
 OPEN = "open"
 BRANCH_PREFIX = "lane/"
+# A lane asks for single-writer changes through request files, so those stay writable.
+ALWAYS_ALLOWED = (".mozg/requests/*",)
 _GLOB_CHARS = frozenset("*?[")
 
 
@@ -63,6 +65,13 @@ class GodotKit:
 
     def run(self, *args: str, timeout: float = 120.0) -> dict[str, Any]:
         """The command's JSON line; a run whose JSON says not ok raises with that JSON."""
+        payload = self.query(*args, timeout=timeout)
+        if not payload.get("ok"):
+            raise ToolFailed(f"godotkit {' '.join(args[:2])}: {json.dumps(payload)}")
+        return payload
+
+    def query(self, *args: str, timeout: float = 120.0) -> dict[str, Any]:
+        """The command's JSON line, ok or not; no JSON line at all raises."""
         if not self._path:
             raise ToolMissing("godotkit not found: enable godot-core or set GODOTKIT")
         completed = subprocess.run(
@@ -76,8 +85,6 @@ class GodotKit:
         if not isinstance(payload, dict):
             detail = completed.stderr.strip() or completed.stdout.strip()
             raise ToolFailed(f"godotkit {args[0]} printed no JSON line: {detail}")
-        if not payload.get("ok"):
-            raise ToolFailed(f"godotkit {' '.join(args[:2])}: {json.dumps(payload)}")
         return payload
 
 
@@ -101,9 +108,18 @@ class Lane:
     risk: str
     status: str
     created: str
+    frozen: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def project_dir(self) -> Path:
+        return Path(self.worktree) / self.project
 
     def owns_path(self, relative: str) -> bool:
         return any(fnmatchcase(relative, pattern) for pattern in self.owns)
+
+    def may_edit(self, relative: str) -> bool:
+        """Owned, or a request file; frozen files are judged separately."""
+        return self.owns_path(relative) or any(fnmatchcase(relative, g) for g in ALWAYS_ALLOWED)
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -111,7 +127,7 @@ class Lane:
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> Lane:
         lists = {key: tuple(data[key]) for key in ("owns", "forbid", "checks")}
-        return cls(**{**data, **lists})
+        return cls(**{**data, **lists, "frozen": dict(data.get("frozen", {}))})
 
 
 @dataclass(frozen=True)

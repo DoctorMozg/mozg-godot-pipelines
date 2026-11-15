@@ -14,15 +14,20 @@ from studiokit import cli
 # Any: the JSON line a command printed.
 CliRunner = Callable[..., tuple[int, dict[str, Any]]]
 GitRunner = Callable[..., str]
+Committer = Callable[..., str]
 
-# Stands in for godot-core: `worktree new` adds a detached worktree, as godotkit does.
+# Stands in for godot-core: `worktree new` adds a detached worktree, as godotkit does, and
+# `receipt verify` answers with the reason in STUB_RECEIPT.
 STUB_GODOTKIT = """#!/usr/bin/env python3
-import json, subprocess, sys
+import json, os, subprocess, sys
 args = sys.argv[1:]
 if args[:2] == ["worktree", "new"]:
     path, project, ref = args[2], args[args.index("--project") + 1], args[args.index("--ref") + 1]
     subprocess.run(["git", "-C", project, "worktree", "add", "-q", "--detach", path, ref])
     print(json.dumps({"cmd": "worktree new", "ok": True, "path": path}))
+elif args[:2] == ["receipt", "verify"]:
+    reason = os.environ.get("STUB_RECEIPT", "ok")
+    print(json.dumps({"cmd": "receipt verify", "ok": reason == "ok", "reason": reason}))
 else:
     print(json.dumps({"cmd": " ".join(args[:2]), "ok": False, "reason": "unknown"}))
 """
@@ -54,9 +59,23 @@ def repo(tmp_path: Path) -> Path:
         (game / name).parent.mkdir(parents=True, exist_ok=True)
         (game / name).write_text(text)
     _git(game, "init", "-q", "-b", "main")
-    _git(game, "-c", "user.name=t", "-c", "user.email=t@t", "add", ".")
-    _git(game, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "start")
+    _commit(game, {}, "start")
     return game
+
+
+def _commit(folder: Path, files: dict[str, str], message: str) -> str:
+    for name, text in files.items():
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_text(text)
+    _git(folder, "add", ".")
+    _git(folder, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", message)
+    return _git(folder, "rev-parse", "HEAD").strip()
+
+
+@pytest.fixture
+def commit() -> Committer:
+    """Writes {name: text} in a folder, commits everything there and returns the commit."""
+    return _commit
 
 
 @pytest.fixture
@@ -89,3 +108,9 @@ def new_lane(run_cli: CliRunner) -> CliRunner:
         return run_cli("lane", "new", lane_id, "--task", "plan.md#P1", *flags, *extra)
 
     return open_lane
+
+
+@pytest.fixture
+def lane(new_lane: CliRunner) -> Path:
+    """The worktree of lane hud, which owns the HUD script and every test."""
+    return Path(new_lane("hud", "scripts/hud.gd", "tests/*")[1]["lane"]["worktree"])

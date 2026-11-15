@@ -5,15 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from fnmatch import fnmatchcase
 from pathlib import Path
 
 from studiokit.edits import edited_files
 from studiokit.lanes import OPEN, Lane, LaneError, LaneStore, ToolFailed, git
 
 log = logging.getLogger(__name__)
-# A lane asks for single-writer changes through request files, so those stay writable.
-ALWAYS_ALLOWED = (".mozg/requests/*",)
 
 
 class OwnershipGuard:
@@ -31,7 +28,12 @@ class OwnershipGuard:
         if not file.is_relative_to(project):
             return f"{file} is outside the project of lane {lane.id}; it edits {project} only."
         relative = file.relative_to(project).as_posix()
-        if lane.owns_path(relative) or any(fnmatchcase(relative, g) for g in ALWAYS_ALLOWED):
+        if relative in lane.frozen:
+            return (
+                f"{relative} is a frozen test of lane {lane.id}: reviewed tests do not change. "
+                "If it is wrong, stop and tell the orchestrator."
+            )
+        if lane.may_edit(relative):
             return None
         return (
             f"{relative} is outside lane {lane.id}, which owns {', '.join(lane.owns)}. "

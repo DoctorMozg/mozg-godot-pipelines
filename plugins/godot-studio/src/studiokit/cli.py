@@ -23,6 +23,7 @@ from studiokit.lanes import (
     ToolFailed,
     ToolMissing,
 )
+from studiokit.verify import Freezer, LaneCheck
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 
@@ -47,6 +48,13 @@ def _parser() -> argparse.ArgumentParser:
     listing.add_argument("--all", action="store_true")
     show = actions.add_parser("show", help="one lane record")
     show.add_argument("id")
+    freeze = actions.add_parser("freeze", help="record the hashes of a lane's reviewed tests")
+    freeze.add_argument("id")
+    freeze.add_argument(
+        "globs", nargs="+", help="committed files to freeze, relative to the project"
+    )
+    check = actions.add_parser("check", help="may the lane merge: diff, frozen tests, gate receipt")
+    check.add_argument("id")
     brief = actions.add_parser("brief", help="the delegation brief a lane's subagent gets")
     brief.add_argument("id")
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
@@ -60,8 +68,9 @@ def emit(payload: Mapping[str, object]) -> None:
 
 def render_brief(lane: Lane) -> str:
     """The seven fields every AloneGodot delegation carried (research 07, section 1.2)."""
-    project = Path(lane.worktree) / lane.project
-    forbid = "; ".join(lane.forbid) or "anything outside the owned files"
+    project = lane.project_dir
+    frozen = [f"{path} (frozen test)" for path in sorted(lane.frozen)]
+    forbid = "; ".join([*lane.forbid, *frozen]) or "anything outside the owned files"
     checks = [*lane.checks, f"godotkit gate --project {project}"]
     return "\n".join(
         [
@@ -92,6 +101,15 @@ def _lane(args: argparse.Namespace, store: LaneStore) -> int:
         lanes = [lane for lane in store.all() if args.all or lane.status == OPEN]
         rows = [{k: getattr(lane, k) for k in ("id", "status", "risk", "task")} for lane in lanes]
         emit({"cmd": "lane list", "ok": True, "lanes": rows})
+    elif args.action == "freeze":
+        lane = Freezer().freeze(store.get(args.id), args.globs)
+        store.save(lane)
+        emit({"cmd": "lane freeze", "ok": True, "id": lane.id, "frozen": dict(lane.frozen)})
+    elif args.action == "check":
+        problems = LaneCheck(GodotKit(os.environ)).problems(store.get(args.id))
+        rows = [{"rule": p.rule, "detail": p.detail} for p in problems]
+        emit({"cmd": "lane check", "ok": not problems, "id": args.id, "problems": rows})
+        return EXIT_FAILED if problems else EXIT_OK
     elif args.action == "brief":
         emit({"cmd": "lane brief", "ok": True, "brief": render_brief(store.get(args.id))})
     else:

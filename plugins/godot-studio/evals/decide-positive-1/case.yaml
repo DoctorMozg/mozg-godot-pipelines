@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: decide-positive-1
+description: "Literal: architecture options for a save system, recorded."
+tags: [studio-decide, positive]
+runs: 3
+execution:
+  prompt: >-
+    Before anything gets built: how should the save and load system of my Godot game be architected? Give me scored options and record the one I pick.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?studio-decide"'

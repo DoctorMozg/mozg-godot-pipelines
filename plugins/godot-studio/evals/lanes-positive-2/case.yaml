@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: lanes-positive-2
+description: "Paraphrase: split plan milestones so two coders work without conflicts."
+tags: [studio-lanes, positive]
+runs: 3
+execution:
+  prompt: >-
+    Split milestones P3 and P4 of docs/plan.md in my Godot project so two coders can work on them at the same time without stepping on each other's files.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?studio-lanes"'

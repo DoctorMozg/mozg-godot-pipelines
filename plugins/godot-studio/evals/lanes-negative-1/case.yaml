@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: lanes-negative-1
+description: "Near-miss: choosing a save architecture belongs to studio-decide."
+tags: [studio-lanes, negative]
+runs: 3
+execution:
+  prompt: >-
+    My Godot game needs a save system. Should it be Resource snapshots or one JSON file per system? Lay out the options with tradeoffs so I can choose.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?studio-lanes"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?studio-decide"'

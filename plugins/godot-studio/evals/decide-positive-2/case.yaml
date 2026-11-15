@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: decide-positive-2
+description: "Paraphrase: an autoload event bus against plain signals."
+tags: [studio-decide, positive]
+runs: 3
+execution:
+  prompt: >-
+    I am thinking of adding a global EventBus autoload to my Godot project. Compare it with plain signals between nodes, let me decide, and write the decision down.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?studio-decide"'

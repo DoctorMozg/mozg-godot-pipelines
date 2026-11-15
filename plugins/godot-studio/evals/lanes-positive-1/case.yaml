@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: lanes-positive-1
+description: "Literal: run several Godot coding tasks in parallel lanes."
+tags: [studio-lanes, positive]
+runs: 3
+execution:
+  prompt: >-
+    My Godot game plan has four coding tasks: a HUD health bar, a dash ability, an enemy spawner and a pause menu. Run them in parallel worktrees with separate agents and merge each one when it passes.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?studio-lanes"'

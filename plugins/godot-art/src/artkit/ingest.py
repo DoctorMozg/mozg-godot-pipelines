@@ -87,8 +87,13 @@ class Ingest:
         staged = STAGING / asset / f"{call.request_id[:8]}-{source.name}"
         if (self.project / staged).exists():
             raise RecordsError(f"request {call.request_id} is already registered as {staged}")
-        current = self.kit.run("status", asset, "--project", str(self.project))
-        parent = current["assets"][0].get("current_version")
+        current = self.kit.run("status", asset, "--project", str(self.project))["assets"][0]
+        if current.get("kind") not in (None, kind):
+            raise RecordsError(
+                f"brief {request.brief}'s asset {asset} holds {current['kind']} files; "
+                f"a {kind} needs a brief of its own"
+            )
+        parent = current.get("current_version")
         (self.project / staged).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, self.project / staged)
         try:

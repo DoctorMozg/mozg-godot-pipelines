@@ -21,7 +21,8 @@ Match the reference pictures for <subject identity, per root>.
 | Model | `submit_job` on a mesh endpoint, then `falkit fetch` | `--call <tool use id>` beside `--plan PLAN` |
 
 - fal-media prices a mesh endpoint only for a submit outside a plan, so models are never steps of the plan. `falkit ledger show` gives each call's tool use id.
-- `face_count` sets the triangle count of a Hunyuan 3D model; set it at or under the folder's `max_triangles` in `art/policy.json`. fal-media's price table lists the endpoint's add-ons; `falkit estimate` gives the total.
+- `face_count` sets the triangle count of a Hunyuan 3D model, from 40,000 up; set it at or under the folder's `max_triangles` in `art/policy.json`. A custom count and PBR maps are add-ons; `falkit estimate` gives the total ($0.675 for both on 2026-11-15).
+- With PBR on, the GLB carries three 4096 px maps (colour, metal-roughness, normal), which Godot extracts beside it on import. Lossless they take 64 MiB of VRAM each; at mode 2 and 2048 px, 2.67 MiB each (`.ctex` payloads, Godot 4.7.2, 2026-11-15).
 - The license of a model's output depends on the endpoint. Read the model page before a commercial project uses it, and put the license id on the asset with `--license`.
 
 ## Recording a judge's verdict

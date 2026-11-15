@@ -59,6 +59,7 @@ class TestStyleSheet:
         assert opens == [str(art / "candidate.png"), f"unit-root: {art / 'art/roots/unit.png'}"]
         assert "Roots shown: unit-root" in text
         assert "Palette legend: enemy #c03030; ally #3070c0" in text
+        assert "Banned: text in the image" in text
 
     def test_root_without_a_file_is_refused(self, art: Path) -> None:
         write(art, "art/bible.json", bible_doc())

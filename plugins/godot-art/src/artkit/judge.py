@@ -122,6 +122,7 @@ class JudgeSheets:
             "Family mode": family.get("mode"),
             "Palette legend": "; ".join(f"{role} {hexa}" for role, hexa in palette.items()),
             "Roots shown": ", ".join(shown),
+            "Banned": "; ".join(self.records.bible.get("banned", [])) or "nothing listed",
         }
         questions = [
             (

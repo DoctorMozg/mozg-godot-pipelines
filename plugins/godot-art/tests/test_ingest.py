@@ -28,10 +28,13 @@ assets = json.loads(store.read_text()) if store.exists() else {}
 if args[0] == "new":
     asset = args[args.index("--title") + 1] + "-a1b2"
     assets[asset] = []
+    (state / "kind").write_text(args[args.index("--kind") + 1])
     payload = {"ok": True, "asset": {"id": asset}}
 elif args[0] == "status":
     versions = assets.get(args[1], [])
-    payload = {"ok": True, "assets": [{"current_version": versions[-1] if versions else None}]}
+    kind = (state / "kind").read_text() if (state / "kind").exists() else None
+    payload = {"ok": True, "assets": [{"kind": kind,
+               "current_version": versions[-1] if versions else None}]}
 elif os.environ.get("STUB_FAIL"):
     payload = {"ok": False, "reason": "refused", "detail": "stub refusal"}
 else:
@@ -80,12 +83,12 @@ def calls(stub: Path) -> list[list[str]]:
     return [json.loads(line) for line in lines]
 
 
-def ledger(tmp_path: Path, request_id: str, state: str = "fetched") -> Path:
+def ledger(tmp_path: Path, request_id: str, state: str = "fetched", suffix: str = ".png") -> Path:
     """A falkit ledger export with one call whose file was fetched beside it."""
     out = tmp_path / "fal"
     out.mkdir(exist_ok=True)
     data = png(64, 64, alpha=True) + request_id.encode()
-    (out / f"{request_id}.png").write_bytes(data)
+    (out / f"{request_id}{suffix}").write_bytes(data)
     entry = {
         "endpoint": ENDPOINT,
         "request_id": request_id,
@@ -93,7 +96,7 @@ def ledger(tmp_path: Path, request_id: str, state: str = "fetched") -> Path:
         "usd_charged": 0.059,
         "input_sha256": "ab" * 32,
         "files": [
-            {"path": f"{request_id}.png", "bytes": len(data),
+            {"path": f"{request_id}{suffix}", "bytes": len(data),
              "sha256": hashlib.sha256(data).hexdigest()},
         ],
         "cwd": str(out),
@@ -173,6 +176,17 @@ class TestRefusals:
     def test_new_asset_needs_a_license(self, stub: Path, tmp_path: Path, run: Run) -> None:
         out = run(ledger(tmp_path, "req1aaaa-01"), "req1aaaa-01")[1]
         assert out["detail"] == "brief scout has no asset yet; pass --license"
+
+    def test_model_of_an_image_brief_is_refused(
+        self, art: Path, stub: Path, tmp_path: Path, run: Run
+    ) -> None:
+        run(ledger(tmp_path, "req1aaaa-01"), "req1aaaa-01", *LICENSE)
+        code, out = run(ledger(tmp_path, "req2bbbb-02", suffix=".glb"), "req2bbbb-02")
+        assert (code, out["detail"]) == (
+            EXIT_REFUSED,
+            "brief scout's asset scout-a1b2 holds image files; a model needs a brief of its own",
+        )
+        assert [p.suffix for p in (art / "registry/staging/scout-a1b2").iterdir()] == [".png"]
 
     def test_same_request_twice(self, stub: Path, tmp_path: Path, run: Run) -> None:
         source = ledger(tmp_path, "req1aaaa-01")

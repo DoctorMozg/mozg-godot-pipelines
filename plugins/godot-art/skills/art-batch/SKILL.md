@@ -38,19 +38,19 @@ Brief ids or a family, and the project path. Optional: a cap on spend for this b
 
 ## Core Process
 
-1. **Lint and pick.** `artkit lint` must print `"ok": true`. List the briefs of the batch; a brief with an `asset` already gets a retake, one without gets a new asset and needs a license id from the owner (an SPDX id or `LicenseRef-<name>`).
+1. **Lint and pick.** `artkit lint` must print `"ok": true`. List the briefs of the batch; a brief with an `asset` already gets a retake, one without gets a new asset and needs a license id from the owner (an SPDX id or `LicenseRef-<name>`). A model needs a brief of its own, apart from the still it is made from, since one asset holds one kind.
 
 1. **Write each prompt from its brief.** The hook first, then the master style and family mode from the bible, the readability note, the contrast plan, and the forbidden and banned lists as plain positive wording ("a plain background", not "no text"). Root files go in as reference pictures. `references/batch.md` has the template.
 
 1. **Price before spending.** Stills: one fal plan for the batch through `fal-plan`, then `falkit estimate --plan PLAN`. Models: `falkit estimate --endpoint <mesh endpoint> --input '<json>'` per brief, with `face_count` set from the family's triangle budget. Tell the owner the expected total, the worst case and `falkit budget show`'s budget left. Over the batch cap: stop and ask.
 
-1. **Generate through fal-media.** Stills run with `fal-run`. A model is one `submit_job` per brief under fal-media's spend guard, then `falkit fetch`. Note each model call's tool use id from `falkit ledger show`.
+1. **Generate through fal-media.** Stills run with `fal-run`. A model is one `submit_job` per brief under fal-media's spend guard, then `falkit fetch`. Note each model call's tool use id from `falkit ledger show`. fal-media 0.24.0 cannot fetch a mesh (`kind must be one of ...`), and `artkit register` refuses a call with no fetched file: while that holds, submit no model, since it would be charged and left unregistered.
 
 1. **Export the ledger.** `falkit ledger export --plan PLAN --call <tool use id> ... --out <new file>`: the plan ties the stills, each `--call` adds a model call.
 
 1. **Register each file.** `artkit register <brief> --ledger <file> --request-id <request id> --prompt '<prompt>'`, plus `--license <id>` for a new asset. The JSON line gives the asset, the version, its parent and the dollars charged.
 
-1. **Audit.** Import the new files headless with godot-core (`godotkit import`), then `artkit audit`. A `max_px`, `mipmaps`, `compress_mode`, `triangles` or `materials` problem is fixed in the `.import` settings or by a redraw, then audited again.
+1. **Audit.** Import the new files headless with godot-core (`godotkit import --project <project>`), then `artkit audit`. A `max_px`, `mipmaps`, `compress_mode`, `triangles` or `materials` problem is fixed in the `.import` settings or by a redraw, then audited again. A headless import leaves the textures a GLB carries at `compress/mode=0` and full size, because only the editor detects 3D use; set `compress/mode=2` and `process/size_limit`, delete `.godot` (an edited `.import` alone is not re-imported), import again.
 
 1. **Pre-check and judge pictures.** `artkit precheck <file> --brief <brief>`; below the minimum, redraw before any judge runs. Then `artkit judge <brief> <file> --kind readability` and `--kind style`, and dispatch `art-readability-judge` and `art-style-judge` with only the sheet path each. Record each verdict as a note on the version with `assetkit note`.
 
@@ -67,7 +67,7 @@ Brief ids or a family, and the project path. Optional: a cap on spend for this b
 ## Techniques
 
 - Retakes name their parent: `artkit register` asks assetkit for the current version, so a redraw of the same brief is version two with version one as parent.
-- A model's `face_count` is the cheapest budget control: fal's Hunyuan 3D bills a custom count as an add-on, and the mesh arrives within budget instead of being decimated later.
+- A model's `face_count` is the cheapest budget control: the mesh arrives near the count asked (39,988 triangles for 40,000 on 2026-11-15). Hunyuan 3D v3.1 pro takes no fewer than 40,000 (`falkit schema`), so a lower `max_triangles` needs decimation outside fal.
 - Fetch into a folder outside `res://`; `artkit register` copies each file into `registry/staging/<asset>/`, which Godot ignores.
 - Judge sheets live under `.mozg/art/judging/`; delete them after the owner's review.
 

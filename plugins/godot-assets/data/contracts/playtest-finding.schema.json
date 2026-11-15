@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contracts:playtest-finding",
+  "title": "playtest-finding",
+  "description": "One playtest finding at playtest/findings/<id>.json, written by godotkit playtest judge. Runs that hit the same fingerprint merge into it; its review status is folded from item events, never stored here.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "fingerprint",
+    "class",
+    "confidence",
+    "severity_suggested",
+    "title",
+    "scenario_id",
+    "run_ids",
+    "build",
+    "seed",
+    "persona",
+    "expected",
+    "actual",
+    "repro",
+    "evidence",
+    "occurrences"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "playtest-finding/1"
+    },
+    "id": {
+      "description": "f- and the first 12 hex digits of the fingerprint's SHA-1.",
+      "type": "string",
+      "pattern": "^f-[0-9a-f]{12}$"
+    },
+    "fingerprint": {
+      "type": "object",
+      "required": [
+        "oracle",
+        "scene",
+        "assertion_id",
+        "top_frame",
+        "error_norm"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "oracle": {
+          "enum": [
+            "engine_error",
+            "invariant",
+            "stuck",
+            "budget",
+            "pacing",
+            "agent"
+          ]
+        },
+        "scene": {
+          "type": "string"
+        },
+        "assertion_id": {
+          "type": "string"
+        },
+        "top_frame": {
+          "type": "string"
+        },
+        "error_norm": {
+          "type": "string"
+        }
+      }
+    },
+    "class": {
+      "description": "Only bug carries game-side evidence; ux_hypothesis needs a human playtest.",
+      "enum": [
+        "bug",
+        "suspected_softlock",
+        "difficulty_or_agent_limit",
+        "observation",
+        "ux_hypothesis"
+      ]
+    },
+    "confidence": {
+      "description": "confirmed: the action log replayed it without the LLM.",
+      "enum": [
+        "confirmed",
+        "replay_failed",
+        "unreplayed"
+      ]
+    },
+    "severity_suggested": {
+      "enum": [
+        "S1",
+        "S2",
+        "S3",
+        "S4"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "build": {
+      "description": "The game's git commit, or unknown.",
+      "type": "string",
+      "minLength": 1
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "persona": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected": {
+      "type": "string"
+    },
+    "actual": {
+      "type": "string"
+    },
+    "repro": {
+      "type": "object",
+      "required": [
+        "actions",
+        "frame",
+        "step"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "description": "The run's godotkit-actions/1 file, relative to the project root.",
+          "type": "string",
+          "minLength": 1
+        },
+        "frame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "step": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "description": "The observed playtest_observe states where the finding was made."
+        },
+        "log_excerpt": {
+          "type": "string"
+        },
+        "node_path": {
+          "type": "string"
+        },
+        "screenshot": {
+          "type": "string"
+        }
+      }
+    },
+    "agent_report": {
+      "description": "The agent's words, kept verbatim and never used as evidence.",
+      "type": "string"
+    },
+    "occurrences": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

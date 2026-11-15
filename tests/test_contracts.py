@@ -39,6 +39,7 @@ def test_contracts_exist() -> None:
         "asset-version.schema.json",
         "asset.schema.json",
         "item-event.schema.json",
+        "playtest-finding.schema.json",
         "playtest-scenario.schema.json",
         "string-shots.schema.json",
         "string-translation.schema.json",

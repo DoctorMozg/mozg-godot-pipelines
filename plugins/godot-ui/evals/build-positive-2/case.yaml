@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: build-positive-2
+description: "Paraphrase: recheck a screen after a theme change."
+tags: [ui-build, positive]
+runs: 3
+execution:
+  prompt: >-
+    I regenerated the theme of my Godot game. Recheck the inventory screen: scan the scene for bad containers and focus, shoot it at all brief sizes, and have the readability and conformance judges look at it.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-build"'

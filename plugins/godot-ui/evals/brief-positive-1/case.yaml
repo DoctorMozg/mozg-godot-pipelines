@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: brief-positive-1
+description: "Literal: brief a HUD for a Godot game."
+tags: [ui-brief, positive]
+runs: 3
+execution:
+  prompt: >-
+    Before we build anything, brief the in-game HUD of my Godot game: which input devices, capture sizes, minimum font and button sizes, and the design tokens for its colours and buttons.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-brief"'

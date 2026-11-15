@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: brief-positive-2
+description: "Paraphrase: restyle a menu's tokens and Theme."
+tags: [ui-brief, positive]
+runs: 3
+execution:
+  prompt: >-
+    The pause menu of my Godot project needs a new look: a darker palette, bigger fonts for the Steam Deck and a separate danger style for the quit button. Set that up so the Godot theme is generated from it.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-brief"'

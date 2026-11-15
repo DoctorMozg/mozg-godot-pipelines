@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: brief-negative-1
+description: "Near-miss: building and capturing a briefed screen belongs to ui-build."
+tags: [ui-brief, negative]
+runs: 3
+execution:
+  prompt: >-
+    The HUD brief and tokens of my Godot game are approved. Build the HUD scene, check its layout at every capture size and put the screenshots in the review hub with the judges' verdicts.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-brief"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-build"'

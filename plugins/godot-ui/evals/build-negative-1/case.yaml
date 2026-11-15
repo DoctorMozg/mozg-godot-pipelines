@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: build-negative-1
+description: "Near-miss: choosing sizes, fonts and tokens belongs to ui-brief."
+tags: [ui-build, negative]
+runs: 3
+execution:
+  prompt: >-
+    For the main menu of my Godot game, decide with me the minimum font size, the button target size, the capture resolutions and the colour tokens, before any scene exists.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-build"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ui-brief"'

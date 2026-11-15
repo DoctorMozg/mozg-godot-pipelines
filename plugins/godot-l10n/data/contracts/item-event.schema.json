@@ -21,7 +21,7 @@
       "$ref": "#/$defs/ulid"
     },
     "item": {
-      "description": "The asset id, or KEY@locale for a string.",
+      "description": "The asset id, KEY@locale for a string, or a playtest finding id.",
       "type": "string",
       "minLength": 1
     },

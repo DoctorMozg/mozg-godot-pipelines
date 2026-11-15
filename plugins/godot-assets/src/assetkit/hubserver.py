@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from assetkit.contracts import Json
+from assetkit.findings import FINDING_ID
 from assetkit.hubdata import HubData
 from assetkit.registry import Registry, RegistryError
 from assetkit.review import NoteRequest, Review
@@ -132,10 +133,14 @@ class HubHandler(BaseHTTPRequestHandler):
         if body.get("item") is not None:
             if body.get("type") != "decision":
                 raise BadRequest(
-                    "the hub writes only decisions on strings; notes come from l10nkit"
+                    "the hub writes only decisions on strings and findings; notes come from kits"
                 )
-            return self.server.data.strings.decide(
-                _text(body, "item"), _text(body, "decision"), _optional(body, "body"),
+            item = _text(body, "item")
+            target = (
+                self.server.data.findings if FINDING_ID.match(item) else self.server.data.strings
+            )
+            return target.decide(
+                item, _text(body, "decision"), _optional(body, "body"),
                 self.server.config.author,
             )  # fmt: skip
         asset, kind = _text(body, "asset"), body.get("type")

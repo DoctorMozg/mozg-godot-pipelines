@@ -129,3 +129,27 @@ def write_shots(project: Path, picture: bytes) -> str:
     index = {"schema": "string-shots/1", "shots": [shot]}
     (project / "i18n" / "shots" / "index.json").write_text(json.dumps(index))
     return path
+
+
+FINDING_ID = "f-0123456789ab"
+
+
+def write_finding(project: Path, screenshot: str | None = None) -> str:
+    """A confirmed invariant bug as godotkit playtest judge records it; returns its id."""
+    evidence: dict[str, Json] = {"state": {"Game": {"hp": -3}}}
+    if screenshot:
+        evidence["screenshot"] = screenshot
+    fingerprint = {"oracle": "invariant", "scene": "res://main.tscn", "assertion_id": "hp",
+                   "top_frame": "", "error_norm": ""}  # fmt: skip
+    record = {
+        "schema": "playtest-finding/1", "id": FINDING_ID, "fingerprint": fingerprint,
+        "class": "bug", "confidence": "confirmed", "severity_suggested": "S2",
+        "title": "Invariant hp broken", "scenario_id": "farm", "run_ids": ["r1"],
+        "build": "abc1234", "seed": 1, "persona": "novice", "expected": "Game.hp >= 0",
+        "actual": "Game.hp was -3",
+        "repro": {"actions": "playtest/runs/r1/actions.jsonl", "frame": 20, "step": 2},
+        "evidence": evidence, "occurrences": 1,
+    }  # fmt: skip
+    (project / "playtest" / "findings").mkdir(parents=True)
+    (project / "playtest" / "findings" / f"{FINDING_ID}.json").write_text(json.dumps(record))
+    return FINDING_ID

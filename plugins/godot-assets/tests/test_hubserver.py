@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from assetkit.hubserver import HubConfig, HubServer
 from assetkit.registry import Registry
-from assetkit_rig import Lane, write_strings
+from assetkit_rig import Lane, write_finding, write_strings
 
 TOKEN = "t" * 40
 
@@ -253,3 +253,17 @@ class TestStrings:
     ) -> None:
         write_strings(registry.project)
         assert client.post(body)[0] == status
+
+
+class TestFindings:
+    def test_a_decision_on_a_finding_changes_its_status(
+        self, client: Client, registry: Registry
+    ) -> None:
+        finding_id = write_finding(registry.project)
+        body = {"type": "decision", "item": finding_id, "decision": "retake", "body": "flaky"}
+        status, payload = client.post(body)
+        assert (status, payload["event"]["item"]) == (201, finding_id)
+        snapshot = client.call("GET", "/api/items", headers={"X-Hub-Token": TOKEN})[2]
+        assert [row["status"] for row in snapshot["findings"]] == ["rerun"]
+        missing = {"type": "decision", "item": "f-ffffffffffff", "decision": "approve"}
+        assert client.post(missing)[0] == 409

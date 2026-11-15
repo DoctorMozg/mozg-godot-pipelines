@@ -1,4 +1,5 @@
-"""What the hub page shows: every asset with its versions, decisions and their effect."""
+"""What the hub page shows: every asset with its versions, decisions and their effect, game
+strings and playtest findings."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ from collections.abc import Mapping
 from urllib.parse import quote
 
 from assetkit.contracts import Json
+from assetkit.findings import Findings
 from assetkit.prune import pruned_versions
 from assetkit.registry import AssetRecords, Registry
 from assetkit.status import fold
@@ -25,15 +27,23 @@ class HubData:
     def __init__(self, registry: Registry) -> None:
         self._registry = registry
         self.strings = Strings(registry.project)
+        self.findings = Findings(registry.project)
 
     def fingerprint(self) -> str:
-        return self._registry.fingerprint() + self.strings.fingerprint()
+        return (
+            self._registry.fingerprint() + self.strings.fingerprint() + self.findings.fingerprint()
+        )
 
     def snapshot(self) -> dict[str, Json]:
-        """Items newest-version first and string rows, with the fingerprint they were read at."""
+        """Items newest-version first, string rows and findings, with the fingerprint read at."""
         fingerprint = self.fingerprint()
         items = [_item(records) for records in self._registry.records()]
-        return {"fingerprint": fingerprint, "items": items, "strings": self.strings.rows()}
+        return {
+            "fingerprint": fingerprint,
+            "items": items,
+            "strings": self.strings.rows(),
+            "findings": self.findings.rows(),
+        }
 
     def files(self) -> dict[str, str]:
         """The project files the hub may serve, by project-relative path, with their sha256."""
@@ -45,7 +55,7 @@ class HubData:
                     if entry["storage"] != "external" and not _moved_out(entry, version, pruned):
                         allowed[str(entry["path"])] = str(entry["sha256"])
         project = self._registry.project
-        for shot in self.strings.screenshots():
+        for shot in self.strings.screenshots() | self.findings.screenshots():
             if (project / shot).is_file():
                 allowed[shot] = hashlib.sha256((project / shot).read_bytes()).hexdigest()
         return allowed

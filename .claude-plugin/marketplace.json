@@ -68,6 +68,18 @@
         "worktrees",
         "merge-queue"
       ]
+    },
+    {
+      "name": "godot-art",
+      "source": "./plugins/godot-art",
+      "description": "Game art for Godot: art bible and briefs, fal-media output registered with provenance, import, VRAM and GLB audits, readability and style judges",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "art",
+        "assets",
+        "import"
+      ]
     }
   ]
 }

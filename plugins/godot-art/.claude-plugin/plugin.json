@@ -1,0 +1,16 @@
+{
+  "name": "godot-art",
+  "version": "0.1.0",
+  "description": "Game art for Godot projects: an art bible with approved roots, asset briefs with dependents, fal-media output registered with provenance, import, VRAM and GLB audits, readability and style judges",
+  "author": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "art",
+    "assets",
+    "import"
+  ]
+}

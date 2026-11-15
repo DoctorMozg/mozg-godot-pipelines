@@ -99,5 +99,8 @@
       "<chosen option, or open>": "the option the owner chose, or open",
       "<triggers>": "the Revisit when triggers of the record"
     }
+  },
+  "godot-art": {
+    "placeholders": {}
   }
 }

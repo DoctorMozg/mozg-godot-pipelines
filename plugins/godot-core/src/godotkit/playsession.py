@@ -59,6 +59,7 @@ class SessionFiles:
         self.bridge = folder / "bridge.json"
         self.godot_log = folder / "godot.log"
         self.recording = folder / "actions.jsonl"
+        self.trace = folder / "trace.jsonl"
         self.user = folder / "user"
 
     @classmethod
@@ -95,6 +96,7 @@ class PlaySession:
         self._steps = 0
         # Rows of the actions file: what the bridge applied, and each step's hash.
         self._rows: list[dict[str, object]] = []
+        self._started = time.monotonic()
 
     def run(self) -> None:
         base = {"port": self._listener.port, "token": self._listener.token, "pid": os.getpid()}
@@ -129,7 +131,8 @@ class PlaySession:
             self._process = self._runner.spawn(request, self._files.user, godot_log)
             channel, hello = self._accept_bridge(self._process)
         self._bridge = Bridge(channel, hello)
-        self._observe(self._bridge.welcome(self._config.seed, self._config.timeout_s))
+        self._started = time.monotonic()
+        self._observe(self._bridge.welcome(self._config.seed, self._config.timeout_s), [], 0)
 
     def _accept_bridge(
         self, process: subprocess.Popen[bytes]
@@ -201,11 +204,16 @@ class PlaySession:
         except ValueError as error:
             return {"ok": False, "reason": "refused", "detail": str(error)}, True
         self._steps += 1
-        self._observe(obs)
+        self._observe(obs, acts, frames)
         return {"ok": True, "step": self._steps, "obs": obs}, True
 
-    def _observe(self, obs: Observation) -> None:
+    def _observe(self, obs: Observation, acts: list[dict[str, object]], frames: int) -> None:
         self._last = obs
+        # The oracles judge this trace later: each step's acts and the observation after them.
+        wall_s = round(time.monotonic() - self._started, 3)
+        line = {"step": self._steps, "act": acts, "frames": frames, "wall_s": wall_s, "obs": obs}
+        with self._files.trace.open("a", encoding="utf-8") as trace:
+            trace.write(json.dumps(line) + "\n")
         self._rows += obs["acts"]
         if obs["hash"] is not None and obs["frame"] >= 1:
             self._rows.append({"f": obs["frame"], "hash": obs["hash"]})

@@ -72,6 +72,11 @@ class TestSession:
         recording = Recording.read(files.recording)
         assert recording.acts == ((1, "walk", True, 1.0),)
         assert recording.hashes == {10: "h10"}
+        trace = [json.loads(line) for line in files.trace.read_text().splitlines()]
+        assert [(row["step"], row["obs"]["frame"], row["act"]) for row in trace] == [
+            (0, 0, []),
+            (1, 10, [{**walk, "strength": 1.0}]),
+        ]
         assert not files.user.exists()
 
     def test_an_act_the_bridge_cannot_play_spends_no_step(

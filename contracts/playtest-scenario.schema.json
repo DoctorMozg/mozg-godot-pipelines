@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mozg-godot:contracts:playtest-scenario",
+  "title": "playtest-scenario",
+  "description": "One playtest scenario for godotkit playtest: a goal in words, the predicates the harness checks on every observation, and the budgets that end a run. The LLM never judges success; the predicates do.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "goal",
+    "mode",
+    "persona",
+    "seeds",
+    "success",
+    "budget"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "playtest-scenario/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "goal": {
+      "description": "The task as a player would be told it.",
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "description": "llm_stepped: the agent picks each step; scripted_bot: the agent writes a bot that runs at full speed.",
+      "enum": [
+        "llm_stepped",
+        "scripted_bot"
+      ]
+    },
+    "persona": {
+      "description": "A behavioural policy the prompt enforces, not a model of real players.",
+      "enum": [
+        "novice",
+        "speedrunner",
+        "explorer",
+        "adversarial"
+      ]
+    },
+    "persona_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "scene": {
+      "type": "string",
+      "pattern": "^res://.+\\.t?scn$"
+    },
+    "seeds": {
+      "description": "One run per seed; a pass rate needs at least three.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "success": {
+      "description": "All must hold on one observation for the run to pass.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/predicate"
+      }
+    },
+    "invariants": {
+      "description": "Must hold on every observation; a broken one is a bug.",
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/predicate"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id"
+            ]
+          }
+        ]
+      }
+    },
+    "milestones": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/predicate"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "expect_within_steps"
+            ]
+          }
+        ]
+      }
+    },
+    "budget": {
+      "description": "Steps, tokens, wall time and game time; the first one spent ends the run.",
+      "type": "object",
+      "required": [
+        "max_steps",
+        "max_tokens",
+        "max_wall_seconds",
+        "max_frames"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "max_steps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_wall_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_frames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stuck_after_steps": {
+          "description": "Steps without a new state or milestone before a suspected softlock; default 20.",
+          "type": "integer",
+          "minimum": 2
+        }
+      }
+    },
+    "experience_probes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "predicate": {
+      "description": "A state query compared with a value, or text that must stay out of the log. Queries name a playtest_observe node, then keys of its playtest_state(): Survival.day.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "query": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$"
+        },
+        "op": {
+          "enum": [
+            "==",
+            "!=",
+            ">=",
+            "<=",
+            ">",
+            "<"
+          ]
+        },
+        "value": {
+          "description": "Any JSON value; ordering ops need numbers."
+        },
+        "log_absent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expect_within_steps": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "query",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "required": [
+            "log_absent"
+          ]
+        }
+      ]
+    }
+  }
+}

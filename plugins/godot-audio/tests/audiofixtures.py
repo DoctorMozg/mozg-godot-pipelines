@@ -61,3 +61,22 @@ def audio_project(project: Path) -> Path:
     tone(project / "audio/ui/ui_click.wav")
     write(project, "audio/cues.json", sheet_doc())
     return project
+
+
+def wav_bytes(fmt: bytes, data: bytes) -> bytes:
+    """A RIFF file from raw fmt and data chunk bodies, for headers `wave` cannot write."""
+    chunks = (
+        b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(data)) + data
+    )
+    return b"RIFF" + struct.pack("<I", 4 + len(chunks)) + b"WAVE" + chunks
+
+
+def ogg_bytes(rate: int = 48000, channels: int = 2, seconds: float = 1.5) -> bytes:
+    """Two Ogg pages: a Vorbis identification packet, then a page whose granule ends the stream."""
+    ident = b"\x01vorbis" + struct.pack("<IBIiiiBB", 0, channels, rate, 0, 128000, 0, 0xB8, 1)
+
+    def page(granule: int, sequence: int, body: bytes, flags: int) -> bytes:
+        header = b"OggS" + struct.pack("<BBqIIIB", 0, flags, granule, 1, sequence, 0, 1)
+        return header + bytes([len(body)]) + body
+
+    return page(0, 0, ident, 2) + page(int(rate * seconds), 1, b"\x00" * 8, 4)

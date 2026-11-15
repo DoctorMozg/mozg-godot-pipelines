@@ -5,11 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from artkit.audit import MB, ImportAudit, load_defaults
+from artkit.ingest import Ingest, RegisterRequest
+from artkit.kits import AssetKit, ToolFailed, ToolMissing
 from artkit.policy import load_policy
 from artkit.records import ArtRecords, Finding, RecordsError
 
@@ -25,6 +28,13 @@ def _parser() -> argparse.ArgumentParser:
     dependents = commands.add_parser("dependents", help="briefs downstream of a root or brief")
     dependents.add_argument("id")
     commands.add_parser("audit", help="texture imports against art/policy.json, and VRAM")
+    register = commands.add_parser("register", help="add a fal call's file to the brief's asset")
+    register.add_argument("brief")
+    register.add_argument("--ledger", type=Path, required=True, help="falkit ledger export")
+    register.add_argument("--request-id", required=True)
+    register.add_argument("--file", help="file name, when the call fetched several")
+    register.add_argument("--prompt", help="the prompt the call was made with")
+    register.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new asset")
     return parser
 
 
@@ -79,6 +89,12 @@ def main(argv: Sequence[str]) -> int:
         if args.command == "audit":
             return _audit(project)
         records = ArtRecords(project)
+        if args.command == "register":
+            fields = ("brief", "ledger", "request_id", "file", "prompt", "license")
+            request = RegisterRequest(**{name: getattr(args, name) for name in fields})
+            done = Ingest(records, AssetKit(os.environ)).register(request)
+            emit({"cmd": "register", "ok": True, **done})
+            return EXIT_OK
         if args.command == "lint":
             return _lint(records)
         found = records.dependents(args.id)
@@ -87,3 +103,9 @@ def main(argv: Sequence[str]) -> int:
     except RecordsError as error:
         emit({"cmd": args.command, "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
+    except ToolMissing as error:
+        emit({"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)})
+        return EXIT_SETUP
+    except ToolFailed as error:
+        emit({"cmd": args.command, "ok": False, "reason": "tool_failed", "detail": str(error)})
+        return EXIT_FAILED

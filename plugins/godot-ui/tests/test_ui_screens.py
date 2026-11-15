@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -57,20 +56,6 @@ class TestScreens:
 
 
 class TestLintCli:
-    STUB = (
-        "import json, os, sys\n"
-        "keys = os.environ['STUB_KEYS'].split(',') if os.environ['STUB_KEYS'] else []\n"
-        "print(json.dumps({'ok': True, 'strings': [{'key': k} for k in keys]}))\n"
-    )
-
-    @pytest.fixture
-    def l10nkit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-        script = tmp_path / "l10nkit"
-        script.write_text(f"#!{sys.executable}\n{self.STUB}", encoding="utf-8")
-        script.chmod(0o755)
-        monkeypatch.setenv("L10NKIT", str(script))
-        return script
-
     def run(self, ui: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, Doc]:
         code = main(["--project", str(ui), "lint"])
         return code, json.loads(capsys.readouterr().out.strip().splitlines()[-1])

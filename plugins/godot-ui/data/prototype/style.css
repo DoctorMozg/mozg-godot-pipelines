@@ -1,0 +1,26 @@
+body {
+  margin: 0;
+  font-size: var(--font-body-size, 16px);
+  background: #808080;
+}
+header {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+}
+#frame {
+  position: relative;
+  overflow: hidden;
+  outline: 1px solid #000;
+  background: var(--color-paper, #fff);
+  color: var(--color-ink, #000);
+}
+.component {
+  display: inline-block;
+  margin: var(--space-m, 8px);
+  padding: var(--space-m, 8px);
+  outline: 1px dashed currentColor;
+}
+.component[data-focus="true"] {
+  outline: 3px solid currentColor;
+}

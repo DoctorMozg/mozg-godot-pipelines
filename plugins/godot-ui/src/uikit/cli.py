@@ -13,6 +13,7 @@ from pathlib import Path
 from uikit.capture import Capture, Kits
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
 from uikit.layout import LayoutCheck
+from uikit.prototype import write_handoff, write_prototype
 from uikit.records import Finding, RecordsError, UiRecords
 from uikit.scan import StaticScan
 from uikit.theme import THEME_FILE, write_theme
@@ -32,6 +33,11 @@ def _parser() -> argparse.ArgumentParser:
     tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
     commands.add_parser("theme", help="write ui/build/theme.tres from the tokens")
     commands.add_parser("scan", help="check project.godot, the screens' scenes and scripts")
+    for name, text in (
+        ("prototype", "write the HTML prototype folder of a surface"),
+        ("handoff", "write the handoff page of a surface"),
+    ):
+        commands.add_parser(name, help=text).add_argument("surface")
     capture = commands.add_parser("capture", help="shoot a screen at its sizes into the hub")
     capture.add_argument("screen", help="SURFACE/SCREEN, as under ui/screens/")
     capture.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new capture asset")
@@ -102,6 +108,15 @@ def main(argv: Sequence[str]) -> int:
     project = args.project.resolve()
     try:
         records = UiRecords(project)
+        if args.command == "prototype":
+            kit = Kit("l10nkit", "godot-l10n", os.environ)
+            folder = write_prototype(records, args.surface, kit)
+            emit({"cmd": "prototype", "ok": True, "folder": str(folder.relative_to(project))})
+            return EXIT_OK
+        if args.command == "handoff":
+            path = write_handoff(records, args.surface)
+            emit({"cmd": "handoff", "ok": True, "handoff": str(path.relative_to(project))})
+            return EXIT_OK
         if args.command == "capture":
             kits = Kits(
                 Kit("godotkit", "godot-core", os.environ),

@@ -129,6 +129,11 @@ class TestSummary:
         verdict = LogJudge(SUMMARY).judge(log, exit_code=0, timed_out=False)
         assert verdict.summary == {"checks": 7, "failures": 1}
 
+    def test_non_integer_group_is_a_bad_summary_not_a_crash(self) -> None:
+        judge = LogJudge(re.compile(r"(?P<checks>\d+) checks, (?P<status>\w+)"))
+        verdict = judge.judge("12 checks, green\n", exit_code=0, timed_out=False)
+        assert (verdict.ok, verdict.reason, verdict.summary) == (False, "bad_summary", None)
+
     def test_pattern_without_groups_is_refused(self) -> None:
         with pytest.raises(ValueError, match="named groups"):
             LogJudge(re.compile(r"\d+ checks"))

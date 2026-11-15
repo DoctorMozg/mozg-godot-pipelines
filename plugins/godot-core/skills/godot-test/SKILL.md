@@ -83,7 +83,7 @@ What to test (a script, a class, a reported bug) or the failing entry's path. Th
 
 ## Techniques
 
-- Verdict reasons: `test_failures`, `zero_checks` (the summary counted nothing), `missing_summary`, `script_error`, `engine_error`, `push_error`, `crash`, `timeout`, `exit_code`. The worst error in the log wins over the summary.
+- Verdict reasons: `test_failures`, `zero_checks` (the summary counted nothing), `missing_summary`, `bad_summary` (a summary group that is not an integer), `script_error`, `engine_error`, `push_error`, `crash`, `timeout`, `exit_code`. The worst error in the log wins over the summary.
 - `--log-dir <path>` keeps the log of every failed entry; read it before changing code.
 - Each entry runs with its own `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME`, so `user://` saves never touch the developer's real ones. Write test data under `user://` only.
 - A per-entry `summary` in `godotkit.json` is a regex with named groups `checks` and `failures`, for a harness that prints its own format.

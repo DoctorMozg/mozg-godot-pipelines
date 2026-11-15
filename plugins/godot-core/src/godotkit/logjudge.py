@@ -80,8 +80,10 @@ class LogJudge:
         counts: dict[str, int] = {}
         for issue in issues:
             counts[issue.kind] = counts.get(issue.kind, 0) + 1
-        summary = self._read_summary(output)
+        summary, malformed = self._read_summary(output)
         reason = self._reason(issues, summary, exit_code, timed_out)
+        if reason == "missing_summary" and malformed:
+            reason = "bad_summary"
         return Verdict(reason == "ok", reason, tuple(issues), summary, warnings, counts)
 
     def _scan(self, lines: list[str]) -> tuple[list[LogIssue], int]:
@@ -108,13 +110,17 @@ class LogJudge:
                 return match.group(1).strip()
         return None
 
-    def _read_summary(self, output: str) -> dict[str, int] | None:
+    def _read_summary(self, output: str) -> tuple[dict[str, int] | None, bool]:
+        """The last match as integers; the flag is set when that match holds a non-integer group."""
         if self._summary is None:
-            return None
+            return None, False
         matches = list(self._summary.finditer(output))
         if not matches:
-            return None
-        return {key: int(value) for key, value in matches[-1].groupdict().items() if value}
+            return None, False
+        values = {key: value for key, value in matches[-1].groupdict().items() if value}
+        if not all(value.isdecimal() for value in values.values()):
+            return None, True
+        return {key: int(value) for key, value in values.items()}, False
 
     def _reason(
         self,

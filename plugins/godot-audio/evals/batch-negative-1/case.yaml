@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: batch-negative-1
+description: "Near-miss: bus layout and loop points belong to audio-cues."
+tags: [audio-batch, negative]
+runs: 3
+execution:
+  prompt: >-
+    In my Godot game, check whether the music loop points in the .import files match my cue sheet, and whether any AudioStreamPlayer in my scenes still plays on the Master bus.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?audio-batch"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?audio-cues"'

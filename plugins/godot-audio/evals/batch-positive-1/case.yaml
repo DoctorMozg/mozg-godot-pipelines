@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: batch-positive-1
+description: "Literal: generate the cue sounds on fal and register them for listening."
+tags: [audio-batch, positive]
+runs: 3
+execution:
+  prompt: >-
+    Generate the three hit sound cues of my Godot game on fal, register every result with its prompt and cost, and get them into the review hub so I can listen.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?audio-batch"'

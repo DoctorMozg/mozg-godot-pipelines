@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: cues-negative-1
+description: "Near-miss: generating sounds on fal and registering them belongs to audio-batch."
+tags: [audio-cues, negative]
+runs: 3
+execution:
+  prompt: >-
+    The hit and explosion cues in my Godot game's cue sheet pass lint. Generate them on fal with ElevenLabs sound effects, register each result with its cost and prompt, and put them in the review hub for me to listen to.
+  max_turns: 8
+  timeout_seconds: 240
+  allowed_tools: [Skill]
+graders:
+  - name: skill-silent
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?audio-cues"'
+    min: 0
+    max: 0
+    arm: both
+  - name: owner-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?audio-batch"'

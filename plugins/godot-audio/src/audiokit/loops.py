@@ -16,8 +16,8 @@ from audiokit.samples import Samples, decode
 
 log = logging.getLogger(__name__)
 
-# Research 04 (AloneGodot by hand, 2026-11-10): clean loops measured 0.68-0.74, a bad one 2.69.
-# Proposed there as warn above 1.0 and fail above 1.5; UNTESTED as a gate.
+# Research 04 (AloneGodot by hand, 2026-11-10): clean loops 0.68-0.74, a bad one 2.69. Synthetic
+# loops (2026-11-15): seamless 0.18-1.00, tonal or brown-noise cuts 3.8-69; not checked by ear.
 SEAM_FAIL_RATIO = 1.5
 EDGE_WINDOW_S = 0.05
 EDGE_RMS_MAX_DB = 1.0
@@ -147,7 +147,7 @@ class LoopCheck:
         report.seams[source] = found
         out = []
         if found.ratio > SEAM_FAIL_RATIO:
-            detail = f"seam ratio {found.ratio:.2f}, over {SEAM_FAIL_RATIO} (UNTESTED threshold)"
+            detail = f"seam ratio {found.ratio:.2f}, over {SEAM_FAIL_RATIO}; listen before cutting"
             out.append(Finding(source, "seam", detail))
         if found.edge_rms_delta_db > EDGE_RMS_MAX_DB:
             detail = f"first and last 50 ms differ by {found.edge_rms_delta_db:.2f} dB RMS"

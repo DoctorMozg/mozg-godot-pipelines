@@ -67,7 +67,7 @@ The project path, and the cues or the check in question. Optional: the owner's p
 ## Techniques
 
 - Godot 4.7.2 `.import` facts (2026-11-15): WAV defaults to `compress/mode=2` (QOA); importer `edit/loop_mode=2` loads as `AudioStreamWAV.loop_mode=1`; Ogg keeps `loop` and `loop_offset`. `references/records.md` lists the keys.
-- The seam ratio compares the jump across the loop point with the 99.9th percentile step inside the file; above 1.5 fails. The threshold comes from research 04 and is UNTESTED as a gate, so a failing seam is a reason to listen, not proof.
+- The seam ratio compares the jump across the loop point with the 99.9th percentile step inside the file; above 1.5 fails. On synthetic loops (2026-11-15) seamless ones scored 0.18 to 1.00 and cuts in tones or low noise 3.8 to 69, but a cut in white noise stays under 0.5, and none was checked by ear: a failing seam is a reason to listen, not proof.
 - Integrated loudness matched ffmpeg `ebur128` to its 0.1 LU display on five fixtures, gating included (2026-11-15). Under one 400 ms block there is no integrated figure; short sounds are judged by peak and RMS.
 - True peak oversamples 4x around the loudest samples. Near a quarter of the sample rate it read 0.0 to 0.1 dB over the crest where ffmpeg read 0.5 to 0.6 dB over (2026-11-15).
 - A player with no `bus =` line plays on Master; `buses` names each one so the owner can decide.
@@ -78,7 +78,7 @@ The project path, and the cues or the check in question. Optional: the owner's p
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | "Levels and loudness pass, so the sound is fine" | Numbers say nothing about whether it fits. Report "measured, not heard" and let the owner listen. |
 | "Use -23 LUFS for SFX, everyone does"            | No sourced target exists for this game. Bands come from the owner, with a source.                 |
-| "The seam failed, cut the file"                  | The gate is UNTESTED. Listen first; a musical loop can jump on purpose.                           |
+| "The seam failed, cut the file"                  | The gate was never checked by ear. Listen first; a musical loop can jump on purpose.              |
 | "Set the loop in the inspector, it is quicker"   | The cue is the record. `audiokit loop` writes the cue's values so the sheet and Godot agree.      |
 | "Rename the file in the scene, skip the cue"     | The cue id is the file stem. A renamed file without its cue fails lint and loses its source.      |
 

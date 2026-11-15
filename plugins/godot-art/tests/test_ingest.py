@@ -113,7 +113,7 @@ class TestRegister:
         code, out = run(
             ledger(tmp_path, "req1aaaa-01"), "req1aaaa-01", "--prompt", "a scout", *LICENSE
         )
-        staged = "registry/staging/scout-a1b2/req1aaaa-req1aaaa-01.png"
+        staged = "registry/staging/scout-a1b2/req1aaaa-01-req1aaaa-01.png"
         assert code == EXIT_OK
         assert out == {"cmd": "register", "ok": True, "asset": "scout-a1b2", "version": "v1",
                        "parent": None, "file": staged, "usd_charged": 0.059}  # fmt: skip
@@ -139,9 +139,21 @@ class TestRegister:
         assert (code, out["version"], out["parent"]) == (EXIT_OK, "v2", "v1")
         assert calls(stub)[-1][-6:-4] == ["--parent", "v1"]
         assert sorted(p.name for p in (art / "registry/staging/scout-a1b2").iterdir()) == [
-            "req1aaaa-req1aaaa-01.png",
-            "req2bbbb-req2bbbb-02.png",
+            "req1aaaa-01-req1aaaa-01.png",
+            "req2bbbb-02-req2bbbb-02.png",
         ]
+
+    def test_retake_sharing_an_id_prefix_and_file_name_is_a_new_version(
+        self, stub: Path, tmp_path: Path, run: Run
+    ) -> None:
+        """UUIDv7 ids of calls made within about a minute share their first eight characters."""
+        first = ledger(tmp_path, "01a1dcf9-5c4c-7c70")
+        run(first, "01a1dcf9-5c4c-7c70", *LICENSE)
+        retake = json.loads(first.read_text())
+        retake["entries"][0]["request_id"] = "01a1dcf9-0000-7c70"
+        (tmp_path / "retake.json").write_text(json.dumps(retake), encoding="utf-8")
+        code, out = run(tmp_path / "retake.json", "01a1dcf9-0000-7c70")
+        assert (code, out["version"], out["parent"]) == (EXIT_OK, "v2", "v1")
 
 
 class TestRefusals:

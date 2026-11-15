@@ -84,7 +84,8 @@ class Ingest:
         if kind is None:
             raise RecordsError(f"{source.name}: no asset kind for {source.suffix} files")
         asset = brief.get("asset") or self._new_asset(request, brief, kind)
-        staged = STAGING / asset / f"{call.request_id[:8]}-{source.name}"
+        # the full id: UUIDv7 ids of calls made close together share their first characters
+        staged = STAGING / asset / f"{call.request_id}-{source.name}"
         if (self.project / staged).exists():
             raise RecordsError(f"request {call.request_id} is already registered as {staged}")
         current = self.kit.run("status", asset, "--project", str(self.project))["assets"][0]

@@ -17,7 +17,7 @@ Research 22 (docs 4.7, read 2026-11-13) lists them; none was measured on 4.7.2 u
 | An autowrapping Label has a maximum width (4.7 docs; 4.6 docs do not say) | not checked: the sources conflict |
 
 - `uikit scan` reads only the scenes that screen records name, and the scripts those scenes attach.
-- Label ignores the mouse by default in Godot 4; the four classes above stop or pass it. UNTESTED on 4.7.2.
+- Default `mouse_filter` on Godot 4.7.2 (2026-11-15): Label 2 (ignore); Control, ColorRect and Panel 0 (stop); TextureRect 1 (pass).
 
 ## Shots
 

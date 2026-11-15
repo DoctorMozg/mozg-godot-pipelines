@@ -13,7 +13,8 @@ log = logging.getLogger(__name__)
 
 STRETCH_MODES = ('"canvas_items"', '"viewport"')
 MOVED_KEYS = ("position", "rotation", "scale")
-# Godot 4 defaults: Label ignores the mouse, these stop or pass it (UNTESTED until F10).
+# Godot 4.7.2 defaults (2026-11-15): Label ignores the mouse (2); Control, ColorRect
+# and Panel stop it (0); TextureRect passes it (1).
 MOUSE_TAKERS = ("Control", "ColorRect", "TextureRect", "Panel")
 FULL_RECT = "15"
 MOUSE_IGNORE = "2"

@@ -73,7 +73,8 @@ class TestHandoff:
             if line.startswith("| pause") or line.startswith("| score")
         ]
         assert len(rows) == 2
-        assert all("`uikit check`" in row for row in rows)
+        assert "target, overlap, off screen; `l10nkit pseudo` clipping" in rows[0]
+        assert rows[1].endswith("`uikit check` off screen |")
         assert "Focus: pause; first pause." in text
 
     def test_cli_writes_the_page(self, surface: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 
 from uikit.kits import Kit
+from uikit.layout import INTERACTIVE
 from uikit.records import Json, RecordsError, UiRecords
 from uikit.tokens import css
 
@@ -80,8 +81,11 @@ def handoff_text(records: UiRecords, surface: str) -> str:
             "| --- | --- | --- | --- | --- |",
         ]
         for part in screen.get("components", []):
+            rules = "target, overlap, off screen" if part["class"] in INTERACTIVE else "off screen"
             check = (
-                f"`uikit check` target and overlap; theme variation {part.get('variation', 'none')}"
+                f"`uikit check` {rules}; `l10nkit pseudo` clipping"
+                if part.get("string")
+                else (f"`uikit check` {rules}")
             )
             lines.append(
                 f"| {part['name']} | {part['class']} | {part.get('variation', '')} | "

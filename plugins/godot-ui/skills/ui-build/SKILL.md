@@ -69,7 +69,7 @@ A surface (all its screens) or one `SURFACE/SCREEN`, and the project path. Optio
 ## Techniques
 
 - Shoot `--layout-only` while iterating: it needs no display and gives the rects `uikit check` reads. Capture natively once the checks pass.
-- Headless and native rects matched on Godot 4.7.2 (2026-11-13); font metrics and line counts between them are UNTESTED.
+- Headless and native rects matched on Godot 4.7.2 (2026-11-13), Label text rects included on one HUD (2026-11-15); other fonts and wrapped lines are UNTESTED.
 - A screen that only appears late in a long action needs a scene that boots into that state; shoot that scene.
 - `references/build.md` has the scene rules with their research source and the judge flow.
 

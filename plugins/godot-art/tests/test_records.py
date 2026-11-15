@@ -4,45 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
+from artfixtures import add_brief, bible_doc, brief_doc, write
 from artkit.cli import EXIT_FAILED, EXIT_OK, EXIT_REFUSED, main
 from artkit.records import ArtRecords, RecordsError
-
-# Any: JSON documents written as fixtures.
-Doc = dict[str, Any]
-
-
-def _bible() -> Doc:
-    return {
-        "master_style": "flat shapes, two-tone shading",
-        "families": {"unit": {"mode": "flat", "min_subject_px": 120}},
-        "roots": [
-            {
-                "id": "unit-root",
-                "family": "unit",
-                "status": "approved",
-                "approved_at": "2026-11-15",
-            },
-            {"id": "old-root", "family": "unit", "status": "superseded"},
-            {"id": "new-root", "family": "unit", "status": "proposed"},
-        ],
-        "palette": {"enemy": "#c03030", "ally": "#3070c0"},
-        "banned": ["text in the image"],
-    }
-
-
-def _brief(brief_id: str, **fields: object) -> Doc:
-    base: Doc = {
-        "id": brief_id,
-        "family": "unit",
-        "hook": "a scout mid-stride",
-        "readability": "silhouette reads at 120 px",
-        "contrast": "warm body on a cool ground",
-        "roots": ["unit-root"],
-    }
-    return {**base, **fields}
 
 
 @pytest.fixture(name="project")
@@ -52,16 +18,8 @@ def art_project(project: Path) -> Path:
     (project / "design" / "canon.json").write_text(
         json.dumps({"schema": "canon/1", "topics": [{"id": "units"}]})
     )
-    write(project, "art/bible.json", _bible())
+    write(project, "art/bible.json", bible_doc())
     return project
-
-
-def write(project: Path, name: str, doc: Doc) -> None:
-    (project / name).write_text(json.dumps(doc), encoding="utf-8")
-
-
-def add_brief(project: Path, brief_id: str, **fields: object) -> None:
-    write(project, f"art/briefs/{brief_id}.json", _brief(brief_id, **fields))
 
 
 def rules(project: Path) -> list[tuple[str, str]]:
@@ -74,7 +32,7 @@ class TestBibleLint:
         assert rules(project) == []
 
     def test_bad_hex_and_missing_field(self, project: Path) -> None:
-        bible = _bible()
+        bible = bible_doc()
         bible["palette"]["enemy"] = "red"
         del bible["banned"]
         write(project, "art/bible.json", bible)
@@ -83,7 +41,7 @@ class TestBibleLint:
         assert ("missing", "the bible has no banned") in found
 
     def test_approved_root_needs_a_date(self, project: Path) -> None:
-        bible = _bible()
+        bible = bible_doc()
         del bible["roots"][0]["approved_at"]
         write(project, "art/bible.json", bible)
         assert ("root", "root unit-root is approved without approved_at") in rules(project)
@@ -113,7 +71,7 @@ class TestBriefLint:
         assert {rule for rule, _ in rules(project)} == {"ref", "family", "canon"}
 
     def test_id_must_match_file_name(self, project: Path) -> None:
-        write(project, "art/briefs/scout.json", _brief("runner"))
+        write(project, "art/briefs/scout.json", brief_doc("runner"))
         assert [rule for rule, _ in rules(project)] == ["id"]
 
     def test_dependents_cycle(self, project: Path) -> None:

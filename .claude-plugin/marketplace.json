@@ -56,6 +56,18 @@
         "i18n",
         "translation"
       ]
+    },
+    {
+      "name": "godot-studio",
+      "source": "./plugins/godot-studio",
+      "description": "Team orchestration for Godot: file-owned lanes in warm worktrees, ownership and frozen-test guards, a verified merge queue, decision records",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "orchestration",
+        "worktrees",
+        "merge-queue"
+      ]
     }
   ]
 }

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# studiokit: lanes, ownership and the merge queue for Godot teams. On the Bash PATH while the
+# plugin is enabled.
+set -u
+
+here=${0%/*}
+[[ $here == "$0" ]] && here=.
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "studiokit: python3 is not on PATH" >&2
+  exit 2
+fi
+
+# -B: a run from a checkout or the plugin cache leaves no __pycache__ beside the sources.
+exec python3 -I -B "$here/_studiokit_run.py" "$@"

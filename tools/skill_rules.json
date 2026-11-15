@@ -80,5 +80,8 @@
       "<where>": "where a finding is: file:line or KEY@locale",
       "<detail>": "the detail text of a finding"
     }
+  },
+  "godot-studio": {
+    "placeholders": {}
   }
 }

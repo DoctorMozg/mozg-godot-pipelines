@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from uikit.capture import Capture, Kits
+from uikit.judge import KINDS, JudgeSheets
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
 from uikit.layout import LayoutCheck
 from uikit.prototype import write_handoff, write_prototype
@@ -41,6 +42,10 @@ def _parser() -> argparse.ArgumentParser:
     capture = commands.add_parser("capture", help="shoot a screen at its sizes into the hub")
     capture.add_argument("screen", help="SURFACE/SCREEN, as under ui/screens/")
     capture.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new capture asset")
+    judge = commands.add_parser("judge", help="write a judge sheet for one screen's captures")
+    judge.add_argument("screen", help="SURFACE/SCREEN")
+    judge.add_argument("--shots", type=Path, required=True, help="folder with <W>x<H>.png")
+    judge.add_argument("--kind", choices=KINDS, required=True)
     check = commands.add_parser("check", help="layout checks on godotkit shot JSON")
     check.add_argument("--shots", type=Path, required=True, help="folder godotkit shot wrote")
     check.add_argument("--brief", required=True, help="brief whose sizes and minimums apply")
@@ -124,6 +129,18 @@ def main(argv: Sequence[str]) -> int:
             )
             done = Capture(records, kits).run(args.screen, args.license)
             emit({"cmd": "capture", "ok": True, **done})
+            return EXIT_OK
+        if args.command == "judge":
+            sheet = JudgeSheets(records).write(args.screen, args.shots.resolve(), args.kind)
+            emit(
+                {
+                    "cmd": "judge",
+                    "ok": True,
+                    "sheet": str(sheet.path),
+                    "code": sheet.code,
+                    "opens": list(sheet.opens),
+                }
+            )
             return EXIT_OK
         if args.command == "check":
             findings = LayoutCheck(records, args.brief).run(args.shots.resolve())

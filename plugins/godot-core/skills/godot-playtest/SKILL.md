@@ -1,6 +1,6 @@
 ---
 name: godot-playtest
-description: "Plays a Godot game step by step through the godotkit play bridge as a scenario persona and judges the run into hub findings. Use when a UI flow or turn-based goal is to be playtested ('playtest the menu'). Not for real-time play (use godot-bot)."
+description: Plays a Godot game step by step through the godotkit play bridge as a scenario persona and judges the run into hub findings. Use when a UI flow or turn-based goal is to be playtested ('playtest the menu'). Not for real-time play (use godot-bot).
 argument-hint: '[scenario file, or a goal to write one for; project path]'
 ---
 

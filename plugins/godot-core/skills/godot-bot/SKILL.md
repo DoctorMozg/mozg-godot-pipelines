@@ -1,6 +1,6 @@
 ---
 name: godot-bot
-description: "Writes a scripted bot that plays a real-time Godot game at full speed through godotkit play, then judges its run against a scenario. Use when an action, 3D or RTS goal is to be playtested ('bot-test the arena'). Not for UI flows (use godot-playtest)."
+description: Writes a scripted bot that plays a real-time Godot game at full speed through godotkit play, then judges its run against a scenario. Use when an action, 3D or RTS goal is to be playtested ('bot-test the arena'). Not for UI flows (use godot-playtest).
 argument-hint: '[scenario file, or a goal to write one for; project path]'
 ---
 

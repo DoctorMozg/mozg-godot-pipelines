@@ -23,6 +23,8 @@ class Rule:
     channels: int | None = None
     min_duration_s: float | None = None
     max_duration_s: float | None = None
+    max_peak_dbfs: float | None = None
+    max_edge_silence_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,11 @@ def _rule(raw: Json) -> Rule:
     codecs = raw.get("codecs")
     if codecs is not None and (not isinstance(codecs, list) or set(codecs) - set(CODECS)):
         raise RecordsError(f"{POLICY_FILE}: codecs come from {CODECS}, got {codecs!r}")
+    peak = raw.get("max_peak_dbfs")
+    if peak is not None and (
+        isinstance(peak, bool) or not isinstance(peak, (int, float)) or peak > 0
+    ):
+        raise RecordsError(f"{POLICY_FILE}: max_peak_dbfs is a dBFS level at most 0, got {peak!r}")
     channels = raw.get("channels")
     if channels not in (None, 1, 2):
         raise RecordsError(f"{POLICY_FILE}: channels is 1 or 2, got {channels!r}")
@@ -57,6 +64,8 @@ def _rule(raw: Json) -> Rule:
         channels=channels,
         min_duration_s=_positive(raw, "min_duration_s"),
         max_duration_s=_positive(raw, "max_duration_s"),
+        max_peak_dbfs=None if peak is None else float(peak),
+        max_edge_silence_s=_positive(raw, "max_edge_silence_s"),
     )
 
 

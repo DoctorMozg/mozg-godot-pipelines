@@ -1,4 +1,4 @@
-"""Header facts of every cue file, held against the mix rate and the policy rule for its folder."""
+"""Header facts and levels of every cue file, held against the mix rate and the policy rules."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from audiokit.headers import AudioInfo, HeaderError, read_info
 from audiokit.policy import Policy, Rule
 from audiokit.records import CueSheet, Finding
+from audiokit.samples import Measures, decode, measure
 
 log = logging.getLogger(__name__)
 
@@ -18,25 +19,76 @@ class AuditReport:
     problems: list[Finding] = field(default_factory=list)
 
 
+def cue_files(sheet: CueSheet) -> list[str]:
+    """Every file a cue names that exists; lint reports the missing ones."""
+    named = {
+        f
+        for cue in sheet.cues.values()
+        if isinstance(cue, dict)
+        for f in cue.get("files", [])
+        if isinstance(f, str)
+    }
+    return sorted(f for f in named if (sheet.project / f).is_file())
+
+
+@dataclass(frozen=True)
+class Tools:
+    ffmpeg: str | None
+    ffprobe: str | None
+
+
+@dataclass
+class LevelReport:
+    files: dict[str, Measures] = field(default_factory=dict)
+    problems: list[Finding] = field(default_factory=list)
+
+
+class Levels:
+    """Peak, RMS, clipping, DC and edge silence; measured, not heard."""
+
+    def __init__(self, sheet: CueSheet, policy: Policy, tools: Tools) -> None:
+        self.sheet, self.policy, self.tools = sheet, policy, tools
+
+    def run(self) -> LevelReport:
+        report = LevelReport()
+        for source in cue_files(self.sheet):
+            try:
+                samples = decode(self.sheet.project / source, self.tools.ffmpeg, self.tools.ffprobe)
+            except HeaderError as error:
+                report.problems.append(Finding(source, "not_measured", str(error)))
+                continue
+            found = measure(samples)
+            report.files[source] = found
+            report.problems += self._check(source, found, self.policy.rule_for(source))
+        log.info("levels: %d files measured, %d problems", len(report.files), len(report.problems))
+        return report
+
+    def _check(self, source: str, found: Measures, rule: Rule | None) -> list[Finding]:
+        out = []
+        if found.clipped:
+            out.append(Finding(source, "clipped", f"{found.clipped} samples at full scale"))
+        if found.peak_dbfs is None:
+            out.append(Finding(source, "silent", "every sample is zero"))
+        if rule is None:
+            return out
+        if rule.max_peak_dbfs is not None and (found.peak_dbfs or -999.0) > rule.max_peak_dbfs:
+            detail = f"peak {found.peak_dbfs:.2f} dBFS, over {rule.max_peak_dbfs:g} for {rule.glob}"
+            out.append(Finding(source, "peak", detail))
+        edges = max(found.lead_silence_s, found.trail_silence_s)
+        if rule.max_edge_silence_s is not None and edges > rule.max_edge_silence_s:
+            detail = f"{edges:.3f} s of silence at an edge, over {rule.max_edge_silence_s:g} s"
+            out.append(Finding(source, "silence", detail))
+        return out
+
+
 class Audit:
     def __init__(self, sheet: CueSheet, policy: Policy, ffprobe: str | None) -> None:
         self.sheet, self.policy, self.ffprobe = sheet, policy, ffprobe
 
     def run(self) -> AuditReport:
         report = AuditReport()
-        files = sorted(
-            {
-                f
-                for cue in self.sheet.cues.values()
-                if isinstance(cue, dict)
-                for f in cue.get("files", [])
-                if isinstance(f, str)
-            }
-        )
-        for source in files:
+        for source in cue_files(self.sheet):
             path = self.sheet.project / source
-            if not path.is_file():
-                continue  # lint reports a missing file; audit reads what exists
             try:
                 info = read_info(path, self.ffprobe)
             except HeaderError as error:

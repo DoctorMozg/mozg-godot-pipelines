@@ -10,7 +10,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from audiokit.audit import Audit
+from audiokit.audit import Audit, Levels, Tools
 from audiokit.doctor import doctor, find_tool
 from audiokit.policy import load_policy
 from audiokit.records import CueSheet, Finding, RecordsError
@@ -26,6 +26,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("doctor", help="report Python and the optional tools audiokit can use")
     commands.add_parser("lint", help="check audio/cues.json and the files under audio/")
     commands.add_parser("audit", help="header facts of every cue file against the policy")
+    commands.add_parser("levels", help="peak, RMS, clipping, DC and edge silence of every cue file")
     return parser
 
 
@@ -49,6 +50,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
     try:
         sheet = CueSheet(args.project.resolve())
+        if args.command == "levels":
+            tools = Tools(find_tool("ffmpeg", os.environ), find_tool("ffprobe", os.environ))
+            levels = Levels(sheet, load_policy(sheet.project), tools).run()
+            measured = {source: m.as_json() for source, m in levels.files.items()}
+            emit(
+                {
+                    "cmd": "levels",
+                    "ok": not levels.problems,
+                    "files": measured,
+                    "problems": rows(levels.problems),
+                    "note": "measured, not heard",
+                }
+            )
+            return EXIT_FAILED if levels.problems else EXIT_OK
         if args.command == "audit":
             report = Audit(
                 sheet, load_policy(sheet.project), find_tool("ffprobe", os.environ)

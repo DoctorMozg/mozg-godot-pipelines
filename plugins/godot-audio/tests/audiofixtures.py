@@ -80,3 +80,14 @@ def ogg_bytes(rate: int = 48000, channels: int = 2, seconds: float = 1.5) -> byt
         return header + bytes([len(body)]) + body
 
     return page(0, 0, ident, 2) + page(int(rate * seconds), 1, b"\x00" * 8, 4)
+
+
+def pcm16(path: Path, samples: list[int], channels: int = 1) -> Path:
+    """A 48 kHz 16-bit WAV holding exactly these interleaved samples."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(channels)
+        out.setsampwidth(2)
+        out.setframerate(RATE)
+        out.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+    return path

@@ -130,6 +130,24 @@
     }
   },
   "godot-ui": {
-    "placeholders": {}
+    "placeholders": {
+      "<surface>": "the surface id, the brief's file name",
+      "<screens>": "the screen names of the surface",
+      "<problem count>": "how many problems uikit lint reported",
+      "<pairs passed>": "contrast pairs that met their target",
+      "<pairs>": "contrast pairs declared",
+      "<what is not approved yet>": "brief, tokens or handoff still waiting",
+      "<problems>": "the rules of the problems reported",
+      "<screen>": "SURFACE/SCREEN",
+      "<sizes>": "the brief's capture sizes, comma separated",
+      "<asset>": "the capture asset id",
+      "<version>": "the version uikit capture added",
+      "<readability verdict>": "pass or fail from ui-readability-judge",
+      "<conformance verdict>": "pass or fail from ui-conformance-judge",
+      "<versions>": "the versions waiting for the owner",
+      "<folder>": "the folder godotkit shot writes",
+      "<project>": "the Godot project folder",
+      "<scene>": "the res:// path of the screen's scene"
+    }
   }
 }

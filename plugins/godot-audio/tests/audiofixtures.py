@@ -147,3 +147,34 @@ def imported(project: Path, source: str) -> Path:
     path = project / f"{source}.import"
     path.write_text(template.format(name=Path(source).name, source=source), encoding="utf-8")
     return path
+
+
+# The bus layout text Godot 4.7.2 saved on 2026-11-15: Master's name and defaults are omitted.
+LAYOUT = """[gd_resource type="AudioBusLayout" format=3]
+
+[sub_resource type="AudioEffectHardLimiter" id="AudioEffectHardLimiter_j3pel"]
+
+[sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_g28q7"]
+threshold = -12.0
+sidechain = &"SFX"
+
+[resource]
+bus/0/effect/0/effect = SubResource("AudioEffectHardLimiter_j3pel")
+bus/0/effect/0/enabled = true
+bus/1/name = &"Music"
+bus/1/solo = false
+bus/1/mute = false
+bus/1/bypass_fx = false
+bus/1/volume_db = -6.0
+bus/1/send = &""
+bus/1/effect/0/effect = SubResource("AudioEffectCompressor_g28q7")
+bus/1/effect/0/enabled = true
+bus/2/name = &"SFX"
+bus/2/solo = false
+bus/2/mute = false
+bus/2/bypass_fx = false
+bus/2/volume_db = 0.0
+bus/2/send = &"Music"
+bus/3/name = &"UI"
+bus/3/send = &""
+"""

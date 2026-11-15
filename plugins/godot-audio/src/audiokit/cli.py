@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from audiokit.audit import Audit, Levels, Tools
+from audiokit.buses import BusLint
 from audiokit.doctor import doctor, find_tool
 from audiokit.loops import LoopCheck, write_loop
 from audiokit.policy import load_policy
@@ -29,6 +30,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("audit", help="header facts of every cue file against the policy")
     commands.add_parser("levels", help="peak, RMS, clipping, DC and edge silence of every cue file")
     commands.add_parser("loops", help="loop seams and each cue file's .import settings")
+    commands.add_parser("buses", help="the bus layout and the buses scenes and scripts name")
     loop = commands.add_parser("loop", help="write a cue's loop points into its files' .import")
     loop.add_argument("cue")
     return parser
@@ -54,6 +56,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
     try:
         sheet = CueSheet(args.project.resolve())
+        if args.command == "buses":
+            findings, unresolved = BusLint(sheet).run()
+            emit(
+                {
+                    "cmd": "buses",
+                    "ok": not findings,
+                    "problems": rows(findings),
+                    "unresolved": unresolved,
+                }
+            )
+            return EXIT_FAILED if findings else EXIT_OK
         tools = Tools(find_tool("ffmpeg", os.environ), find_tool("ffprobe", os.environ))
         if args.command in ("loops", "loop"):
             check = LoopCheck(sheet, load_policy(sheet.project), tools)

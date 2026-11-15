@@ -109,6 +109,7 @@ class Lane:
     status: str
     created: str
     frozen: Mapping[str, str] = field(default_factory=dict)
+    merged: str = ""
 
     @property
     def project_dir(self) -> Path:

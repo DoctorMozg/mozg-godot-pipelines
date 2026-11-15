@@ -23,6 +23,7 @@ from studiokit.lanes import (
     ToolFailed,
     ToolMissing,
 )
+from studiokit.queue import MergeQueue, MergeRefused
 from studiokit.verify import Freezer, LaneCheck
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -57,6 +58,8 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("id")
     brief = actions.add_parser("brief", help="the delegation brief a lane's subagent gets")
     brief.add_argument("id")
+    merge = commands.add_parser("merge", help="merge a checked lane if the merged tree passes")
+    merge.add_argument("id")
     hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     return parser
@@ -117,6 +120,20 @@ def _lane(args: argparse.Namespace, store: LaneStore) -> int:
     return EXIT_OK
 
 
+def _merge(store: LaneStore, lane_id: str) -> int:
+    result = MergeQueue(store, GodotKit(os.environ)).merge(store.get(lane_id))
+    emit(
+        {
+            "cmd": "merge",
+            "ok": True,
+            "id": lane_id,
+            "commit": result.commit,
+            "requests": result.requests,
+        }
+    )
+    return EXIT_OK
+
+
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -126,9 +143,24 @@ def main(argv: Sequence[str]) -> int:
     )
     if args.command == "hook":
         return hooks.run(args.event, sys.stdin.read())
-    command = f"{args.command} {args.action}"
+    command = "merge" if args.command == "merge" else f"{args.command} {args.action}"
     try:
-        return _lane(args, LaneStore(args.project.resolve()))
+        store = LaneStore(args.project.resolve())
+        if args.command == "merge":
+            return _merge(store, args.id)
+        return _lane(args, store)
+    except MergeRefused as error:
+        rows = [{"rule": p.rule, "detail": p.detail} for p in error.problems]
+        emit(
+            {
+                "cmd": command,
+                "ok": False,
+                "reason": "refused",
+                "detail": str(error),
+                "problems": rows,
+            }
+        )
+        return EXIT_FAILED
     except LaneError as error:
         emit({"cmd": command, "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED

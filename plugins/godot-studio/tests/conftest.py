@@ -17,7 +17,7 @@ GitRunner = Callable[..., str]
 Committer = Callable[..., str]
 
 # Stands in for godot-core: `worktree new` adds a detached worktree, as godotkit does, and
-# `receipt verify` answers with the reason in STUB_RECEIPT.
+# `receipt verify` answers with the reason in STUB_RECEIPT, `gate` fails STUB_GATE_FAILED steps.
 STUB_GODOTKIT = """#!/usr/bin/env python3
 import json, os, subprocess, sys
 args = sys.argv[1:]
@@ -25,6 +25,12 @@ if args[:2] == ["worktree", "new"]:
     path, project, ref = args[2], args[args.index("--project") + 1], args[args.index("--ref") + 1]
     subprocess.run(["git", "-C", project, "worktree", "add", "-q", "--detach", path, ref])
     print(json.dumps({"cmd": "worktree new", "ok": True, "path": path}))
+elif args[:2] == ["worktree", "remove"]:
+    subprocess.run(["git", "-C", args[2], "worktree", "remove", "--force", args[2]])
+    print(json.dumps({"cmd": "worktree remove", "ok": True, "path": args[2]}))
+elif args[0] == "gate":
+    failed = [s for s in os.environ.get("STUB_GATE_FAILED", "").split(",") if s]
+    print(json.dumps({"cmd": "gate", "ok": not failed, "failed": failed}))
 elif args[:2] == ["receipt", "verify"]:
     reason = os.environ.get("STUB_RECEIPT", "ok")
     print(json.dumps({"cmd": "receipt verify", "ok": reason == "ok", "reason": reason}))

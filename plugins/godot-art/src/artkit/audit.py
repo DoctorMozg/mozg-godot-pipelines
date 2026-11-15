@@ -56,6 +56,8 @@ class AuditReport:
     models: list[tuple[str, GlbStats]] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     problems: list[Finding] = field(default_factory=list)
+    # Worth knowing, never a failure: Godot's import is what proves a model loads.
+    notes: list[Finding] = field(default_factory=list)
 
     @property
     def total_mb(self) -> float:
@@ -129,6 +131,12 @@ class ImportAudit:
         except GlbError as error:
             return [Finding(source, "unreadable", str(error))]
         report.models.append((source, stats))
+        for name in stats.required_extensions:
+            detail = (
+                f"needs the glTF extension {name}; a viewer or tool without it "
+                "drops what it carries"
+            )
+            report.notes.append(Finding(source, "required_extension", detail))
         rule = self.policy.rule_for(source)
         found = []
         if rule and rule.max_triangles is not None and stats.triangles > rule.max_triangles:

@@ -1,4 +1,4 @@
-"""Triangle, material and image counts from the JSON chunk of a binary glTF (.glb) file."""
+"""Triangle, material and image counts, and required extensions, from a binary glTF (.glb)."""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ class GlbStats:
     triangles: int
     materials: int
     images: int
+    # A reader without one of these drops what it carries, such as WebP textures.
+    required_extensions: tuple[str, ...] = ()
 
 
 class GlbError(ValueError):
@@ -44,8 +46,18 @@ def read_glb(path: Path) -> GlbStats:
     except ValueError as error:
         raise GlbError(f"{path}: the JSON chunk does not parse: {error}") from error
     return GlbStats(
-        _triangles(gltf, path), len(gltf.get("materials", [])), len(gltf.get("images", []))
+        _triangles(gltf, path),
+        len(gltf.get("materials", [])),
+        len(gltf.get("images", [])),
+        _required_extensions(gltf, path),
     )
+
+
+def _required_extensions(gltf: GltfJson, path: Path) -> tuple[str, ...]:
+    names = gltf.get("extensionsRequired", [])
+    if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+        raise GlbError(f"{path}: extensionsRequired must be a list of names, got {names!r}")
+    return tuple(names)
 
 
 def _primitive_triangles(primitive: GltfJson, accessors: list[GltfJson], path: Path) -> int:

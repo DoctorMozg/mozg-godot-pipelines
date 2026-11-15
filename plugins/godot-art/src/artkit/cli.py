@@ -80,6 +80,7 @@ def _audit(project: Path) -> int:
         "triangles": sum(stats.triangles for _, stats in report.models),
         "skipped": report.skipped,
         "problems": _rows(report.problems),
+        "notes": _rows(report.notes),
     }
     emit(payload)
     return EXIT_FAILED if report.problems else EXIT_OK

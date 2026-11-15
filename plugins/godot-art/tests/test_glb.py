@@ -1,4 +1,4 @@
-"""GLB triangle and material counts, and the per-folder model budgets of the audit."""
+"""GLB counts and required extensions, and the per-folder model budgets of the audit."""
 
 from __future__ import annotations
 
@@ -8,10 +8,13 @@ from pathlib import Path
 
 import pytest
 from artkit.audit import ImportAudit, load_defaults
+from artkit.cli import EXIT_OK, main
 from artkit.glb import GlbError, GlbStats, read_glb
 from artkit.policy import load_policy
 
 CUBE_INDICES = 36
+# Trellis 2 on fal writes its textures as WebP and requires the extension (2026-11-16).
+WEBP = {"extensionsUsed": ["EXT_texture_webp"], "extensionsRequired": ["EXT_texture_webp"]}
 
 
 def glb(gltf: dict[str, object]) -> bytes:
@@ -62,6 +65,10 @@ class TestCounts:
         write(tmp_path, "m.glb", glb(model(materials=3) | {"images": [{}, {}]}))
         assert read_glb(tmp_path / "m.glb") == GlbStats(triangles=12, materials=3, images=2)
 
+    def test_required_extensions(self, tmp_path: Path) -> None:
+        write(tmp_path, "m.glb", glb(model() | WEBP))
+        assert read_glb(tmp_path / "m.glb").required_extensions == ("EXT_texture_webp",)
+
     @pytest.mark.parametrize(
         ("data", "message"),
         [
@@ -69,6 +76,7 @@ class TestCounts:
             (glb(model())[:40], "truncated"),
             (glb(model(indices=9)), "accessor 9"),
             (glb(model()).replace(b"JSON", b"BIN\0"), "not JSON"),
+            (glb(model() | {"extensionsRequired": "EXT_texture_webp"}), "extensionsRequired"),
         ],
     )
     def test_broken_files_raise(self, tmp_path: Path, data: bytes, message: str) -> None:
@@ -97,3 +105,18 @@ class TestModelBudgets:
             "props/crate.glb",
             "props/tower.glb",
         ]
+
+
+class TestRequiredExtensions:
+    def test_a_required_extension_is_a_note_not_a_failure(
+        self, project: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(project, "props/crate.glb", glb(model() | WEBP))
+        write(project, "props/barrel.glb", glb(model()))
+        assert main(["--project", str(project), "audit"]) == EXIT_OK
+        out = json.loads(capsys.readouterr().out)
+        assert (out["ok"], out["problems"]) == (True, [])
+        assert [(n["file"], n["rule"]) for n in out["notes"]] == [
+            ("props/crate.glb", "required_extension")
+        ]
+        assert "EXT_texture_webp" in out["notes"][0]["detail"]

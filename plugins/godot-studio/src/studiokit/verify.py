@@ -63,11 +63,12 @@ class LaneCheck:
     def problems(self, lane: Lane) -> list[Problem]:
         project = lane.project_dir
         found: list[Problem] = []
-        if git(project, "rev-parse", "HEAD").strip() == lane.base:
+        since = self._fork_point(project)
+        if git(project, "rev-parse", "HEAD").strip() == since:
             found.append(Problem("no_commits", f"{lane.branch} has no commits after the base"))
         if git(project, "status", "--porcelain").strip():
             found.append(Problem("dirty", f"{project} has uncommitted changes"))
-        names = git(project, "diff", "-z", "--name-only", "--relative", lane.base, "HEAD")
+        names = git(project, "diff", "-z", "--name-only", "--relative", since, "HEAD")
         changed = list(filter(None, names.split("\0")))
         found += [
             Problem("not_owned", f"{path} changed but lane {lane.id} does not own it")
@@ -77,6 +78,13 @@ class LaneCheck:
         found += frozen_problems(lane, project, "HEAD")
         found += self._receipt(project)
         return found
+
+    @staticmethod
+    def _fork_point(project: Path) -> str:
+        """Where the lane left main: its base, or main's commit it was rebased onto."""
+        common = git(project, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+        main_head = git(Path(common).parent, "rev-parse", "HEAD").strip()
+        return git(project, "merge-base", "HEAD", main_head).strip()
 
     def _receipt(self, project: Path) -> list[Problem]:
         try:

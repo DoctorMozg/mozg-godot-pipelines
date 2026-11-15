@@ -13,6 +13,7 @@ from studiokit.hooks import pre_edit
 # Any: the JSON line a command printed.
 CliRunner = Callable[..., tuple[int, dict[str, Any]]]
 Committer = Callable[..., str]
+GitRunner = Callable[..., str]
 
 
 def _rules(run_cli: CliRunner) -> list[str]:
@@ -95,3 +96,11 @@ class TestCheck:
         assert out["problems"] == [
             {"rule": "gate", "detail": "gate receipt stale: run godotkit gate"}
         ]
+
+    def test_a_lane_rebased_onto_newer_main_is_judged_on_its_own_changes(
+        self, lane: Path, repo: Path, run_cli: CliRunner, commit: Committer, git: GitRunner
+    ) -> None:
+        commit(lane, {"scripts/hud.gd": "extends Control # hp bar\n"}, "hud")
+        newer = commit(repo, {"scripts/player.gd": "extends Node3D # main moved on\n"}, "main")
+        git(lane, "-c", "user.name=t", "-c", "user.email=t@t", "rebase", "-q", newer)
+        assert run_cli("lane", "check", "hud")[1]["problems"] == []

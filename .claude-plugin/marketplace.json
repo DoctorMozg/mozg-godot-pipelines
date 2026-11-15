@@ -80,6 +80,18 @@
         "assets",
         "import"
       ]
+    },
+    {
+      "name": "godot-ui",
+      "source": "./plugins/godot-ui",
+      "description": "Game UI for Godot: briefs, tokens to Theme, scene and layout checks, captures in the review hub",
+      "category": "development",
+      "keywords": [
+        "godot",
+        "ui",
+        "theme",
+        "accessibility"
+      ]
     }
   ]
 }

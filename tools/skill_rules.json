@@ -128,5 +128,8 @@
       "<verdict>": "the judge's verdict: pass or fail",
       "<failed ids with evidence>": "each failed question id with the judge's evidence"
     }
+  },
+  "godot-ui": {
+    "placeholders": {}
   }
 }

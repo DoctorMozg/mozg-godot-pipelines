@@ -1,0 +1,16 @@
+{
+  "name": "godot-ui",
+  "version": "0.1.0",
+  "description": "Game UI for Godot projects: UI briefs, design tokens emitted as a Theme, screen records, scene and layout checks, multi-resolution captures in the review hub, readability and conformance judges",
+  "author": {
+    "name": "Stanislav Gonorovskii",
+    "url": "https://github.com/DoctorMozg"
+  },
+  "license": "MIT",
+  "keywords": [
+    "godot",
+    "ui",
+    "theme",
+    "accessibility"
+  ]
+}

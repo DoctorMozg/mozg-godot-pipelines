@@ -1,0 +1,11 @@
+{
+  "min_contrast": 3.0,
+  "min_contrast_source": "WCAG 2.1 SC 1.4.11 Non-text Contrast, W3C Recommendation 2018-06-05: 3:1 for graphical objects against adjacent colours. Using it for a game subject against its ground is this kit's choice, UNTESTED against player reports.",
+  "check_px": 120,
+  "judge_px": [
+    120,
+    240
+  ],
+  "safe_margin": 0.1,
+  "sizes_source": "docs/research/03-graphics.md:184, 2026-11-13: judges read 120 and 240 px downscales, subject inside 10% margins, contrast between the central mask and the ring as the pre-check."
+}

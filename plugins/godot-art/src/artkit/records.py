@@ -120,6 +120,11 @@ class ArtRecords:
             size = spec.get("min_subject_px") if isinstance(spec, dict) else None
             if not isinstance(mode, str) or not mode or not isinstance(size, int) or size <= 0:
                 yield Finding(name, "family", f"family {family} needs a mode and min_subject_px")
+            for colour in _strings(spec.get("grounds") if isinstance(spec, dict) else None):
+                if not _HEX.match(colour):
+                    yield Finding(
+                        name, "family", f"family {family} ground {colour!r} is not #rrggbb"
+                    )
         for root_id, root in self.roots.items():
             if root.get("status") not in ROOT_STATUSES:
                 yield Finding(name, "root", f"root {root_id} status must be one of {ROOT_STATUSES}")

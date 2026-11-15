@@ -13,7 +13,9 @@ from pathlib import Path
 from artkit.audit import MB, ImportAudit, load_defaults
 from artkit.ingest import Ingest, RegisterRequest
 from artkit.kits import AssetKit, ToolFailed, ToolMissing
+from artkit.pixels import RasterError, decode_png
 from artkit.policy import load_policy
+from artkit.readability import load_settings, precheck
 from artkit.records import ArtRecords, Finding, RecordsError
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
@@ -28,6 +30,9 @@ def _parser() -> argparse.ArgumentParser:
     dependents = commands.add_parser("dependents", help="briefs downstream of a root or brief")
     dependents.add_argument("id")
     commands.add_parser("audit", help="texture imports against art/policy.json, and VRAM")
+    check = commands.add_parser("precheck", help="subject against ground contrast of a PNG")
+    check.add_argument("file", type=Path)
+    check.add_argument("--brief", help="brief whose family names the grounds a sprite sits on")
     register = commands.add_parser("register", help="add a fal call's file to the brief's asset")
     register.add_argument("brief")
     register.add_argument("--ledger", type=Path, required=True, help="falkit ledger export")
@@ -75,6 +80,24 @@ def _audit(project: Path) -> int:
     return EXIT_FAILED if report.problems else EXIT_OK
 
 
+def _precheck(project: Path, file: Path, brief_id: str | None) -> int:
+    grounds: list[str] = []
+    if brief_id:
+        records = ArtRecords(project)
+        brief = records.briefs.get(brief_id)
+        if brief is None:
+            raise RecordsError(f"no brief {brief_id!r}")
+        grounds = records.families.get(brief.get("family"), {}).get("grounds", [])
+    settings = load_settings()
+    result = precheck(decode_png(file), grounds, settings)
+    ok = result.ratio >= settings["min_contrast"]
+    emit({"cmd": "precheck", "ok": ok, "file": str(file), "mode": result.mode,
+          "ratio": round(result.ratio, 2), "min_contrast": settings["min_contrast"],
+          "subject_luminance": round(result.subject, 4),
+          "ground_luminance": round(result.ground, 4)})  # fmt: skip
+    return EXIT_OK if ok else EXIT_FAILED
+
+
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -88,6 +111,8 @@ def main(argv: Sequence[str]) -> int:
             raise RecordsError(f"no project.godot in {project}")
         if args.command == "audit":
             return _audit(project)
+        if args.command == "precheck":
+            return _precheck(project, args.file, args.brief)
         records = ArtRecords(project)
         if args.command == "register":
             fields = ("brief", "ledger", "request_id", "file", "prompt", "license")
@@ -100,7 +125,7 @@ def main(argv: Sequence[str]) -> int:
         found = records.dependents(args.id)
         emit({"cmd": "dependents", "ok": True, "id": args.id, "dependents": found})
         return EXIT_OK
-    except RecordsError as error:
+    except (RecordsError, RasterError) as error:
         emit({"cmd": args.command, "ok": False, "reason": "refused", "detail": str(error)})
         return EXIT_REFUSED
     except ToolMissing as error:

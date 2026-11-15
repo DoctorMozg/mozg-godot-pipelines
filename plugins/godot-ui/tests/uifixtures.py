@@ -27,6 +27,10 @@ def tokens_doc() -> Doc:
         "font": {"body": {"size_px": 16}, "title": {"size_px": 28}},
         "stylebox": {"panel": {"bg": "paper", "border": "ink", "border_px": 2, "radius_px": 6}},
         "variations": {"DangerButton": {"base": "Button", "color": "danger", "stylebox": "panel"}},
+        "contrast_pairs": [
+            {"fg": "ink", "bg": "paper", "kind": "text"},
+            {"fg": "danger", "bg": "paper", "kind": "nontext"},
+        ],
     }
 
 

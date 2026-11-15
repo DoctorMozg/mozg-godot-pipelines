@@ -124,6 +124,14 @@ class UiRecords:
                 )
                 if not _positive(size):
                     out.append(Finding(name, group, f"{key}: size must be a positive whole px"))
+        for pair in self.tokens.get("contrast_pairs", []) if isinstance(self.tokens, dict) else []:
+            known = isinstance(pair, dict) and {pair.get("fg"), pair.get("bg")} <= set(self.colours)
+            if not known or pair.get("kind") not in ("text", "nontext"):
+                out.append(
+                    Finding(
+                        name, "contrast_pairs", f"{pair}: fg, bg colours and kind text or nontext"
+                    )
+                )
         for key, box in _table(self.tokens, "stylebox").items():
             out += self._stylebox(name, key, box)
         boxes, fonts = _table(self.tokens, "stylebox"), _table(self.tokens, "font")

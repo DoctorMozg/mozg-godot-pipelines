@@ -12,6 +12,7 @@ from pathlib import Path
 
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
 from uikit.records import Finding, RecordsError, UiRecords
+from uikit.tokens import contrast, write_css
 
 EXIT_OK, EXIT_FAILED, EXIT_SETUP, EXIT_REFUSED = 0, 1, 2, 3
 
@@ -22,6 +23,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("lint", help="check ui/tokens.json, every brief and every screen")
+    tokens = commands.add_parser("tokens", help="tokens.css, or contrast of the declared pairs")
+    tokens.add_argument("action", choices=("css", "contrast"))
+    tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
     return parser
 
 
@@ -52,6 +56,30 @@ def _lint(records: UiRecords) -> int:
     return EXIT_FAILED if findings else EXIT_OK
 
 
+def _tokens(records: UiRecords, action: str, brief: str | None) -> int:
+    if action == "css":
+        path = write_css(records)
+        emit({"cmd": "tokens", "ok": True, "css": str(path.relative_to(records.project))})
+        return EXIT_OK
+    if not brief:
+        raise RecordsError("tokens contrast needs --brief, whose targets apply")
+    results = contrast(records, brief)
+    pairs = [
+        {
+            "fg": r.fg,
+            "bg": r.bg,
+            "kind": r.kind,
+            "ratio": round(r.ratio, 2),
+            "target": r.target,
+            "ok": r.ok,
+        }
+        for r in results
+    ]
+    ok = all(r.ok for r in results)
+    emit({"cmd": "tokens", "ok": ok, "brief": brief, "pairs": pairs})
+    return EXIT_OK if ok else EXIT_FAILED
+
+
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -62,6 +90,8 @@ def main(argv: Sequence[str]) -> int:
     project = args.project.resolve()
     try:
         records = UiRecords(project)
+        if args.command == "tokens":
+            return _tokens(records, args.action, args.brief)
         return _lint(records)
     except RecordsError as error:
         emit({"cmd": args.command, "ok": False, "reason": "refused", "detail": str(error)})

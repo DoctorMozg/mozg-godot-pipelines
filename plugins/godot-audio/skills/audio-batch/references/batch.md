@@ -20,7 +20,7 @@ Write the sound, not the scene: "a short wooden knock, dry, sharp attack, fast d
 
 Set `seconds_total` on Stable Audio: the default writes 190 s for the same price.
 
-What came back on 2026-11-15 (one call each, measured by `audiokit register`): ElevenLabs sound effects at `mp3_44100_192` gave 44.1 kHz stereo MP3 of the asked length plus about 0.03 s, peaks -6.3 to -0.6 dBFS; Stable Audio 2.5 gave a 20 s 44.1 kHz stereo WAV peaking at 0 dBFS (4 clipped samples, +0.02 dBTP, -8.8 LUFS). Both rates differ from a 48 kHz mix, so `audiokit audit` reports them after promotion; converting is the owner's call.
+What came back on 2026-11-15 (one call each, measured by `audiokit register`): ElevenLabs sound effects at `mp3_44100_192` gave 44.1 kHz stereo MP3, peaks -6.3 to -0.6 dBFS; Stable Audio 2.5 gave a 20 s 44.1 kHz stereo WAV peaking at 0 dBFS (4 clipped samples, +0.02 dBTP, -8.8 LUFS). The MP3 header lengths ran about 0.03 s over the asked 0.6, 0.8 and 1.5 s, but decoded they hold 0.600, 0.800 and 1.480 s: the extra is encoder padding, which `audiokit register` still counts in `duration_s` (ffmpeg 2026-11-16). Both rates differ from a 48 kHz mix, so `audiokit audit` reports them after promotion; converting is the owner's call. An ffmpeg `aresample=48000:resampler=soxr` to 16-bit WAV kept the decoded length, peak within 0.25 dB and loudness within 0.01 LU (four files, 2026-11-16).
 
 ## Flow per fal cue
 

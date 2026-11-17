@@ -63,6 +63,26 @@ class TestStatementRules:
         body += "\tawait get_tree().create_timer(1.0).timeout\n\tget_parent().hide()\n"
         assert _rules(body) == ["get-parent"]
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            # gdformat moves the trailing comment of the last operand behind the closing bracket.
+            '\tvar hud: Node = get_node(\n\t\t"../HUD"\n\t)  # godotkit:ignore=parent-path\n',
+            '\tvar hud: Node = get_node(  # godotkit:ignore=parent-path\n\t\t"../HUD"\n\t)\n',
+            '\tvar hud: Node = get_node(\n\t\t"../HUD",  # godotkit:ignore=parent-path\n\t)\n',
+            '\t# godotkit:ignore=parent-path\n\tvar hud: Node = get_node(\n\t\t"../HUD"\n\t)\n',
+        ],
+    )
+    def test_ignore_mark_anywhere_in_the_statement_covers_a_finding_in_it(self, body: str) -> None:
+        assert _rules(body) == []
+
+    def test_ignore_mark_does_not_leak_to_other_statements_or_rules(self) -> None:
+        body = '\tvar hud: Node = get_node(\n\t\t"../HUD"\n\t)  # godotkit:ignore=get-parent\n'
+        body += "\tget_parent().hide()\n"
+        assert _rules(body) == ["parent-path", "get-parent"]
+        later = "\tvar a: int = 1  # godotkit:ignore=get-parent\n\tget_parent().hide()\n"
+        assert _rules(later) == ["get-parent"]
+
     def test_finding_in_a_multiline_lambda_names_its_own_line(self) -> None:
         source = (
             "extends Node\n\n\nfunc _ready() -> void:\n\tbutton.pressed.connect(\n"

@@ -84,8 +84,9 @@ class Statement:
     def commented(self, line: int) -> bool:
         return line in self.comments or line - 1 in self.comments
 
-    def ignores(self, rule: str, line: int) -> bool:
-        for comment in (self.comments.get(line, ""), self.comments.get(line - 1, "")):
+    def ignores(self, rule: str) -> bool:
+        # gdformat moves comments inside brackets, so any line of the statement may hold the mark.
+        for comment in self.comments.values():
             for match in IGNORE_MARK.finditer(comment):
                 if rule in match["rules"].split(","):
                     return True
@@ -133,7 +134,7 @@ class ScriptLinter:
         for statement in GdSource(text).statements():
             for rule, offset, message in _statement_rules(statement):
                 line = statement.line_at(offset)
-                if not statement.ignores(rule, line):
+                if not statement.ignores(rule):
                     findings.append(Finding(path, line, rule, message))
             # Anything at or left of the enclosing body's indent has left the inner class.
             while len(scopes) > 1 and statement.indent <= (scopes[-2].indent or 0):
@@ -149,7 +150,7 @@ class ScriptLinter:
             if kind is None or kind == INNER_CLASS:
                 continue
             rank = ORDER.index(kind)
-            if rank < scope.rank and not statement.ignores("member-order", statement.line):
+            if rank < scope.rank and not statement.ignores("member-order"):
                 message = f"{kind} after {ORDER[scope.rank]}"
                 findings.append(Finding(path, statement.line, "member-order", message))
             scope.rank = max(scope.rank, rank)

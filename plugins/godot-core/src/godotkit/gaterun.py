@@ -47,6 +47,7 @@ class Gate:
         self._jobs = request.jobs
         self._base = request.base
         self._known = Baseline.load(request.project)
+        self._external = ExternalLinters()
 
     def run(self) -> Receipt:
         steps: list[Callable[[], Step]] = [
@@ -54,6 +55,8 @@ class Gate:
             self._check,
             self._strict,
             self._lint,
+            self._gdformat,
+            self._gdlint,
             self._arch,
             self._boot,
             self._test,
@@ -175,8 +178,22 @@ class Gate:
 
     def _lint(self) -> Step:
         files = project_sources(self._project, LINT_SUFFIXES)
-        findings = lint_findings(self._project, files, ExternalLinters())
+        findings = lint_findings(self._project, files, self._external)
         return self._findings_step("lint", findings, {"files": len(files)})
+
+    def _gdformat(self) -> Step:
+        return self._external_tool("gdformat")
+
+    def _gdlint(self) -> Step:
+        return self._external_tool("gdlint")
+
+    def _external_tool(self, name: str) -> Step:
+        """gdtoolkit is optional; a missing tool is named so the lint step is not read as full."""
+        pinned = name in _pre_commit_text(self._project)
+        detail: dict[str, object] = {"path": self._external.tools[name], "pinned": pinned}
+        if self._external.tools[name] is None:
+            return Step(name, "not_run", f"{name} not found on PATH", 0.0, detail)
+        return Step(name, "pass", "ok, findings are in the lint step", 0.0, detail)
 
     def _arch(self) -> Step:
         if not (self._project / CONFIG_FILE).is_file():
@@ -192,6 +209,11 @@ class Gate:
         shown = [f"{finding.path}:{finding.line} {finding.rule}" for finding in new[:20]]
         detail = {**detail, "new": len(new), "findings": shown}
         return Step(name, "fail" if new else "pass", "violations" if new else "ok", 0.0, detail)
+
+
+def _pre_commit_text(project: Path) -> str:
+    path = project / ".pre-commit-config.yaml"
+    return path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
 
 
 def _timed(step: Callable[[], Step]) -> Step:

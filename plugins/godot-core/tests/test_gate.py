@@ -112,7 +112,6 @@ class TestTreeHash:
         assert tree_hash(project) != first
 
 
-@pytest.mark.usefixtures("no_gdtoolkit")
 def _step(payload: dict[str, object], name: str) -> dict[str, Any]:
     steps = payload["steps"]
     assert isinstance(steps, list)
@@ -121,6 +120,7 @@ def _step(payload: dict[str, object], name: str) -> dict[str, Any]:
     return found
 
 
+@pytest.mark.usefixtures("no_gdtoolkit")
 class TestGateCli:
     def test_receipt_verifies_until_a_file_changes(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
@@ -137,6 +137,8 @@ class TestGateCli:
             ("check", "pass"),
             ("strict", "not_applicable"),
             ("lint", "pass"),
+            ("gdformat", "not_run"),
+            ("gdlint", "not_run"),
             ("arch", "not_applicable"),
             ("boot", "pass"),
             ("test", "not_applicable"),
@@ -162,6 +164,17 @@ class TestGateCli:
         assert (code, payload["ok"], payload["reach"]) == (0, True, None), payload
         code, payload = run_cli(["receipt", "verify", *args], fake_godot())
         assert (code, payload["reason"]) == (0, "ok")
+
+    def test_missing_gdtoolkit_is_reported_not_silent_and_does_not_fail_the_gate(
+        self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        (git_project / ".pre-commit-config.yaml").write_text("hooks:\n  - id: gdformat\n")
+        code, payload = run_cli(["gate", "--project", str(git_project)], fake_godot(PARSE_OK))
+        gdformat, gdlint = _step(payload, "gdformat"), _step(payload, "gdlint")
+        assert (code, payload["ok"]) == (0, True)
+        assert (gdformat["status"], gdformat["reason"]) == ("not_run", "gdformat not found on PATH")
+        assert gdformat["detail"]["pinned"] is True
+        assert (gdlint["status"], gdlint["detail"]["pinned"]) == ("not_run", False)
 
     def test_failed_step_fails_gate_and_verify(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory

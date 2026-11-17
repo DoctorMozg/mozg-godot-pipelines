@@ -17,12 +17,13 @@ from godotkit.worktree import git, head_commit
 log = logging.getLogger(__name__)
 
 RECEIPT_DIR = Path(".godot") / "godotkit" / "receipts"
-PASSING = frozenset({"pass", "not_applicable"})
+# not_run is an optional tool the machine lacks: reported on the receipt, never a failure.
+PASSING = frozenset({"pass", "not_applicable", "not_run"})
 
 
 @dataclass(frozen=True)
 class Step:
-    """`status` is pass, fail or not_applicable; `detail` is the step's own JSON summary."""
+    """`status`: pass, fail, not_applicable or not_run; `detail` is the step's own summary."""
 
     name: str
     status: str

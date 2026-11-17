@@ -55,7 +55,7 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
    - `perf` with `over_budget`: `detail.table` names each size's breached metric (`frame_ms` and `physics_ms` are p95, counters are maxima). Fix the cost; a budget changes only with the owner. `godotkit perf --native` adds the renderer counters `draw_calls` and `objects`, which read zero headless.
    - `feel` with `over_budget`: `detail.breaches` names a late action (`input_frames:<action>`, frames after the press, `null` for no response), `camera_clip_frames` or `stuck_frames` from the walk. Rerun with `godotkit feel --project P`.
 
-1. Run `godotkit receipt verify --project P`. Commit only on `ok`; the commit hook refuses anything else.
+1. Run `godotkit receipt verify --project P`. Commit only on `ok`; the commit hook refuses anything else. The hook judges the worktree the commit runs in, followed through `cd DIR &&` and `git -C DIR`, so a lane commits from the main session without switching into it.
 
 1. Report in this shape, so the next reader can check it:
 

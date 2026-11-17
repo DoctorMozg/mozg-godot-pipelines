@@ -155,6 +155,28 @@ class TestCommitGuard:
         for command in ("SKIP=gdlint git commit -m x", "git -C . commit --no-verify -m x"):
             assert "refused" in (pre_bash(_bash(git_project, command)) or "")
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cd {lane} && git commit -m x",
+            "git -C {lane} commit -m x",
+            "cd '{lane}'; git commit -m x",
+        ],
+    )
+    def test_a_lane_commit_is_judged_by_the_lane_tree(
+        self, git_project: Path, tmp_path: Path, command: str
+    ) -> None:
+        # A session rooted in main committed a lane by `cd` and was judged by main's receipt.
+        lane = tmp_path / "lane"
+        _git(git_project, "worktree", "add", "-q", "--detach", str(lane))
+        (git_project / "main.gd").write_text(PARENT_CALL)
+        (lane / "main.gd").write_text(PARENT_CALL + "\n")
+        self._receipt(lane)
+        event = _bash(git_project, command.format(lane=lane))
+        assert pre_bash(event) is None
+        assert "no gate receipt" in (pre_bash(_bash(lane, f"cd {git_project} && git commit")) or "")
+        assert f"--project {git_project}" in (pre_bash(_bash(git_project, "git commit")) or "")
+
     def test_other_commands_pass(self, git_project: Path) -> None:
         (git_project / "main.gd").write_text(PARENT_CALL)
         for command in ("git status", "git log --grep commit", "git commit-tree HEAD^{tree}"):

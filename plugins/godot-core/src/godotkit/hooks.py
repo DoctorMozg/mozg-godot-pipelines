@@ -39,6 +39,9 @@ LSP_TIMEOUT_S = 2.0
 # `git commit`, also behind global options such as `-C path`; not `git log --grep commit`.
 _COMMIT = re.compile(r"\bgit(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+commit(?![\w-])")
 _SKIP = re.compile(r"(?:^|\s)SKIP=|--no-verify\b")
+# A `cd DIR` that starts a shell step, and git's own `-C DIR`; quoted or bare paths.
+_CD = re.compile(r"(?:^|&&|\|\||;|\(|\n)\s*cd\s+(\"[^\"]*\"|'[^']*'|[^\s;&|)]+)")
+_GIT_C = re.compile(r"\s-C\s+(\"[^\"]*\"|'[^']*'|\S+)")
 _DOC_SUFFIXES = (".md", ".txt", ".rst")
 _HEADER_UID = re.compile(r'^\[gd_\w+[^\]]*\buid="(uid://[0-9a-z]+)"')
 
@@ -113,9 +116,11 @@ def _single_writer(file: Path) -> str | None:
 def pre_bash(event: HookEvent) -> str | None:
     """A commit of code needs a passing gate receipt for this exact tree, and no skipped hooks."""
     command = event.tool_input.get("command")
-    if not isinstance(command, str) or not _COMMIT.search(command):
+    found = _COMMIT.search(command) if isinstance(command, str) else None
+    if not isinstance(command, str) or found is None:
         return None
-    project = find_project(event.cwd.resolve())
+    # A lane commits from its own worktree, reached with `cd` or `git -C`: judge that tree.
+    project = find_project(commit_dir(command, found, event.cwd).resolve())
     if project is None:
         return None
     changed = [line[3:] for line in git(project, "status", "--porcelain=v1", ".").splitlines()]
@@ -128,6 +133,16 @@ def pre_bash(event: HookEvent) -> str | None:
         return None
     why = "no gate receipt" if latest is None else "the last gate failed or the tree changed"
     return f"Commit refused: {why}. Run `godotkit gate --project {project}` and commit then."
+
+
+def commit_dir(command: str, commit: re.Match[str], cwd: Path) -> Path:
+    """The folder `git commit` runs in: the session's, moved by each earlier `cd` and `-C`."""
+    folder = cwd
+    for match in _CD.finditer(command[: commit.start()]):
+        folder = folder / Path(match.group(1).strip("'\"")).expanduser()
+    for match in _GIT_C.finditer(commit.group(0)):
+        folder = folder / Path(match.group(1).strip("'\"")).expanduser()
+    return folder
 
 
 def run(name: str, raw: str) -> int:

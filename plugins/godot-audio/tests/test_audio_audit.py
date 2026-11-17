@@ -67,6 +67,13 @@ def test_bad_policy_is_refused(
     assert detail in json.loads(capsys.readouterr().out)["detail"]
 
 
+def test_project_after_the_command(audio: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    main(["--project", str(audio), "audit"])
+    before = capsys.readouterr().out
+    assert main(["audit", "--project", str(audio)]) == EXIT_OK
+    assert capsys.readouterr().out == before
+
+
 def test_cli_reports_files(audio: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--project", str(audio), "audit"]) == EXIT_OK
     out = json.loads(capsys.readouterr().out)

@@ -45,35 +45,52 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="l10nkit", description=__doc__)
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Godot project root")
     parser.add_argument("-v", "--verbose", action="store_true")
+    # Accepted after the command too, as godotkit takes it; SUPPRESS keeps the top-level value.
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--project", type=Path, default=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", required=True)
-    init = commands.add_parser("init", help="create i18n/ with its config")
+    init = commands.add_parser("init", parents=[shared], help="create i18n/ with its config")
     init.add_argument("--source-locale", required=True, help="locale of the source text, e.g. en")
-    add = commands.add_parser("add", help="add a source string")
+    add = commands.add_parser("add", parents=[shared], help="add a source string")
     add.add_argument("key")
     add.add_argument("--ns", required=True, help="namespace, the file name under i18n/src")
     _field_options(add)
-    edit = commands.add_parser("edit", help="change fields of a source string")
+    edit = commands.add_parser("edit", parents=[shared], help="change fields of a source string")
     edit.add_argument("key")
     _field_options(edit)
     edit.add_argument("--clear", action="append", default=[], help="drop a field")
-    remove = commands.add_parser("remove", help="remove a string and its translations")
+    remove = commands.add_parser(
+        "remove", parents=[shared], help="remove a string and its translations"
+    )
     remove.add_argument("key")
-    listing = commands.add_parser("list", help="strings, with their state in one locale")
+    listing = commands.add_parser(
+        "list", parents=[shared], help="strings, with their state in one locale"
+    )
     listing.add_argument("--ns")
     listing.add_argument("--locale")
     listing.add_argument("--state", choices=STATES, help="only strings in this state")
-    imports = commands.add_parser("import", help="add the strings of a Godot translation CSV")
+    imports = commands.add_parser(
+        "import", parents=[shared], help="add the strings of a Godot translation CSV"
+    )
     imports.add_argument("file", type=Path)
     imports.add_argument("--ns", help="namespace; default the file name")
-    export = commands.add_parser("export", help="write one namespace as a Godot translation CSV")
+    export = commands.add_parser(
+        "export", parents=[shared], help="write one namespace as a Godot translation CSV"
+    )
     export.add_argument("--ns", required=True)
     export.add_argument("--out", type=Path, required=True)
-    build = commands.add_parser("build", help="write the Godot translation files into i18n/build")
+    build = commands.add_parser(
+        "build", parents=[shared], help="write the Godot translation files into i18n/build"
+    )
     build.add_argument("--format", choices=("po", "csv"), default="po", help="csv needs Godot 4.6+")
     build.add_argument("--register", action="store_true", help="list the PO files in project.godot")
-    batch = commands.add_parser("batch", help="translation batches: export, then apply")
+    batch = commands.add_parser(
+        "batch", parents=[shared], help="translation batches: export, then apply"
+    )
     steps = batch.add_subparsers(dest="step", required=True)
-    export_batch = steps.add_parser("export", help="masked strings of one namespace and locale")
+    export_batch = steps.add_parser(
+        "export", parents=[shared], help="masked strings of one namespace and locale"
+    )
     export_batch.add_argument("--ns", required=True)
     export_batch.add_argument("--locale", required=True)
     export_batch.add_argument(
@@ -81,37 +98,53 @@ def _parser() -> argparse.ArgumentParser:
     )
     export_batch.add_argument("--limit", type=int)
     export_batch.add_argument("--out", type=Path, required=True)
-    apply = steps.add_parser("apply", help="write the filled items that pass the checks")
+    apply = steps.add_parser(
+        "apply", parents=[shared], help="write the filled items that pass the checks"
+    )
     apply.add_argument("file", type=Path)
     apply.add_argument("--kind", choices=("llm", "human"), default="llm")
     apply.add_argument("--model", help="model id; required for --kind llm")
-    note = commands.add_parser("note", help="add a note on KEY@locale, such as a QA finding")
+    note = commands.add_parser(
+        "note", parents=[shared], help="add a note on KEY@locale, such as a QA finding"
+    )
     note.add_argument("item", metavar="KEY@LOCALE")
     note.add_argument("--body", required=True)
     note.add_argument("--author", required=True)
-    notes = commands.add_parser("notes", help="notes and decisions, of one KEY@locale or all")
+    notes = commands.add_parser(
+        "notes", parents=[shared], help="notes and decisions, of one KEY@locale or all"
+    )
     notes.add_argument("item", nargs="?", metavar="KEY@LOCALE")
-    pattern = commands.add_parser("pattern", help="declare or drop a pattern of runtime-built keys")
+    pattern = commands.add_parser(
+        "pattern", parents=[shared], help="declare or drop a pattern of runtime-built keys"
+    )
     pattern.add_argument("--ns", required=True)
     pattern.add_argument(
         "--add", action="append", default=[], metavar="PATTERN", help="e.g. ITEM_*_NAME"
     )
     pattern.add_argument("--remove", action="append", default=[], metavar="PATTERN")
-    check = commands.add_parser("check", help="parity, plural, length and release checks")
+    check = commands.add_parser(
+        "check", parents=[shared], help="parity, plural, length and release checks"
+    )
     check.add_argument("--ship", action="append", default=[], help="locale that must be complete")
-    measure = commands.add_parser("measure", help="max_px and font coverage, measured in Godot")
+    measure = commands.add_parser(
+        "measure", parents=[shared], help="max_px and font coverage, measured in Godot"
+    )
     measure.add_argument("--locale", action="append", default=[])
     measure.add_argument("--theme", default="", help="res:// theme; default the project theme")
     measure.add_argument("--font-size", type=int, default=0, help="default the theme's size")
     measure.add_argument("--timeout", type=float, default=120.0, help="seconds")
-    pseudo = commands.add_parser("pseudo", help="a scene in the pseudo locale: leaks and overflow")
+    pseudo = commands.add_parser(
+        "pseudo", parents=[shared], help="a scene in the pseudo locale: leaks and overflow"
+    )
     pseudo.add_argument("--scene", required=True, help="res:// path of the scene to show")
     pseudo.add_argument(
         "--size", action="append", default=[], help="WIDTHxHEIGHT; default the project's"
     )
     pseudo.add_argument("--frames", type=int, default=3, help="frames to wait before reading")
     pseudo.add_argument("--timeout", type=float, default=120.0, help="seconds")
-    shot = commands.add_parser("shot", help="pictures of a scene in each locale, for review")
+    shot = commands.add_parser(
+        "shot", parents=[shared], help="pictures of a scene in each locale, for review"
+    )
     shot.add_argument("--scene", required=True, help="res:// path of the scene to draw")
     shot.add_argument("--locale", action="append", default=[], help="default every locale")
     shot.add_argument(
@@ -119,9 +152,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     shot.add_argument("--frames", type=int, default=3, help="frames drawn before the picture")
     shot.add_argument("--timeout", type=float, default=120.0, help="seconds")
-    hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
+    hook = commands.add_parser(
+        "hook", parents=[shared], help="Claude Code hook: reads the event JSON on stdin"
+    )
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
-    status = commands.add_parser("status", help="coverage per locale")
+    status = commands.add_parser("status", parents=[shared], help="coverage per locale")
     status.add_argument("--locale", action="append", default=[])
     return parser
 

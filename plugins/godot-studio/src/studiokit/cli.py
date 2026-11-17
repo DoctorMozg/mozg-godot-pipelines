@@ -34,10 +34,15 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studiokit", description=__doc__)
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Godot project folder")
     parser.add_argument("-v", "--verbose", action="store_true")
+    # Accepted after the command too, as godotkit takes it; SUPPRESS keeps the top-level value.
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--project", type=Path, default=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", required=True)
-    lane = commands.add_parser("lane", help="file-owned lanes in warm worktrees")
+    lane = commands.add_parser("lane", parents=[shared], help="file-owned lanes in warm worktrees")
     actions = lane.add_subparsers(dest="action", required=True)
-    new = actions.add_parser("new", help="open a lane: worktree on lane/<id> and its record")
+    new = actions.add_parser(
+        "new", parents=[shared], help="open a lane: worktree on lane/<id> and its record"
+    )
     new.add_argument("id")
     new.add_argument("--task", required=True, help="where the work is described, e.g. plan.md#P07")
     new.add_argument("--own", action="append", required=True, help="owned glob; * crosses folders")
@@ -46,28 +51,46 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("--risk", choices=RISKS, default="normal")
     new.add_argument("--base", default="HEAD", help="commit the lane starts from")
     new.add_argument("--path", type=Path, help="worktree folder; default <repo>-wt/<id>")
-    listing = actions.add_parser("list", help="open lanes, or every lane with --all")
+    listing = actions.add_parser(
+        "list", parents=[shared], help="open lanes, or every lane with --all"
+    )
     listing.add_argument("--all", action="store_true")
-    show = actions.add_parser("show", help="one lane record")
+    show = actions.add_parser("show", parents=[shared], help="one lane record")
     show.add_argument("id")
-    freeze = actions.add_parser("freeze", help="record the hashes of a lane's reviewed tests")
+    freeze = actions.add_parser(
+        "freeze", parents=[shared], help="record the hashes of a lane's reviewed tests"
+    )
     freeze.add_argument("id")
     freeze.add_argument(
         "globs", nargs="+", help="committed files to freeze, relative to the project"
     )
-    check = actions.add_parser("check", help="may the lane merge: diff, frozen tests, gate receipt")
+    check = actions.add_parser(
+        "check", parents=[shared], help="may the lane merge: diff, frozen tests, gate receipt"
+    )
     check.add_argument("id")
-    brief = actions.add_parser("brief", help="the delegation brief a lane's subagent gets")
+    brief = actions.add_parser(
+        "brief", parents=[shared], help="the delegation brief a lane's subagent gets"
+    )
     brief.add_argument("id")
-    decision = commands.add_parser("decision", help="architecture decision records")
+    decision = commands.add_parser(
+        "decision", parents=[shared], help="architecture decision records"
+    )
     steps = decision.add_subparsers(dest="action", required=True)
-    record = steps.add_parser("new", help="write docs/decisions/NNN-<slug>.md from the template")
+    record = steps.add_parser(
+        "new", parents=[shared], help="write docs/decisions/NNN-<slug>.md from the template"
+    )
     record.add_argument("--title", required=True)
     record.add_argument("--option", action="append", required=True, help="one option to score")
-    steps.add_parser("lint", help="check every record: sections, scores, choice, triggers")
-    merge = commands.add_parser("merge", help="merge a checked lane if the merged tree passes")
+    steps.add_parser(
+        "lint", parents=[shared], help="check every record: sections, scores, choice, triggers"
+    )
+    merge = commands.add_parser(
+        "merge", parents=[shared], help="merge a checked lane if the merged tree passes"
+    )
     merge.add_argument("id")
-    hook = commands.add_parser("hook", help="Claude Code hook: reads the event JSON on stdin")
+    hook = commands.add_parser(
+        "hook", parents=[shared], help="Claude Code hook: reads the event JSON on stdin"
+    )
     hook.add_argument("event", choices=sorted(hooks.HANDLERS))
     return parser
 

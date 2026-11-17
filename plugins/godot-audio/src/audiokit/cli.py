@@ -27,17 +27,36 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="audiokit", description=__doc__)
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Godot project folder")
     parser.add_argument("-v", "--verbose", action="store_true")
+    # Accepted after the command too, as godotkit takes it; SUPPRESS keeps the top-level value.
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--project", type=Path, default=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("doctor", help="report Python and the optional tools audiokit can use")
-    commands.add_parser("lint", help="check audio/cues.json and the files under audio/")
-    commands.add_parser("audit", help="header facts of every cue file against the policy")
-    commands.add_parser("levels", help="peak, RMS, clipping, DC and edge silence of every cue file")
-    commands.add_parser("loops", help="loop seams and each cue file's .import settings")
-    commands.add_parser("buses", help="the bus layout and the buses scenes and scripts name")
-    synth = commands.add_parser("synth", help="render a procedural cue's files from its seed")
+    commands.add_parser(
+        "doctor", parents=[shared], help="report Python and the optional tools audiokit can use"
+    )
+    commands.add_parser(
+        "lint", parents=[shared], help="check audio/cues.json and the files under audio/"
+    )
+    commands.add_parser(
+        "audit", parents=[shared], help="header facts of every cue file against the policy"
+    )
+    commands.add_parser(
+        "levels",
+        parents=[shared],
+        help="peak, RMS, clipping, DC and edge silence of every cue file",
+    )
+    commands.add_parser(
+        "loops", parents=[shared], help="loop seams and each cue file's .import settings"
+    )
+    commands.add_parser(
+        "buses", parents=[shared], help="the bus layout and the buses scenes and scripts name"
+    )
+    synth = commands.add_parser(
+        "synth", parents=[shared], help="render a procedural cue's files from its seed"
+    )
     synth.add_argument("cue")
     register = commands.add_parser(
-        "register", help="add a fal result or a cue's files as a version"
+        "register", parents=[shared], help="add a fal result or a cue's files as a version"
     )
     register.add_argument("cue")
     register.add_argument("--ledger", type=Path, help="a falkit ledger export (fal results)")
@@ -45,9 +64,13 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--file", help="which fetched file, when the call has several")
     register.add_argument("--prompt", help="the prompt sent, recorded as provenance")
     register.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new asset")
-    loudness = commands.add_parser("loudness", help="BS.1770 loudness and true peak of cue files")
+    loudness = commands.add_parser(
+        "loudness", parents=[shared], help="BS.1770 loudness and true peak of cue files"
+    )
     loudness.add_argument("--ffmpeg", action="store_true", help="also report ffmpeg's ebur128")
-    loop = commands.add_parser("loop", help="write a cue's loop points into its files' .import")
+    loop = commands.add_parser(
+        "loop", parents=[shared], help="write a cue's loop points into its files' .import"
+    )
     loop.add_argument("cue")
     return parser
 

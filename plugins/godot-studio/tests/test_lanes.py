@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
+from studiokit import cli
 
 # Any: the JSON line a command printed.
 CliRunner = Callable[..., tuple[int, dict[str, Any]]]
@@ -43,6 +45,14 @@ class TestOpen:
         _, shown = run_cli("lane", "show", "hud")
         assert [row["id"] for row in listed["lanes"]] == ["hud"]
         assert shown["lane"]["task"] == "plan.md#P1"
+
+    def test_project_after_a_nested_command(
+        self, new_lane: NewLane, run_cli: CliRunner, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        new_lane("hud", "scripts/hud.gd")
+        _, shown = run_cli("lane", "show", "hud")
+        assert cli.main(["lane", "show", "hud", "--project", str(repo)]) == 0
+        assert json.loads(capsys.readouterr().out.strip().splitlines()[-1]) == shown
 
 
 class TestOverlap:

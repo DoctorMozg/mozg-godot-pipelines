@@ -134,6 +134,15 @@ class TestAuditCli:
         assert (out["textures"], out["vram_mb"], out["skipped"]) == (1, 4.0, ["icon.svg"])
         assert out["largest"] == [{"file": "a.png", "mb": 4.0}]
 
+    def test_project_after_the_command(
+        self, project: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write_texture(project, "a.png", png(64, 64))
+        main(["--project", str(project), "audit"])
+        before = capsys.readouterr().out
+        assert main(["audit", "--project", str(project)]) == EXIT_OK
+        assert capsys.readouterr().out == before
+
     def test_problems_fail_and_bad_policy_refuses(self, project: Path) -> None:
         set_policy(project, {"vram_budget_mb": 1})
         write_texture(project, "a.png", png(1024, 1024))

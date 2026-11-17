@@ -6,7 +6,9 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
 from l10n_rig import CliRunner
+from l10nkit import cli
 
 LAUNCHER = Path(__file__).resolve().parents[1] / "bin" / "l10nkit"
 
@@ -54,6 +56,12 @@ class TestRefusals:
         assert run_cli("add", "A", "--ns", "game")[1]["detail"] == "add needs --source or --form"
         bad = run_cli("add", "A", "--ns", "game", "--source", "a", "--placeholder", "n")
         assert bad[1]["detail"] == "--placeholder takes NAME=MEANING, got ['n']"
+
+
+def test_project_after_the_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["init", "--source-locale", "en", "--project", str(tmp_path)]) == 0
+    assert json.loads(capsys.readouterr().out)["source_locale"] == "en"
+    assert (tmp_path / "i18n").is_dir()
 
 
 def test_launcher_runs_the_kit(tmp_path: Path) -> None:

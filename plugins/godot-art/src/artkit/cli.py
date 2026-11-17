@@ -26,19 +26,32 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="artkit", description=__doc__)
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Godot project folder")
     parser.add_argument("-v", "--verbose", action="store_true")
+    # Accepted after the command too, as godotkit takes it; SUPPRESS keeps the top-level value.
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--project", type=Path, default=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("lint", help="check the art bible and every brief")
-    dependents = commands.add_parser("dependents", help="briefs downstream of a root or brief")
+    commands.add_parser("lint", parents=[shared], help="check the art bible and every brief")
+    dependents = commands.add_parser(
+        "dependents", parents=[shared], help="briefs downstream of a root or brief"
+    )
     dependents.add_argument("id")
-    commands.add_parser("audit", help="texture imports against art/policy.json, and VRAM")
-    check = commands.add_parser("precheck", help="subject against ground contrast of a PNG")
+    commands.add_parser(
+        "audit", parents=[shared], help="texture imports against art/policy.json, and VRAM"
+    )
+    check = commands.add_parser(
+        "precheck", parents=[shared], help="subject against ground contrast of a PNG"
+    )
     check.add_argument("file", type=Path)
     check.add_argument("--brief", help="brief whose family names the grounds a sprite sits on")
-    judge = commands.add_parser("judge", help="write a judge sheet for one candidate")
+    judge = commands.add_parser(
+        "judge", parents=[shared], help="write a judge sheet for one candidate"
+    )
     judge.add_argument("brief")
     judge.add_argument("file", type=Path)
     judge.add_argument("--kind", choices=KINDS, required=True)
-    register = commands.add_parser("register", help="add a fal call's file to the brief's asset")
+    register = commands.add_parser(
+        "register", parents=[shared], help="add a fal call's file to the brief's asset"
+    )
     register.add_argument("brief")
     register.add_argument("--ledger", type=Path, required=True, help="falkit ledger export")
     register.add_argument("--request-id", required=True)

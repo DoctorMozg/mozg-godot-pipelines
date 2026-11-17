@@ -27,16 +27,38 @@ class PairResult:
         return self.ratio >= self.target
 
 
-def luminance(colour: str) -> float:
-    """WCAG 2.x relative luminance of #rrggbb."""
-    channels = [int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5)]
-    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+RGB = tuple[float, float, float]
+
+
+def channels(colour: str) -> tuple[RGB, float]:
+    """The sRGB channels of #rrggbb or #rrggbbaa, 0 to 1, and its alpha."""
+    r, g, b = (int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5))
+    return (r, g, b), int(colour[7:9], 16) / 255 if len(colour) == 9 else 1.0
+
+
+def over(colour: str, below: RGB) -> RGB:
+    """`colour` drawn over an opaque `below`, blended in sRGB as Godot and browsers do."""
+    rgb, alpha = channels(colour)
+    r, g, b = (alpha * top + (1 - alpha) * low for top, low in zip(rgb, below, strict=True))
+    return r, g, b
+
+
+def luminance(rgb: RGB) -> float:
+    """WCAG 2.x relative luminance of opaque sRGB channels."""
+    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb]
     return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
 
 
-def contrast_ratio(a: str, b: str) -> float:
+def ratio(a: RGB, b: RGB) -> float:
     high, low = sorted((luminance(a), luminance(b)), reverse=True)
     return (high + 0.05) / (low + 0.05)
+
+
+def contrast_ratio(fg: str, bg: str, ground: str | None = None) -> float:
+    """Ratio of fg drawn on bg, itself drawn on an opaque ground when bg is see-through."""
+    base = channels(ground)[0] if ground else channels(bg)[0]
+    under = over(bg, base)
+    return ratio(over(fg, under), under)
 
 
 def css(records: UiRecords) -> str:
@@ -77,6 +99,7 @@ def contrast(records: UiRecords, brief_id: str) -> list[PairResult]:
             raise RecordsError(
                 f"contrast pair {pair} needs known fg, bg and a kind of {PAIR_KINDS}"
             )
-        ratio = contrast_ratio(fg, bg)
-        results.append(PairResult(pair["fg"], pair["bg"], kind, ratio, float(targets[kind])))
+        ground = records.colours.get(pair.get("ground"))
+        value = contrast_ratio(fg, bg, ground)
+        results.append(PairResult(pair["fg"], pair["bg"], kind, value, float(targets[kind])))
     return results

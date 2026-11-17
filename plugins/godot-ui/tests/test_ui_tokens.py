@@ -27,6 +27,21 @@ class TestContrastRatio:
     def test_order_does_not_matter(self) -> None:
         assert contrast_ratio("#c03030", "#f4efe4") == contrast_ratio("#f4efe4", "#c03030")
 
+    @pytest.mark.parametrize(
+        ("fg", "bg", "ground", "ratio"),
+        [
+            # Alpha 0x80 is 0.502: white over black blends to 0.502 grey (3.95 against white),
+            # black over white to 0.498 grey (4.0 against white).
+            ("#ffffff", "#ffffff80", "#000000", 3.95),
+            ("#00000080", "#ffffff", None, 4.0),
+            ("#ffffff", "#000000", "#ffffff", 21.0),
+        ],
+    )
+    def test_see_through_colours_are_blended_first(
+        self, fg: str, bg: str, ground: str | None, ratio: float
+    ) -> None:
+        assert contrast_ratio(fg, bg, ground) == pytest.approx(ratio, abs=0.01)
+
 
 class TestContrastCommand:
     def test_pairs_meet_their_kind_target(

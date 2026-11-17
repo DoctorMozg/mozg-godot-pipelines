@@ -88,3 +88,11 @@ class TestLintCli:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         assert self.run(tmp_path, capsys)[0] == EXIT_REFUSED
+
+    def test_project_after_the_command(
+        self, ui: Path, l10nkit: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # `uikit lint --project .` was refused as an unrecognized argument (AloneGodot, 2026-11-17).
+        before = self.run(ui, capsys)
+        code = main(["lint", "--project", str(ui)])
+        assert (code, json.loads(capsys.readouterr().out.strip())) == before

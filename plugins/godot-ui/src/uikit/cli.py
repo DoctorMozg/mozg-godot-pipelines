@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import logging
 import os
@@ -27,26 +28,30 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="uikit", description=__doc__)
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="Godot project folder")
     parser.add_argument("-v", "--verbose", action="store_true")
+    # Accepted after the command too, as godotkit takes it; SUPPRESS keeps the top-level value.
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument("--project", type=Path, default=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("lint", help="check ui/tokens.json, every brief and every screen")
-    tokens = commands.add_parser("tokens", help="tokens.css, or contrast of the declared pairs")
+    add = functools.partial(commands.add_parser, parents=[shared])
+    add("lint", help="check ui/tokens.json, every brief and every screen")
+    tokens = add("tokens", help="tokens.css, or contrast of the declared pairs")
     tokens.add_argument("action", choices=("css", "contrast"))
     tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
-    commands.add_parser("theme", help="write ui/build/theme.tres from the tokens")
-    commands.add_parser("scan", help="check project.godot, the screens' scenes and scripts")
+    add("theme", help="write ui/build/theme.tres from the tokens")
+    add("scan", help="check project.godot, the screens' scenes and scripts")
     for name, text in (
         ("prototype", "write the HTML prototype folder of a surface"),
         ("handoff", "write the handoff page of a surface"),
     ):
-        commands.add_parser(name, help=text).add_argument("surface")
-    capture = commands.add_parser("capture", help="shoot a screen at its sizes into the hub")
+        add(name, help=text).add_argument("surface")
+    capture = add("capture", help="shoot a screen at its sizes into the hub")
     capture.add_argument("screen", help="SURFACE/SCREEN, as under ui/screens/")
     capture.add_argument("--license", help="SPDX id or LicenseRef-<name> for a new capture asset")
-    judge = commands.add_parser("judge", help="write a judge sheet for one screen's captures")
+    judge = add("judge", help="write a judge sheet for one screen's captures")
     judge.add_argument("screen", help="SURFACE/SCREEN")
     judge.add_argument("--shots", type=Path, required=True, help="folder with <W>x<H>.png")
     judge.add_argument("--kind", choices=KINDS, required=True)
-    check = commands.add_parser("check", help="layout checks on godotkit shot JSON")
+    check = add("check", help="layout checks on godotkit shot JSON")
     check.add_argument("--shots", type=Path, required=True, help="folder godotkit shot wrote")
     check.add_argument("--brief", required=True, help="brief whose sizes and minimums apply")
     return parser

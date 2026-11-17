@@ -169,6 +169,45 @@ class TestParseGate:
         assert calls.read_text().split() == ["--import", "-s"]
 
 
+# Real 4.7.2 lines: a script that preloads a broken one fails with a line-0 error of its own.
+CASCADE_LOG = """SCRIPT ERROR: Parse Error: Function "undefined_thing()" not found in base self.
+          at: GDScript::reload (res://root.gd:6)
+SCRIPT ERROR: Compile Error: Failed to compile depended scripts.
+          at: GDScript::reload (res://dep.gd:0)
+ERROR: Failed to load script "res://dep.gd" with error "Compilation failed".
+   at: load (modules/gdscript/gdscript_resource_format.cpp:46)
+GODOTKIT_PARSE_FAIL res://dep.gd
+GODOTKIT_PARSE_FAIL res://root.gd
+GODOTKIT_PARSE 3 scripts 2 failed
+"""
+
+
+class TestDependencyCascade:
+    def test_dependents_of_a_broken_script_are_not_findings_of_their_own(
+        self, fake_godot: FakeGodotFactory, project: Path
+    ) -> None:
+        outcome = ParseGate(GodotRunner(fake_godot(CASCADE_LOG))).run(project, 30)
+        assert outcome.failed_scripts == ("res://root.gd",)
+        assert outcome.dependency_failed == ("res://dep.gd",)
+        assert [f.path for f in outcome.findings()] == ["root.gd"]
+        assert outcome.verdict.counts["dependency_failed"] == 1
+
+    def test_script_with_its_own_error_stays_a_root_even_when_it_has_dependents(
+        self, fake_godot: FakeGodotFactory, project: Path
+    ) -> None:
+        log = CASCADE_LOG.replace("root.gd:6", "dep.gd:6")
+        outcome = ParseGate(GodotRunner(fake_godot(log))).run(project, 30)
+        assert outcome.failed_scripts == ("res://dep.gd", "res://root.gd")
+        assert outcome.dependency_failed == ()
+
+    def test_check_lists_the_cascade_apart(
+        self, fake_godot: FakeGodotFactory, project: Path, run_cli: CliRunner
+    ) -> None:
+        code, payload = run_cli(["check", "--project", str(project)], fake_godot(CASCADE_LOG))
+        assert (code, payload["failed_scripts"]) == (EXIT_FAILED, ["res://root.gd"])
+        assert payload["dependency_failed"] == ["res://dep.gd"]
+
+
 class TestShaderSections:
     def test_errors_are_named_by_section_and_include(self) -> None:
         assert shader_failures(SHADER_LOG) == (

@@ -96,6 +96,7 @@ class Gate:
             "summary": outcome.verdict.summary,
             "shaders": outcome.shaders_checked,
             "failed": [finding.path for finding in outcome.findings()][:20],
+            "dependency_failed": len(outcome.dependency_failed),
         }
         if judged.baseline is not None:
             detail["baseline"] = judged.baseline

@@ -40,7 +40,7 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
 
 1. While working, after each meaningful edit, run the fast loop and read the JSON line each command prints:
 
-   - `godotkit check --project P`: every script loads and every shader compiles (`failed_scripts`, `failed_shaders`).
+   - `godotkit check --project P`: every script loads and every shader compiles (`failed_scripts`, `failed_shaders`). A script that fails only because a script it depends on does not compile (`Failed to compile depended scripts`, line 0) is listed in `dependency_failed`, not counted as a finding; fix the `failed_scripts` first, and the cascade clears.
    - `godotkit test --project P --changed <path>` for each changed file, or `--since <base ref>`: only the entries that can reach the change run.
 
 1. Before calling the work done, run `godotkit gate --project P`. It runs every step even after one fails: `import`, `check`, `strict`, `lint`, `arch`, `boot`, `test`, `perf`, `feel`. Read `failed`, then each failed step's `reason` and `detail`.

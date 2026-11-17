@@ -45,6 +45,9 @@ FILE_REASONS = frozenset(
 )
 
 
+_ISSUE_PATH = re.compile(r"\((?P<path>res://.+?):\d+\)")
+
+
 class BootReport(TypedDict):
     scene: str
     can_process: bool
@@ -73,6 +76,8 @@ class ParseOutcome:
     shaders_checked: int | None
     failed_shaders: tuple[ShaderFailure, ...]
     imported_first: bool
+    # Scripts that failed only because a script they depend on does not compile.
+    dependency_failed: tuple[str, ...] = ()
 
     def findings(self) -> list[Finding]:
         """Failed files as findings, the unit a baseline counts."""
@@ -130,7 +135,9 @@ class ParseGate:
         script = str(GD_DIR / "parse_gate.gd")
         result = self._runner.run(RunRequest(project, ("-s", script), timeout_s))
         verdict = LogJudge(PARSE_SUMMARY).judge(result.output, result.exit_code, result.timed_out)
-        failed = tuple(match["path"] for match in PARSE_FAIL.finditer(result.output))
+        listed = tuple(match["path"] for match in PARSE_FAIL.finditer(result.output))
+        dependents = _dependents(verdict, listed)
+        failed = tuple(path for path in listed if path not in dependents)
         count = SHADER_COUNT.search(result.output)
         return ParseOutcome(
             result,
@@ -139,7 +146,16 @@ class ParseGate:
             int(count["files"]) if count else None,
             shader_failures(result.output),
             imported_first,
+            tuple(path for path in listed if path in dependents),
         )
+
+
+def _dependents(verdict: Verdict, failed: tuple[str, ...]) -> frozenset[str]:
+    """Failed scripts whose only error is the line-0 'depended scripts' one; no root is named."""
+    located = [(issue, _ISSUE_PATH.search(issue.location or "")) for issue in verdict.issues]
+    cascaded = {m["path"] for issue, m in located if m and issue.kind == "dependency_failed"}
+    own = {m["path"] for issue, m in located if m and issue.kind != "dependency_failed"}
+    return frozenset(path for path in failed if path in cascaded and path not in own)
 
 
 class StrictGate:

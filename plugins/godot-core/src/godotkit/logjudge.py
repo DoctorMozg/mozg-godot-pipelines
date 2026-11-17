@@ -11,6 +11,8 @@ _LOCATION_RE = re.compile(r"^\s+at:\s+(.*)$")
 _ISSUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("crash", re.compile(r"Program crashed with signal|^handle_crash:")),
     ("parse_error", re.compile(r"Parse Error")),
+    # A script that preloads a broken one fails with this line-0 error; the broken one has its own.
+    ("dependency_failed", re.compile(r"^SCRIPT ERROR: Compile Error: Failed to compile depended")),
     ("script_error", re.compile(r"^SCRIPT ERROR:")),
     ("shader_error", re.compile(r"^SHADER ERROR:")),
     # Godot 4.7: "WARNING: 1 ObjectDB instance was leaked at exit"; still a failure, not noise.
@@ -25,6 +27,7 @@ _SEVERITY = [
     "crash",
     "parse_error",
     "script_error",
+    "dependency_failed",
     "shader_error",
     "engine_error",
     "push_error",

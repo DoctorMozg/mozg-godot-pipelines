@@ -84,10 +84,17 @@ class Contract:
             found.append(f"{at or '/'}: {value} is below {schema['minimum']}")
         for part in schema.get("allOf", []):
             self._check(part, value, at, found)
-        if "anyOf" in schema and not any(not self._probe(p, value) for p in schema["anyOf"]):
-            found.append(f"{at or '/'}: matches none of the allowed forms")
+        if "anyOf" in schema:
+            self._check_any_of(schema["anyOf"], value, at, found)
         if "if" in schema and not self._probe(schema["if"], value) and "then" in schema:
             self._check(schema["then"], value, at, found)
+
+    def _check_any_of(self, forms: list[Json], value: Json, at: str, found: list[str]) -> None:
+        trials = [self._probe(form, value) for form in forms]
+        if all(trials):
+            # Naming what each form lacks tells the author which one to complete.
+            options = " or ".join(f"({'; '.join(t)})" for t in trials)
+            found.append(f"{at or '/'}: matches none of the allowed forms, needs {options}")
 
     def _check_string(
         self, schema: Mapping[str, Json], value: str, at: str, found: list[str]

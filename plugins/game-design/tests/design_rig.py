@@ -78,7 +78,9 @@ class DesignBuilder:
         return self.write(self.root / "balance" / f"{number_id}.json", record)
 
     def canon(self, *topics: tuple[str, str]) -> Path:
-        """design/canon.json with (topic id, owner doc) pairs."""
+        """design/canon.json with (topic id, owner doc) pairs; the owner docs exist."""
+        for _, owner in topics:
+            self.project_file(owner, "# Owner\n")
         listed = [{"id": t, "title": t.title(), "owner": o, "status": "agreed"} for t, o in topics]
         return self.write(self.root / "canon.json", {"schema": "canon/1", "topics": listed})
 

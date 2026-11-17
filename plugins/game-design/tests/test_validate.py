@@ -121,6 +121,9 @@ class TestLoad:
     def test_campaign_needs_stages_and_others_do_not(self, design: DesignBuilder) -> None:
         design.write(design.root / "design.json", {"schema": "design/1", "title": "T"})
         assert rules(design) == [("schema", "design.json")]
+        detail = DesignLoader(design.root).load().findings[0].detail
+        for name in ("stages", "playstyles", "terminal_kinds", "model"):
+            assert f"missing required '{name}'" in detail
         design.write(design.root / "design.json",
                      {"schema": "design/1", "title": "T", "model": "combat"})  # fmt: skip
         assert rules(design) == []
@@ -226,6 +229,35 @@ class TestCli:
         code, payload = run_cli("validate")
         assert (code, payload["ok"], payload["errors"]) == (1, False, 1)
         assert payload["findings"][0]["rule"] == "unknown_node"
+
+    def test_canon_validates_without_a_design_frame(
+        self, design: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        (design.root / "design.json").unlink()
+        design.canon(("survival", "docs/rules.md"))
+        code, payload = run_cli("validate")
+        assert (code, payload["ok"], payload["errors"]) == (0, True, 0)
+        assert [(f["level"], f["rule"], f["where"]) for f in payload["findings"]] == [
+            ("warning", "not_checked", "design.json")
+        ]
+
+    def test_canon_errors_still_fail_without_a_design_frame(
+        self, design: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        (design.root / "design.json").unlink()
+        design.canon(("survival", "a.md"), ("survival", "b.md"))
+        code, payload = run_cli("validate")
+        assert (code, payload["errors"]) == (1, 1)
+
+    @pytest.mark.parametrize("command", ["analyze", "simulate", "sync", "handoff"])
+    def test_other_commands_still_need_the_frame(
+        self, design: DesignBuilder, run_cli: CliRunner, command: str
+    ) -> None:
+        (design.root / "design.json").unlink()
+        extra = ["x"] if command == "handoff" else []
+        code, payload = run_cli(command, *extra)
+        assert (code, payload["reason"]) == (1, "invalid")
+        assert payload["findings"][0]["where"] == "design.json"
 
     def test_missing_folder_is_refused(self, tmp_path: Path, run_cli: CliRunner) -> None:
         code, payload = run_cli("validate", "--design", str(tmp_path / "nowhere"))

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from designkit.cite import CitationCheck
 from designkit.contracts import ContractError, Json
-from designkit.design import CAMPAIGN, NUMBERS, Design, DesignLoader, Finding, Loaded
+from designkit.design import CAMPAIGN, DESIGN_FILE, NUMBERS, Design, DesignLoader, Finding, Loaded
 from designkit.graph import ProgressionAnalysis
 from designkit.models import BalanceModel, balance_model
 from designkit.records import RecordLoader, Records, brief
@@ -76,8 +76,11 @@ def _positive(text: str) -> int:
     return value
 
 
-def validate(root: Path) -> tuple[dict[str, Json], int]:
-    loaded, records, _ = _load(root)
+def validate(root: Path, project: Path) -> tuple[dict[str, Json], int]:
+    if (root / DESIGN_FILE).exists():
+        loaded, records, _ = _load(root, project)
+    else:
+        loaded, records = _load_records_only(root, project)
     nodes = len(loaded.design.nodes) if loaded.design else 0
     payload = {
         "model": loaded.design.model if loaded.design else None,
@@ -90,8 +93,8 @@ def validate(root: Path) -> tuple[dict[str, Json], int]:
     return payload, EXIT_FAILED if loaded.errors else EXIT_OK
 
 
-def handoff(root: Path, contract_id: str) -> tuple[dict[str, Json], int]:
-    loaded, records, _ = _load(root)
+def handoff(root: Path, project: Path, contract_id: str) -> tuple[dict[str, Json], int]:
+    loaded, records, _ = _load(root, project)
     if loaded.design is None or loaded.errors:
         return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
     contract = records.contracts.get(contract_id)
@@ -115,11 +118,22 @@ def cite_report(report: Path) -> tuple[dict[str, Json], int]:
     return {"cmd": "cite", "ok": code == EXIT_OK, "report": str(report), **result}, code
 
 
-def _load(root: Path) -> tuple[Loaded, Records, BalanceModel | None]:
+def _load_records_only(root: Path, project: Path) -> tuple[Loaded, Records]:
+    """Validates the records of a project that has no design frame, saying the frame was skipped."""
+    records, findings = RecordLoader(root, project).load({})
+    note = Finding(
+        "warning", "not_checked", DESIGN_FILE, "no design.json; nodes and balance skipped"
+    )
+    return Loaded(
+        None, sorted([note, *findings], key=lambda f: (f.where, f.rule, f.detail))
+    ), records
+
+
+def _load(root: Path, project: Path) -> tuple[Loaded, Records, BalanceModel | None]:
     loaded = DesignLoader(root).load()
     if loaded.design is None:
         return loaded, Records(), None
-    records, found = RecordLoader(root).load(loaded.design.contract_fields)
+    records, found = RecordLoader(root, project).load(loaded.design.contract_fields)
     model = balance_model(loaded.design, root)
     found += model.check()
     loaded.findings = sorted(loaded.findings + found, key=lambda f: (f.where, f.rule, f.detail))
@@ -128,13 +142,14 @@ def _load(root: Path) -> tuple[Loaded, Records, BalanceModel | None]:
 
 def report(
     root: Path,
+    project: Path,
     out: Path | None,
     build: Callable[[Design, BalanceModel], dict[str, Json]],
     campaign_only: bool = False,
     simulates: bool = False,
 ) -> tuple[dict[str, Json], int]:
     """Runs a report command on valid data, writing the full report to `out` if given."""
-    loaded, _, model = _load(root)
+    loaded, _, model = _load(root, project)
     if loaded.design is None or model is None or loaded.errors:
         # A dropped node would show up as a false unreachable or dead end; fix the data first.
         return {"reason": "invalid", **_summary(loaded.findings)}, EXIT_FAILED
@@ -165,7 +180,8 @@ def main(argv: Sequence[str]) -> int:
     )
     if args.command == "cite":
         return _emit(*cite_report(args.report))
-    root: Path = (args.design or args.project / "design").resolve()
+    project: Path = args.project.resolve()
+    root: Path = (args.design or project / "design").resolve()
     if not root.is_dir():
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "refused", "detail": f"no folder {root}"},
@@ -174,29 +190,37 @@ def main(argv: Sequence[str]) -> int:
     try:
         if args.command == "analyze":
             payload, code = report(
-                root, args.out, lambda d, m: ProgressionAnalysis(d).run(), campaign_only=True
+                root,
+                project,
+                args.out,
+                lambda d, m: ProgressionAnalysis(d).run(),
+                campaign_only=True,
             )
         elif args.command == "sync":
-            project = args.project.resolve()
-            payload, code = report(root, None, lambda d, m: DriftCheck(d, project).run())
+            payload, code = report(root, project, None, lambda d, m: DriftCheck(d, project).run())
         elif args.command == "handoff":
-            payload, code = handoff(root, args.contract)
+            payload, code = handoff(root, project, args.contract)
         elif args.command == "render":
             payload, code = report(
                 root,
+                project,
                 None,
                 lambda d, m: _rendered(Renderer(d, args.runs, args.seed).write(args.out)),
                 campaign_only=True,
             )
         elif args.command == "simulate":
             payload, code = report(
-                root, args.out, lambda d, m: m.simulate(args.runs, args.seed), simulates=True
+                root,
+                project,
+                args.out,
+                lambda d, m: m.simulate(args.runs, args.seed),
+                simulates=True,
             )
             # The route of every terminal is in --out; the line stays short.
             for terminal in payload.get("terminals", []):
                 terminal.pop("route", None)
         else:
-            payload, code = validate(root)
+            payload, code = validate(root, project)
     except ContractError as error:
         return _emit(
             {"cmd": args.command, "ok": False, "reason": "setup", "detail": str(error)}, EXIT_SETUP

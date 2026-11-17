@@ -73,7 +73,7 @@ A topic id, a pair of documents that disagree, or nothing (then list the canon).
    designkit validate --project P
    ```
 
-   A `duplicate_id` on `canon.json` means a topic is listed twice; merge the entries after asking which owner stays.
+   A `duplicate_id` on `canon.json` means a topic is listed twice; merge the entries after asking which owner stays. A `missing_owner` means the owner path does not exist under the project. Without `design/design.json` the canon is still checked and a `not_checked` warning says the frame was skipped.
 
 1. Report one line per topic touched:
 
@@ -114,5 +114,5 @@ A topic id, a pair of documents that disagree, or nothing (then list the canon).
 
 - **No `design/canon.json`**: the project has no canon yet; propose the first topics from the documents and decisions that exist, and write the file once the owner agrees.
 - **`unknown_topic` on a decision or contract**: add the topic with an owner, or correct the record's `topic` when it was a typo.
-- **The owner document is missing on disk**: report it and ask which document owns the topic now.
+- **The owner document is missing on disk** (`missing_owner`): report it and ask which document owns the topic now.
 - **The owner cannot be asked**: report the contradiction and the candidate owners, and leave the canon unchanged.

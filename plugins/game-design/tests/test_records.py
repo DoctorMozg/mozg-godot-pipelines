@@ -17,7 +17,8 @@ LEAK = {
 
 
 def records_of(builder: DesignBuilder) -> tuple[Records, list[tuple[str, str]]]:
-    records, findings = RecordLoader(builder.root).load(load(builder).contract_fields)
+    loader = RecordLoader(builder.root, builder.root.parent)
+    records, findings = loader.load(load(builder).contract_fields)
     return records, [(f.rule, f.where) for f in findings]
 
 
@@ -104,6 +105,24 @@ class TestChecks:
         design.node("start")
         design.canon(("survival", "a.md"), ("survival", "b.md"))
         assert records_of(design)[1] == [("duplicate_id", "canon.json")]
+
+    def test_owner_document_must_exist_in_the_project(self, design: DesignBuilder) -> None:
+        design.node("start")
+        design.canon(("survival", "docs/missing.md"))
+        (design.root.parent / "docs" / "missing.md").unlink()
+        loader = RecordLoader(design.root, design.root.parent)
+        _, findings = loader.load(load(design).contract_fields)
+        assert [(f.rule, f.where) for f in findings] == [("missing_owner", "canon.json")]
+        assert "docs/missing.md" in findings[0].detail
+
+    def test_validate_reports_a_missing_owner(
+        self, design: DesignBuilder, run_cli: CliRunner
+    ) -> None:
+        design.node("start")
+        design.canon(("survival", "docs/missing.md"))
+        (design.root.parent / "docs" / "missing.md").unlink()
+        code, payload = run_cli("validate")
+        assert (code, payload["ok"], payload["findings"][0]["rule"]) == (1, False, "missing_owner")
 
     def test_validate_reports_record_errors(self, alone: DesignBuilder, run_cli: CliRunner) -> None:
         alone.decision("0004-open", status="open", chosen="Every 2 h")

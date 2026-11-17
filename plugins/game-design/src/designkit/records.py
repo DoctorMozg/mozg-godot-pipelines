@@ -83,8 +83,9 @@ class Records:
 
 
 class RecordLoader:
-    def __init__(self, root: Path, schema_dir: Path = SCHEMA_DIR) -> None:
+    def __init__(self, root: Path, project: Path, schema_dir: Path = SCHEMA_DIR) -> None:
         self._root = root
+        self._project = project
         self._reader = EntityReader(root)
         self._contracts = {
             n: Contract.load(n, schema_dir) for n in ("decision", "canon", "contract")
@@ -98,6 +99,7 @@ class RecordLoader:
             canon = self._reader.read(self._root / CANON_FILE, self._contracts["canon"], findings)
             if canon is not None:
                 topics, duplicates = topics_of(canon)
+                findings += self._missing_owners(topics)
                 for topic_id in duplicates:
                     detail = f"topic {topic_id!r} twice"
                     findings.append(Finding("error", "duplicate_id", CANON_FILE, detail))
@@ -121,6 +123,14 @@ class RecordLoader:
             len(records.decisions), len(records.topics), len(records.contracts),
         )  # fmt: skip
         return records, findings
+
+    def _missing_owners(self, topics: list[Topic]) -> list[Finding]:
+        # Owners are project-relative paths, so they resolve against the project, not design/.
+        return [
+            Finding("error", "missing_owner", CANON_FILE, f"topic {t.id!r}: no file {t.owner}")
+            for t in topics
+            if not (self._project / t.owner).is_file()
+        ]
 
 
 class RecordCheck:

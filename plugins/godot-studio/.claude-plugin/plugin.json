@@ -1,6 +1,6 @@
 {
   "name": "godot-studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Team orchestration for Godot projects: file-owned lanes in warm worktrees, ownership and frozen-test guards, a verified merge queue and architecture decision records",
   "author": {
     "name": "Stanislav Gonorovskii",

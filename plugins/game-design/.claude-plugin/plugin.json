@@ -1,6 +1,6 @@
 {
   "name": "game-design",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Game design for Godot projects: decisions, canon and contracts as JSON records, progression graphs analyzed and simulated, combat balance models, sourced research and SVG charts for the review hub",
   "author": {
     "name": "Stanislav Gonorovskii",

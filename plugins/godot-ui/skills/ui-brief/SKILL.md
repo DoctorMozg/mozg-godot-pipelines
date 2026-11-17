@@ -38,7 +38,7 @@ The surface to brief or restyle and the project path (the folder with `project.g
 
 ## Core Process
 
-1. **Read what exists.** `uikit lint`; a project without `ui/tokens.json` starts from the shapes in `references/records.md`. Read any existing UI scenes and theme so the brief describes the game, not a template.
+1. **Read what exists.** `uikit lint`; a project without `ui/tokens.json` starts from the shapes in `references/records.md`. Read any existing UI scenes and theme so the brief describes the game, not a template. A hand-made Theme becomes the first tokens with `uikit tokens import <theme.tres>`; each `unmapped` item it names is kept by hand in the scenes or dropped with the owner, and the generated theme replaces the old one only after a capture comparison.
 
 1. **Ask at most five questions, each with a default.** Input devices (default: mouse and keyboard, plus gamepad if the game ships on a console or Steam Deck); capture sizes (default: `1280x720`, `1920x1080`, `2560x1080`); minimum font px; minimum target px; the states the surface shows. Quote the default with its source, so the owner can answer "default".
 
@@ -97,4 +97,5 @@ The surface to brief or restyle and the project path (the folder with `project.g
 - **lint `min_font_px` with "under"**: a font token is smaller than the brief allows; raise the token or change the brief with the owner.
 - **lint `strings`**: a screen key is not in the l10n namespace; add it with `l10n-strings` before the screen is built.
 - **lint `variation`**: a component names a variation the tokens lack, or one on another base class.
+- **tokens import `exists`**: `ui/tokens.json` is already there; import never overwrites it, so move it aside first.
 - **`setup` naming l10nkit**: the brief names a namespace but godot-l10n is not installed; install it or set `L10NKIT`.

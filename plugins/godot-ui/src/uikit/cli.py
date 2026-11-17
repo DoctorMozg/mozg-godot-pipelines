@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from uikit.capture import Capture, Kits
+from uikit.importer import import_theme
 from uikit.judge import KINDS, JudgeSheets
 from uikit.kits import Kit, ToolFailed, ToolMissing, l10n_keys
 from uikit.layout import LayoutCheck
@@ -34,8 +35,9 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     add = functools.partial(commands.add_parser, parents=[shared])
     add("lint", help="check ui/tokens.json, every brief and every screen")
-    tokens = add("tokens", help="tokens.css, or contrast of the declared pairs")
-    tokens.add_argument("action", choices=("css", "contrast"))
+    tokens = add("tokens", help="tokens.css, contrast of the pairs, or tokens from a Theme")
+    tokens.add_argument("action", choices=("css", "contrast", "import"))
+    tokens.add_argument("theme", nargs="?", help="Theme .tres to import, path or res://")
     tokens.add_argument("--brief", help="brief whose contrast targets apply (contrast)")
     add("theme", help="write ui/build/theme.tres from the tokens")
     add("scan", help="check project.godot, the screens' scenes and scripts")
@@ -108,6 +110,22 @@ def _tokens(records: UiRecords, action: str, brief: str | None) -> int:
     return EXIT_OK if ok else EXIT_FAILED
 
 
+def _import(project: Path, theme: str | None) -> int:
+    if not theme:
+        raise RecordsError("tokens import needs the Theme .tres to read")
+    source = project / theme.removeprefix("res://") if theme.startswith("res://") else Path(theme)
+    path, unmapped = import_theme(project, source)
+    emit(
+        {
+            "cmd": "tokens",
+            "ok": not unmapped,
+            "tokens": str(path.relative_to(project)),
+            "unmapped": unmapped,
+        }
+    )
+    return EXIT_FAILED if unmapped else EXIT_OK
+
+
 def main(argv: Sequence[str]) -> int:
     args = _parser().parse_args(list(argv))
     logging.basicConfig(
@@ -117,6 +135,8 @@ def main(argv: Sequence[str]) -> int:
     )
     project = args.project.resolve()
     try:
+        if args.command == "tokens" and args.action == "import":
+            return _import(project, args.theme)
         records = UiRecords(project)
         if args.command == "prototype":
             kit = Kit("l10nkit", "godot-l10n", os.environ)

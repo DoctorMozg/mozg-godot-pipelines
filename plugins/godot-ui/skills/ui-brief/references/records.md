@@ -48,6 +48,7 @@ All three are JSON written by hand or by the agent and checked by `uikit lint`.
 - `stylebox` as one name fills normal, hover and pressed; as a map it fills the slots it names, such as `disabled`, `focus`, or `panel` for a PanelContainer. Without a `focus` slot the outline stays Godot's.
 - `constants` sets theme constants (`separation`, `margin_left`, `h_separation`) to a whole number or a `space` token. `color_items` sets other named colours that scripts read with `get_theme_color`.
 - `border_px` and `margin_px` take one whole px or one per side; 0 is allowed, as a hand-made Theme writes margins of 0.
+- `uikit tokens import <theme.tres>` writes these tokens from a hand-made Theme: colours named by their hex, StyleBoxes by their ids, font roles by file and size. It exits 1 and lists under `unmapped` every item without a field (icons, shadows, other StyleBox kinds); AloneGodot's 62-item `table_ui.tres` came back with none, and its regenerated Theme matched it item by item in Godot 4.7.2 (2026-11-17).
 - `min_font_px` is in window pixels: `uikit check` scales each font token by window/canvas at every size, so a 22 px token on a 1920x1080 base fails 18 at 1280x720 (14.7 px).
 - Godot 4.7.2 loaded the written Theme and applied a variation's colour, border and radius to a Button (2026-11-15); it read back the default font, a FontVariation, a disabled colour, a focus box, alpha, per-side margins, constants and a named colour item (2026-11-17).
 

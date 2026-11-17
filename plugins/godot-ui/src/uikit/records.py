@@ -6,30 +6,19 @@ import json
 import logging
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeGuard
+
+from uikit.schema import Finding, Json, TokenLint, positive, table
 
 log = logging.getLogger(__name__)
-
-# Any: JSON documents as read; every field is checked before it is used.
-Json = Any
 
 BRIEF_DIR = Path("ui") / "briefs"
 TOKENS_FILE = Path("ui") / "tokens.json"
 SCREEN_DIR = Path("ui") / "screens"
 DEVICES = ("mouse", "keyboard", "gamepad", "touch")
-STYLEBOX_COLOURS = ("bg", "border")
-STYLEBOX_SIZES = ("border_px", "radius_px", "margin_px")
-_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _SIZE = re.compile(r"^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$")
 
-
-@dataclass(frozen=True)
-class Finding:
-    file: str
-    rule: str
-    detail: str
+__all__ = ["Finding", "Json", "RecordsError", "UiRecords"]
 
 
 class RecordsError(ValueError):
@@ -43,15 +32,6 @@ def _read(path: Path) -> Json:
         raise RecordsError(f"{path} is missing") from error
     except ValueError as error:
         raise RecordsError(f"{path} is not valid JSON: {error}") from error
-
-
-def _table(doc: Json, key: str) -> dict[str, Json]:
-    value = doc.get(key, {}) if isinstance(doc, dict) else {}
-    return value if isinstance(value, dict) else {}
-
-
-def _positive(value: Json) -> TypeGuard[int]:
-    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 class UiRecords:
@@ -73,11 +53,11 @@ class UiRecords:
 
     @property
     def colours(self) -> dict[str, Json]:
-        return _table(self.tokens, "color")
+        return table(self.tokens, "color")
 
     @property
     def variations(self) -> dict[str, Json]:
-        return _table(self.tokens, "variations")
+        return table(self.tokens, "variations")
 
     def string_keys(self) -> dict[str, set[str]]:
         """Keys each l10n namespace must hold: the strings of every screen whose brief names one."""
@@ -91,7 +71,7 @@ class UiRecords:
 
     def lint(self, known_keys: Mapping[str, set[str]] | None = None) -> list[Finding]:
         """Every problem of the records; `known_keys` maps an l10n namespace to its keys."""
-        findings = self._tokens()
+        findings = TokenLint(self.tokens, self.project).run()
         for surface, brief in self.briefs.items():
             findings += self._brief(surface, brief)
         for screen_id, screen in self.screens.items():
@@ -109,58 +89,6 @@ class UiRecords:
             len(findings),
         )
         return findings
-
-    def _tokens(self) -> list[Finding]:
-        name = TOKENS_FILE.as_posix()
-        out = [
-            Finding(name, "color", f"{key}: {value!r} is not #rrggbb")
-            for key, value in self.colours.items()
-            if not (isinstance(value, str) and _HEX.match(value))
-        ]
-        for group in ("space", "font"):
-            for key, value in _table(self.tokens, group).items():
-                size = (
-                    value.get("size_px") if group == "font" and isinstance(value, dict) else value
-                )
-                if not _positive(size):
-                    out.append(Finding(name, group, f"{key}: size must be a positive whole px"))
-        for pair in self.tokens.get("contrast_pairs", []) if isinstance(self.tokens, dict) else []:
-            known = isinstance(pair, dict) and {pair.get("fg"), pair.get("bg")} <= set(self.colours)
-            if not known or pair.get("kind") not in ("text", "nontext"):
-                out.append(
-                    Finding(
-                        name, "contrast_pairs", f"{pair}: fg, bg colours and kind text or nontext"
-                    )
-                )
-        for key, box in _table(self.tokens, "stylebox").items():
-            out += self._stylebox(name, key, box)
-        boxes, fonts = _table(self.tokens, "stylebox"), _table(self.tokens, "font")
-        for key, variation in self.variations.items():
-            if not isinstance(variation, dict) or not isinstance(variation.get("base"), str):
-                out.append(Finding(name, "variation", f"{key} needs a base Control class"))
-                continue
-            refs = (("font", fonts), ("stylebox", boxes), ("color", self.colours))
-            for field, table in refs:
-                if field in variation and variation[field] not in table:
-                    out.append(
-                        Finding(name, "variation", f"{key}: no {field} {variation[field]!r}")
-                    )
-        return out
-
-    def _stylebox(self, name: str, key: str, box: Json) -> list[Finding]:
-        if not isinstance(box, dict):
-            return [Finding(name, "stylebox", f"{key} is not an object")]
-        out = [
-            Finding(name, "stylebox", f"{key}: no color {box[f]!r} for {f}")
-            for f in STYLEBOX_COLOURS
-            if f in box and box[f] not in self.colours
-        ]
-        out += [
-            Finding(name, "stylebox", f"{key}: {f} must be a positive whole px")
-            for f in STYLEBOX_SIZES
-            if f in box and not _positive(box[f])
-        ]
-        return out
 
     def _brief(self, surface: str, brief: Json) -> list[Finding]:
         name = (BRIEF_DIR / f"{surface}.json").as_posix()
@@ -182,7 +110,7 @@ class UiRecords:
         if not isinstance(brief.get("states"), list) or not brief["states"]:
             out.append(Finding(name, "states", "needs the states the surface shows"))
         for field in ("min_font_px", "min_target_px"):
-            if not _positive(brief.get(field)):
+            if not positive(brief.get(field)):
                 out.append(Finding(name, field, "is required: no default ships (sources conflict)"))
         contrast = brief.get("contrast")
         for part in ("text", "nontext"):
@@ -190,9 +118,9 @@ class UiRecords:
             if not isinstance(value, (int, float)) or value < 1:
                 out.append(Finding(name, "contrast", f"{part} needs a ratio of at least 1"))
         min_font = brief.get("min_font_px")
-        for role, font in _table(self.tokens, "font").items():
+        for role, font in table(self.tokens, "font").items():
             size = font.get("size_px") if isinstance(font, dict) else None
-            if _positive(size) and _positive(min_font) and size < min_font:
+            if positive(size) and positive(min_font) and size < min_font:
                 out.append(
                     Finding(name, "min_font_px", f"font {role} is {size} px, under {min_font}")
                 )

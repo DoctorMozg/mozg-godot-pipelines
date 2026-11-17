@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from uifixtures import tokens_doc, write
+from uifixtures import mirror_doc, tokens_doc, write
 from uikit.cli import EXIT_OK, EXIT_REFUSED, main
 from uikit.records import UiRecords
 from uikit.theme import THEME_FILE, ThemeWriter
@@ -72,3 +72,48 @@ class TestCommand:
         write(ui, "ui/tokens.json", tokens_doc() | {"variations": {"Bad": {}}})
         assert self.run(ui, capsys)[0] == EXIT_REFUSED
         assert not (ui / THEME_FILE).exists()
+
+
+class TestMirrorFields:
+    """What a hand-made Theme needs; Godot 4.7.2 read each item back from this file (2026-11-17)."""
+
+    @pytest.fixture
+    def text(self, ui: Path) -> str:
+        write(ui, "ui/tokens.json", mirror_doc(ui))
+        return ThemeWriter(UiRecords(ui)).text()
+
+    def test_fonts_are_external_resources_by_their_own_type(self, text: str) -> None:
+        lines = text.splitlines()
+        assert lines[0] == '[gd_resource type="Theme" load_steps=6 format=3]'
+        assert lines[2:4] == [
+            '[ext_resource type="FontFile" path="res://fonts/body.ttf" id="font_1"]',
+            '[ext_resource type="FontVariation" path="res://fonts/heading.tres" id="font_2"]',
+        ]
+        assert {
+            'default_font = ExtResource("font_1")',
+            'Title/fonts/font = ExtResource("font_2")',
+            "Title/font_sizes/font_size = 20",
+        } <= set(lines)
+
+    def test_built_in_type_takes_only_the_states_it_names(self, text: str) -> None:
+        button = [line for line in text.splitlines() if line.startswith("Button/")]
+        assert button == [
+            "Button/colors/font_color = Color(0.101961, 0.101961, 0.101961, 1)",
+            "Button/colors/font_hover_color = Color(0.752941, 0.188235, 0.188235, 1)",
+            "Button/colors/font_disabled_color = Color(0.956863, 0.937255, 0.894118, 1)",
+            'Button/styles/focus = SubResource("StyleBoxFlat_focus")',
+            'Button/styles/normal = SubResource("StyleBoxFlat_panel")',
+        ]
+
+    def test_alpha_sides_slots_constants_and_colour_items(self, text: str) -> None:
+        lines = set(text.splitlines())
+        assert {
+            "bg_color = Color(0.07451, 0.078431, 0.082353, 0.521569)",
+            "content_margin_left = 12",
+            "content_margin_top = 8",
+            "corner_radius_top_left = 0",
+            'Card/styles/panel = SubResource("StyleBoxFlat_glass")',
+            "Stack/constants/margin_top = 0",
+            "Stack/constants/separation = 8",
+            "Title/colors/reject_modulate = Color(0.811765, 0.533333, 0.286275, 1)",
+        } <= lines

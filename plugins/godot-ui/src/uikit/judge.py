@@ -8,6 +8,7 @@ from pathlib import Path
 
 from uikit.layout import LayoutCheck
 from uikit.records import Json, RecordsError, UiRecords
+from uikit.schema import resting
 
 log = logging.getLogger(__name__)
 
@@ -101,12 +102,10 @@ class JudgeSheets:
     def _variation(self, name: str) -> str:
         """A variation in words and hex, so the judge can compare it with what is drawn."""
         variation, colours = self.records.variations[name], self.records.colours
-        box = self.records.tokens.get("stylebox", {}).get(variation.get("stylebox"), {})
-        parts = (
-            [f"text {variation['color']} {colours[variation['color']]}"]
-            if "color" in variation
-            else []
-        )
+        text = resting(variation.get("color"), ("normal",))
+        rest = resting(variation.get("stylebox"), ("normal", "panel"))
+        box = self.records.tokens.get("stylebox", {}).get(rest, {})
+        parts = [f"text {text} {colours[text]}"] if text else []
         parts += [
             f"box {part} {box[part]} {colours[box[part]]}"
             for part in ("bg", "border")

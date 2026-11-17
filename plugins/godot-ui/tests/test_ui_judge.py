@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from uifixtures import brief_doc, write
+from uifixtures import brief_doc, mirror_doc, write
 from uikit.cli import EXIT_OK, EXIT_REFUSED, main
 from uikit.judge import JUDGING_DIR, JudgeSheets
 from uikit.records import RecordsError, UiRecords
@@ -68,6 +68,11 @@ class TestConformance:
         legend = "DangerButton on Button (text danger #c03030, box bg paper #f4efe4, box border ink"
         assert legend in text
         assert "H2" not in text
+
+    def test_state_maps_show_the_resting_look(self, ui: Path, shots: Path) -> None:
+        write(ui, "ui/tokens.json", mirror_doc(ui))
+        text, _ = sheet(ui, shots, "conformance")
+        assert "Card on PanelContainer (box bg glass #13141585)" in text
 
 
 def test_missing_capture_is_refused(ui: Path, shots: Path) -> None:

@@ -34,6 +34,38 @@ def tokens_doc() -> Doc:
     }
 
 
+def mirror_doc(project: Path) -> Doc:
+    """Tokens using every field a hand-made Theme needs, with the two font files they name."""
+    (project / "fonts").mkdir(exist_ok=True)
+    (project / "fonts/body.ttf").write_bytes(b"\0\1\0\0")
+    (project / "fonts/heading.tres").write_text(
+        '[gd_resource type="FontVariation" format=3]\n', encoding="utf-8"
+    )
+    doc = tokens_doc()
+    doc["color"] |= {"glass": "#13141585", "clear": "#00000000", "warm": "#cf8849"}
+    doc["font"] = {
+        "body": {"size_px": 16, "file": "res://fonts/body.ttf"},
+        "heading": {"size_px": 20, "file": "res://fonts/heading.tres"},
+    }
+    doc["stylebox"] |= {
+        "glass": {"bg": "glass", "margin_px": {"left": 12, "top": 8, "right": 12, "bottom": 8}},
+        "focus": {"bg": "clear", "border": "warm", "border_px": 2, "radius_px": 0},
+    }
+    doc["types"] = {
+        "Button": {
+            "color": {"normal": "ink", "hover": "danger", "disabled": "paper"},
+            "stylebox": {"normal": "panel", "focus": "focus"},
+        },
+    }
+    doc["variations"] |= {
+        "Card": {"base": "PanelContainer", "stylebox": {"panel": "glass"}},
+        "Stack": {"base": "VBoxContainer", "constants": {"separation": "m", "margin_top": 0}},
+        "Title": {"base": "Label", "font": "heading", "color_items": {"reject_modulate": "warm"}},
+    }
+    doc["contrast_pairs"].append({"fg": "ink", "bg": "glass", "ground": "paper", "kind": "text"})
+    return doc
+
+
 def brief_doc(**changes: object) -> Doc:
     brief: Doc = {
         "title": "In-game HUD",

@@ -81,8 +81,17 @@ class Statement:
     def line_at(self, offset: int) -> int:
         return max((number for start, number in self.starts if start <= offset), default=self.line)
 
-    def commented(self, line: int) -> bool:
-        return line in self.comments or line - 1 in self.comments
+    def commented(self, offset: int) -> bool:
+        """A comment from the line above the code at `offset` to the line its bracket group closes;
+        gdformat moves a trailing comment there, after the group's `)`."""
+        end, level = len(self.bare), 0
+        for index in range(offset, len(self.bare)):
+            level += (self.bare[index] in "([{") - (self.bare[index] in ")]}")
+            if level < 0:
+                end = index
+                break
+        line = self.line_at(offset)
+        return any(line - 1 <= number <= self.line_at(end) for number in self.comments)
 
     def ignores(self, rule: str) -> bool:
         # gdformat moves comments inside brackets, so any line of the statement may hold the mark.
@@ -188,11 +197,11 @@ def _statement_rules(statement: Statement) -> Iterator[tuple[str, int, str]]:
         message = f'{match["call"]}("…") skips the compile-time signal check'
         yield "string-signal", match.start(), message
     for match in _FREE.finditer(statement.bare):
-        if not statement.commented(statement.line_at(match.start())):
+        if not statement.commented(match.start()):
             message = "free() without a comment; use queue_free() or say why"
             yield "bare-free", match.start(), message
     for match in _MATERIAL_DUPLICATE.finditer(statement.bare):
-        if not statement.commented(statement.line_at(match.start())):
+        if not statement.commented(match.start()):
             message = "material duplicate() per spawn; use an instance uniform or say why"
             yield "material-duplicate", match.start(), message
     for match in _CREATE_TIMER.finditer(statement.bare):

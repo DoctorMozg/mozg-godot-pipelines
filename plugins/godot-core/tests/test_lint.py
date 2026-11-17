@@ -83,6 +83,18 @@ class TestStatementRules:
         later = "\tvar a: int = 1  # godotkit:ignore=get-parent\n\tget_parent().hide()\n"
         assert _rules(later) == ["get-parent"]
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            # gdformat 4.5 moved the reason after the group's `)` (AloneGodot, 2026-11-17).
+            "\tmesh.material_override = (\n\t\tbase_mat.duplicate()\n\t)  # tinted per spawn\n",
+            "\tqueue.append(\n\t\tchild.free()\n\t)  # freed now: the pool reuses its id\n",
+            "\t# The pool reuses its id.\n\tchild.free()\n",
+        ],
+    )
+    def test_reason_after_the_group_close_counts(self, body: str) -> None:
+        assert _rules(body) == []
+
     def test_finding_in_a_multiline_lambda_names_its_own_line(self) -> None:
         source = (
             "extends Node\n\n\nfunc _ready() -> void:\n\tbutton.pressed.connect(\n"

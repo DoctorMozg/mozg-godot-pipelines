@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import re
@@ -10,6 +11,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from godotkit.depgraph import SIDECAR_SUFFIXES, DependencyGraph, normalize_changed
 from godotkit.display import NativeDisplay
@@ -33,7 +35,7 @@ DEFAULT_SUMMARIES = (
 
 SCENE_SUFFIXES = (".tscn", ".scn")
 TOP_KEYS = frozenset({"tests", "perf", "feel"})
-TEST_KEYS = frozenset({"roots", "allow", "allow_push_error", "entries"})
+TEST_KEYS = frozenset({"roots", "allow", "allow_push_error", "entries", "exclude"})
 ENTRY_KEYS = frozenset(
     {"script", "scene", "args", "native", "summary", "allow", "allow_push_error"}
 )
@@ -53,6 +55,7 @@ class SuiteEntry:
     allow: tuple[str, ...] = ()
     allow_push_error: bool = False
     framework: str | None = None
+    skip: str | None = None
 
     @property
     def name(self) -> str:
@@ -100,9 +103,11 @@ class EntryCatalog:
             for path, framework in self._discover(roots)
             if path not in listed
         ]
-        return tuple(sorted([*found, *configured], key=lambda entry: entry.name))
+        excluded = _exclusions(config.get("exclude", {}))
+        every = sorted([*found, *configured], key=lambda entry: entry.name)
+        return tuple(replace(entry, skip=_reason(excluded, entry.path)) for entry in every)
 
-    def _config(self) -> dict[str, list[object]]:
+    def _config(self) -> dict[str, Any]:
         path = self._project / CONFIG_FILE
         if not path.is_file():
             return {}
@@ -226,6 +231,8 @@ class SuiteRunner:
         return results
 
     def _one(self, project: Path, entry: SuiteEntry, native: NativeDisplay | None) -> EntryResult:
+        if entry.skip is not None:
+            return EntryResult(entry, None, None, skipped=entry.skip)
         if entry.native and native is None:
             return EntryResult(entry, None, None, skipped="native")
         if entry.framework is not None:
@@ -296,6 +303,22 @@ def _flag(raw: Mapping[str, object], key: str, default: bool) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{CONFIG_FILE}: '{key}' must be true or false, got {value!r}")
     return value
+
+
+def _exclusions(raw: object) -> dict[str, str]:
+    reasons = isinstance(raw, dict) and all(
+        isinstance(pattern, str) and isinstance(why, str) and why.strip()
+        for pattern, why in raw.items()
+    )
+    if not isinstance(raw, dict) or not reasons:
+        raise ValueError(f"{CONFIG_FILE}: 'exclude' must map path globs to a reason, got {raw!r}")
+    return dict(raw)
+
+
+def _reason(excluded: Mapping[str, str], path: str) -> str | None:
+    return next(
+        (why for pattern, why in excluded.items() if fnmatch.fnmatchcase(path, pattern)), None
+    )
 
 
 def _patterns(raw: object, what: str) -> tuple[str, ...]:

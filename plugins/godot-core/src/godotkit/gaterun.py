@@ -134,6 +134,7 @@ class Gate:
         detail: dict[str, object] = {
             "ran": len(ran),
             "skipped": len(results) - len(ran),
+            "skipped_why": {r.entry.name: r.skipped for r in results if r.skipped},
             "checks": checks,
             "failed": failed,
             "why": {result.entry.name: failure_note(self._project, result) for result in broken},

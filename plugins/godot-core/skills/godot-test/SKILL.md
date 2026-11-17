@@ -79,6 +79,8 @@ What to test (a script, a class, a reported bug) or the failing entry's path. Th
 
 1. An assertion that depends on real rendering (instance transforms, shader output, pixel colours) goes in an entry marked `"native": true`. `godotkit test` skips it unless run with `--native` on a machine with a display; the report lists it as skipped, not as passed.
 
+1. A script under the test roots that is not a test for this gate (a benchmark that needs a GPU or environment variables) is excluded in `godotkit.json`, with the reason: `"tests": {"exclude": {"tests/bench/*.gd": "needs a GPU and env vars"}}`. It stays listed and is reported as skipped with that reason, in `godotkit test` and in the gate's `test` step (`skipped_why`). `native` is for tests that run, on a display.
+
 1. Report the failing run, the passing run and every changed `godotkit.json` entry, then hand the change to `godot-verify`.
 
 ## Techniques
@@ -115,7 +117,7 @@ What to test (a script, a class, a reported bug) or the failing entry's path. Th
 
 - The report quotes the `godotkit test` line of the failing run (`"reason": "test_failures"` or the error kind) and of the passing run (`"ok": true` with `failed` at 0).
 - `godotkit test --project P --changed <code file>` passes for every changed source file.
-- Skipped native entries are named in the report with the reason `native`.
+- Skipped native entries are named in the report with the reason `native`; excluded entries with their `exclude` reason.
 
 ## Error Handling
 

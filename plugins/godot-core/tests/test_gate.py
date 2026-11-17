@@ -182,6 +182,20 @@ class TestGateCli:
         test = _step(payload, "test")
         assert (code, test["status"], test["detail"]["checks"]) == (0, "pass", 3)
 
+    def test_excluded_entry_is_skipped_with_its_reason_and_cannot_fail_the_gate(
+        self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
+    ) -> None:
+        (git_project / "tests").mkdir()
+        (git_project / "tests" / "a_test.gd").write_text("extends SceneTree\n")
+        (git_project / "tests" / "bench.gd").write_text("extends SceneTree\n")
+        config = {"tests": {"exclude": {"tests/bench.gd": "needs a GPU"}}}
+        (git_project / "godotkit.json").write_text(json.dumps(config))
+        godot = fake_godot(PARSE_OK + "Alpha: 3 checks, 0 failures.\n")
+        code, payload = run_cli(["gate", "--project", str(git_project)], godot)
+        detail = _step(payload, "test")["detail"]
+        assert (code, detail["ran"], detail["skipped"]) == (0, 1, 1)
+        assert detail["skipped_why"] == {"tests/bench.gd": "needs a GPU"}
+
     def test_failed_entry_says_why(
         self, git_project: Path, run_cli: CliRunner, fake_godot: FakeGodotFactory
     ) -> None:

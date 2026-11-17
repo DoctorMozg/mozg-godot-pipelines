@@ -82,6 +82,33 @@ class TestCatalog:
         ]
         assert entries[-1].native
 
+    def test_excluded_entries_stay_listed_with_their_reason(self, suite: Path) -> None:
+        (suite / CONFIG_FILE).write_text(
+            json.dumps({"tests": {"exclude": {"tests/b_*.gd": "needs a GPU and env vars"}}})
+        )
+        skips = {entry.name: entry.skip for entry in EntryCatalog(suite).entries()}
+        assert skips == {"tests/a_test.gd": None, "tests/b_test.gd": "needs a GPU and env vars"}
+
+    def test_exclude_also_covers_configured_entries(self, suite: Path) -> None:
+        (suite / CONFIG_FILE).write_text(
+            json.dumps(
+                {
+                    "tests": {
+                        "entries": [{"script": "tests/helper.gd"}],
+                        "exclude": {"tests/helper.gd": "bench"},
+                    }
+                }
+            )
+        )
+        helper = next(e for e in EntryCatalog(suite).entries() if e.path == "tests/helper.gd")
+        assert helper.skip == "bench"
+
+    @pytest.mark.parametrize("exclude", [["tests/a_test.gd"], {"tests/a_test.gd": ""}])
+    def test_exclude_must_map_patterns_to_reasons(self, suite: Path, exclude: object) -> None:
+        (suite / CONFIG_FILE).write_text(json.dumps({"tests": {"exclude": exclude}}))
+        with pytest.raises(ValueError, match="'exclude'"):
+            EntryCatalog(suite).entries()
+
     def test_scene_entries_run_as_the_main_scene(self, suite: Path) -> None:
         (suite / "tests" / "boot.tscn").write_text("[gd_scene format=3]\n")
         _configure(suite, [{"scene": "tests/boot.tscn", "args": ["--quit-after", "9"]}])
@@ -176,6 +203,14 @@ class TestRuns:
         assert ran.run is not None
         assert "--headless" not in ran.run.command
         assert "--display-driver x11" in " ".join(ran.run.command)
+
+    def test_excluded_entries_are_skipped_with_the_reason_not_run(
+        self, fake_godot: FakeGodotFactory, suite: Path
+    ) -> None:
+        excluded = SuiteEntry("tests/a_test.gd", skip="needs a GPU")
+        runner = SuiteRunner(GodotRunner(fake_godot("1 checks, 0 failures\n")), 1, 30)
+        [result] = runner.run(suite, [excluded], native=DISPLAY)
+        assert (result.skipped, result.run, result.verdict) == ("needs a GPU", None, None)
 
     def test_parallel_runs_get_separate_user_data(
         self, fake_godot: FakeGodotFactory, suite: Path

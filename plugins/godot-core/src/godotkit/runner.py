@@ -17,6 +17,9 @@ from godotkit.locate import GodotBinary
 log = logging.getLogger(__name__)
 
 
+TMP_TOKEN = "{tmp}"
+
+
 @dataclass(frozen=True)
 class RunRequest:
     project: Path
@@ -24,6 +27,8 @@ class RunRequest:
     timeout_s: float = 120.0
     # None runs headless; a display renders for real.
     display: NativeDisplay | None = None
+    # Extra environment; "{tmp}" in a value becomes a folder that lives for this run only.
+    env: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -56,7 +61,7 @@ class GodotRunner:
         _check(request)
         command = self.command_for(request)
         with tempfile.TemporaryDirectory(prefix="godotkit-user-") as scratch:
-            env = self._isolated_env(Path(scratch))
+            env = self._isolated_env(Path(scratch), request.env)
             log.info("running %s", " ".join(command))
             started = time.monotonic()
             try:
@@ -93,16 +98,24 @@ class GodotRunner:
         command = self.command_for(request)
         log.info("starting %s", " ".join(command))
         return subprocess.Popen(
-            command, env=self._isolated_env(scratch), stdout=log_file, stderr=subprocess.STDOUT
+            command,
+            env=self._isolated_env(scratch, request.env),
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
         )
 
-    def _isolated_env(self, scratch: Path) -> dict[str, str]:
+    def _isolated_env(
+        self, scratch: Path, extra: tuple[tuple[str, str], ...] = ()
+    ) -> dict[str, str]:
         env = dict(self._base_env)
         # user:// resolves under XDG_DATA_HOME on Linux; settings and caches follow the other two.
         for name in ("XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
             folder = scratch / name.lower()
             folder.mkdir()
             env[name] = str(folder)
+        if any(TMP_TOKEN in value for _, value in extra):
+            (scratch / "tmp").mkdir()
+        env |= {name: value.replace(TMP_TOKEN, str(scratch / "tmp")) for name, value in extra}
         return env
 
 

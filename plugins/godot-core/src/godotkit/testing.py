@@ -37,11 +37,12 @@ SCENE_SUFFIXES = (".tscn", ".scn")
 TOP_KEYS = frozenset({"tests", "perf", "feel"})
 TEST_KEYS = frozenset({"roots", "allow", "allow_push_error", "entries", "exclude"})
 ENTRY_KEYS = frozenset(
-    {"script", "scene", "args", "native", "summary", "allow", "allow_push_error"}
+    {"script", "scene", "args", "env", "native", "summary", "allow", "allow_push_error"}
 )
 # Under --headless this signal never fires, so an entry awaiting it idles until the timeout.
 HEADLESS_STALL = "frame_post_draw"
 DURATIONS_FILE = Path(".godot") / "godotkit" / "durations.json"
+_ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,7 @@ class SuiteEntry:
     allow_push_error: bool = False
     framework: str | None = None
     skip: str | None = None
+    env: tuple[tuple[str, str], ...] = ()
 
     @property
     def name(self) -> str:
@@ -143,6 +145,7 @@ class EntryCatalog:
             summary,
             (*shared.allow, *_patterns(raw.get("allow", []), f"allow of {path}")),
             _flag(raw, "allow_push_error", shared.allow_push_error),
+            env=_env(raw.get("env", {}), path),
         )
 
     def _discover(self, roots: Iterable[object]) -> list[tuple[str, str | None]]:
@@ -238,7 +241,7 @@ class SuiteRunner:
         if entry.framework is not None:
             return self._suite(project, entry, FRAMEWORKS[entry.framework])
         display = native if entry.native else None
-        request = RunRequest(project, entry.godot_args(), self._timeout_s, display)
+        request = RunRequest(project, entry.godot_args(), self._timeout_s, display, entry.env)
         result = self._runner.run(request)
         verdict = _judge(entry, result.output, result.exit_code, result.timed_out)
         log.info("%s: %s in %.1f s", entry.name, verdict.reason, result.duration_s)
@@ -296,6 +299,14 @@ def _strings(raw: object, what: str) -> tuple[str, ...]:
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
         raise ValueError(f"{CONFIG_FILE}: '{what}' must be a list of strings")
     return tuple(raw)
+
+
+def _env(raw: object, path: str) -> tuple[tuple[str, str], ...]:
+    if not isinstance(raw, dict) or not all(
+        isinstance(k, str) and _ENV_NAME.match(k) and isinstance(v, str) for k, v in raw.items()
+    ):
+        raise ValueError(f"{CONFIG_FILE}: 'env' of {path} must map variable names to strings")
+    return tuple(sorted(raw.items()))
 
 
 def _flag(raw: Mapping[str, object], key: str, default: bool) -> bool:

@@ -116,12 +116,19 @@ class TestCatalog:
         assert scene.godot_args() == ("res://tests/boot.tscn", "--quit-after", "9")
         assert SuiteEntry("tests/a_test.gd").godot_args() == ("--script", "res://tests/a_test.gd")
 
+    def test_entry_env_is_read_sorted(self, suite: Path) -> None:
+        _configure(suite, [{"script": "tests/a_test.gd", "env": {"Z": "{tmp}", "A": "1"}}])
+        entry = next(e for e in EntryCatalog(suite).entries() if e.path == "tests/a_test.gd")
+        assert entry.env == (("A", "1"), ("Z", "{tmp}"))
+
     @pytest.mark.parametrize(
         ("raw", "message"),
         [
             ({"script": "tests/missing.gd"}, "no such file"),
             ({"script": "tests/a_test.gd", "allow": ["("]}, "bad 'allow of"),
             ({"script": "tests/a_test.gd", "args": "--wide"}, "list of strings"),
+            ({"script": "tests/a_test.gd", "env": {"A-B": "1"}}, "map variable names to strings"),
+            ({"script": "tests/a_test.gd", "env": {"N": 1}}, "map variable names to strings"),
             ({"args": []}, "needs a 'script' or 'scene'"),
             ({"script": "tests/a_test.gd", "native": "yes"}, "'native' must be true or false"),
             ({"script": "tests/a_test.gd", "nativ": True}, r"unknown keys \['nativ'\]"),
@@ -211,6 +218,21 @@ class TestRuns:
         runner = SuiteRunner(GodotRunner(fake_godot("1 checks, 0 failures\n")), 1, 30)
         [result] = runner.run(suite, [excluded], native=DISPLAY)
         assert (result.skipped, result.run, result.verdict) == ("needs a GPU", None, None)
+
+    def test_entry_env_reaches_godot_with_a_fresh_tmp_per_run(
+        self, fake_godot: FakeGodotFactory, suite: Path
+    ) -> None:
+        # AloneGodot's menu tests read a scenario id and an XDG sandbox from the environment.
+        env = (("SCENARIO", "menu_03"), ("SANDBOX", "{tmp}/saves"))
+        shell = 'echo "SCENARIO=$SCENARIO"; mkdir "$SANDBOX" && echo "SANDBOX=$SANDBOX"'
+        entries = [SuiteEntry("tests/a_test.gd", env=env), SuiteEntry("tests/b_test.gd", env=env)]
+        godot = GodotRunner(fake_godot("1 checks, 0 failures\n", shell=shell))
+        results = SuiteRunner(godot, 2, 30).run(suite, entries, native=None)
+        outputs = [result.run.output for result in results if result.run]
+        assert [_line(out, "SCENARIO=") for out in outputs] == ["SCENARIO=menu_03"] * 2
+        sandboxes = {_line(out, "SANDBOX=").split("=", 1)[1] for out in outputs}
+        assert len(sandboxes) == 2
+        assert all(box.endswith("/tmp/saves") and not Path(box).exists() for box in sandboxes)
 
     def test_parallel_runs_get_separate_user_data(
         self, fake_godot: FakeGodotFactory, suite: Path

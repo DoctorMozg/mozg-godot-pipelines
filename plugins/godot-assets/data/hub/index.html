@@ -8,8 +8,11 @@
     <link rel="stylesheet" href="app.css">
   </head>
   <body>
+    <div class="top">
     <header class="bar">
       <h1>Asset review</h1>
+      <input id="search" type="search" placeholder="Search title or id" aria-label="Search">
+      <label>Family <select id="family"></select></label>
       <label>Status
         <select id="filter">
           <option value="">all</option>
@@ -24,7 +27,25 @@
       </label>
       <span id="connection" class="connection" data-state="connecting">connecting</span>
     </header>
+    <div id="bulk" class="bulk" hidden>
+      <label><input id="select-shown" type="checkbox"> <span id="shown-count"></span></label>
+      <span id="selected-count" class="meta"></span>
+      <button type="button" class="btn approve" data-bulk="approve">Approve selected</button>
+      <button type="button" class="btn retake" data-bulk="retake">Retake selected…</button>
+      <button type="button" class="btn reject" data-bulk="reject">Reject selected</button>
+      <button type="button" class="btn" data-bulk="clear">Clear selection</button>
+      <span id="progress" class="meta" role="status"></span>
+      <div id="bulk-panel" class="bulk-panel" hidden>
+        <p id="bulk-question"></p>
+        <textarea id="bulk-hint" rows="2" placeholder="What should change compared to their current takes? Leave empty to just draw them again."></textarea>
+        <div class="row">
+          <button id="bulk-go" type="button" class="btn primary"></button>
+          <button id="bulk-cancel" type="button" class="btn">Cancel</button>
+        </div>
+      </div>
+    </div>
     <p id="message" class="message" role="status" hidden></p>
+    </div>
     <main id="grid" class="grid" aria-live="polite"></main>
     <section id="strings" class="strings" hidden>
       <h2>Strings</h2>
@@ -63,6 +84,7 @@
     <script src="viewers.js"></script>
     <script src="strings.js"></script>
     <script src="findings.js"></script>
+    <script src="bulk.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

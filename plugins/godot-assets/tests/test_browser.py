@@ -74,11 +74,104 @@ def test_review_round_trip_in_the_served_page(chrome: Chrome, hub: HubServer, la
     # Still the same document: the update came over the stream, not from a reload.
     assert chrome.evaluate(page, "window.loadedOnce") == "yes"
 
-    chrome.evaluate(page, f"{_card(lane, '[data-note]')}.value = 'too bright'")
-    chrome.evaluate(page, f"{_card(lane, '[data-action=retake]')}.click()")
+    _retake(chrome, page, lane, "too bright")
     chrome.wait_for(page, f"{_card(lane)}.dataset.status === 'retake'")
     assert _decisions(lane) == [("approve", None), ("retake", "too bright")]
     assert chrome.errors == []
+
+
+def _retake(chrome: Chrome, page: str, lane: Lane, hint: str) -> None:
+    chrome.evaluate(page, f"{_card(lane, '[data-action=retake]')}.click()")
+    chrome.evaluate(page, f"{_card(lane, '[data-hint]')}.value = {json.dumps(hint)}")
+    chrome.evaluate(page, f"{_card(lane, '[data-action=send-retake]')}.click()")
+
+
+class TestRetakeHint:
+    def test_an_empty_hint_asks_for_a_plain_retry(
+        self, chrome: Chrome, hub: HubServer, lane: Lane
+    ) -> None:
+        lane.version(tiny_png())
+        page = chrome.open(hub.url)
+        chrome.wait_for(page, f"{_card(lane)}?.dataset.status === 'pending_review'")
+        hidden = f"{_card(lane, '[data-form=retake]')}.hidden"
+        assert chrome.evaluate(page, hidden) is True
+        _retake(chrome, page, lane, "   ")
+        chrome.wait_for(page, f"{_card(lane)}.dataset.status === 'retake'")
+        assert _decisions(lane) == [("retake", None)]
+        assert chrome.evaluate(page, hidden) is True
+
+    def test_a_typed_hint_survives_a_live_update(
+        self, chrome: Chrome, hub: HubServer, lane: Lane
+    ) -> None:
+        lane.version(tiny_png())
+        page = chrome.open(hub.url)
+        chrome.wait_for(page, f"{_card(lane)}?.dataset.status === 'pending_review'")
+        chrome.evaluate(page, f"{_card(lane, '[data-action=retake]')}.click()")
+        field = _card(lane, "[data-hint]")
+        chrome.evaluate(
+            page, f"{field}.value = 'warmer'; {field}.dispatchEvent(new Event('input'))"
+        )
+        second = lane.version(tiny_png() + b"\0")
+        chrome.wait_for(page, f"{_card(lane)}.dataset.current === '{second}'")
+        assert chrome.evaluate(page, f"{field}.value") == "warmer"
+        assert chrome.evaluate(page, f"{_card(lane, '[data-form=retake]')}.hidden") is False
+
+
+class TestBulk:
+    @pytest.fixture
+    def lanes(self, registry: Registry) -> list[Lane]:
+        lanes = [Lane(registry, title) for title in ("Exit", "Play", "Quit")]
+        for lane in lanes:
+            lane.version(tiny_png())
+        lanes[2].approve(lanes[2].registry.asset_records(lanes[2].asset).versions[0]["id"])
+        return lanes
+
+    def _bulk(self, chrome: Chrome, page: str, decision: str, hint: str = "") -> None:
+        chrome.evaluate(page, f"document.querySelector('[data-bulk={decision}]').click()")
+        chrome.evaluate(page, f"document.getElementById('bulk-hint').value = {json.dumps(hint)}")
+        chrome.evaluate(page, "document.getElementById('bulk-go').click()")
+        chrome.wait_for(page, "document.getElementById('progress').textContent.includes('done')")
+
+    def test_approve_all_shown_skips_what_is_already_approved(
+        self, chrome: Chrome, hub: HubServer, lanes: list[Lane]
+    ) -> None:
+        page = chrome.open(hub.url)
+        chrome.wait_for(page, "document.querySelectorAll('.card').length === 3")
+        chrome.evaluate(page, "document.getElementById('select-shown').click()")
+        assert chrome.evaluate(page, "document.getElementById('selected-count').textContent") == (
+            "3 selected"
+        )
+        self._bulk(chrome, page, "approve")
+        progress = chrome.evaluate(page, "document.getElementById('progress').textContent")
+        assert progress == "approve: 2 done, 1 already approved"
+        assert [_decisions(lane) for lane in lanes] == [[("approve", None)]] * 3
+        assert chrome.evaluate(page, "document.getElementById('selected-count').textContent") == (
+            "0 selected"
+        )
+        assert chrome.errors == []
+
+    def test_shift_click_selects_a_range_and_retake_sends_one_hint(
+        self, chrome: Chrome, hub: HubServer, lanes: list[Lane]
+    ) -> None:
+        page = chrome.open(hub.url + "&status=pending_review")
+        chrome.wait_for(page, "document.querySelectorAll('.card').length === 2")
+        boxes = "document.querySelectorAll('[data-select]')"
+        chrome.evaluate(page, f"{boxes}[0].click()")
+        chrome.evaluate(
+            page, f"{boxes}[1].dispatchEvent(new MouseEvent('click', {{shiftKey: true}}))"
+        )
+        self._bulk(chrome, page, "retake", "less noise")
+        assert [_decisions(lane) for lane in lanes[:2]] == [[("retake", "less noise")]] * 2
+
+    def test_an_unchanged_card_keeps_its_picture(
+        self, chrome: Chrome, hub: HubServer, lanes: list[Lane]
+    ) -> None:
+        page = chrome.open(hub.url)
+        chrome.wait_for(page, "document.querySelectorAll('.card img').length === 3")
+        chrome.evaluate(page, f"window.kept = {_card(lanes[1], 'img')}")
+        lanes[0].approve(lanes[0].registry.asset_records(lanes[0].asset).versions[0]["id"])
+        chrome.wait_for(page, f"{_card(lanes[0])}.dataset.status === 'approved'")
+        assert chrome.evaluate(page, f"window.kept === {_card(lanes[1], 'img')}") is True
 
 
 def test_drawn_box_becomes_a_region_note(chrome: Chrome, hub: HubServer, lane: Lane) -> None:
@@ -94,8 +187,10 @@ def test_drawn_box_becomes_a_region_note(chrome: Chrome, hub: HubServer, lane: L
     chrome.drag(
         page, (left + width * 0.25, top + height * 0.5), (left + width * 0.75, top + height)
     )
+    # The drawn box opens the note form by itself.
+    chrome.wait_for(page, f"{_card(lane, '[data-form=note]')}.hidden === false")
     chrome.evaluate(page, f"{_card(lane, '[data-note]')}.value = 'eyes'")
-    chrome.evaluate(page, f"{_card(lane, '[data-action=note]')}.click()")
+    chrome.evaluate(page, f"{_card(lane, '[data-action=send-note]')}.click()")
     chrome.wait_for(page, f"{_card(lane, '.region[data-event]')} !== null")
     [note] = lane.registry.asset_records(lane.asset).events
     assert (note["body"], note["version_id"], note["region"]["file"]) == ("eyes", version, "main")
@@ -109,7 +204,7 @@ def test_refused_click_shows_the_reason(chrome: Chrome, hub: HubServer, lane: La
     Review(lane.registry, "owner").set_status(lane.asset, "final")
     page = chrome.open(hub.url)
     chrome.wait_for(page, f"{_card(lane)}?.dataset.status === 'final'")
-    chrome.evaluate(page, f"{_card(lane, '[data-action=retake]')}.click()")
+    _retake(chrome, page, lane, "")
     shown = chrome.wait_for(page, "document.getElementById('message').textContent")
     assert isinstance(shown, str)
     assert "final, which takes no retake" in shown
@@ -251,7 +346,7 @@ class TestViewers:
         chrome.wait_for(page, f"!{player}.seeking && {player}.currentTime === 1.5")
         chrome.evaluate(page, f"{_in(asset, '[data-control=mark]')}.click()")
         chrome.evaluate(page, f"{_in(asset, '[data-note]')}.value = 'flash here'")
-        chrome.evaluate(page, f"{_in(asset, '[data-action=note]')}.click()")
+        chrome.evaluate(page, f"{_in(asset, '[data-action=send-note]')}.click()")
         chrome.wait_for(page, f"{_in(asset, '[data-control=seek]')} !== null")
         [note] = registry.asset_records(asset).events
         assert note["region"] == {"selector": "t=1.50", "file": "main"}
@@ -294,7 +389,7 @@ class TestGraph:
             "next note on E01"
         )
         chrome.evaluate(page, f"{_in(asset, '[data-note]')}.value = 'ending comes too late'")
-        chrome.evaluate(page, f"{_in(asset, '[data-action=note]')}.click()")
+        chrome.evaluate(page, f"{_in(asset, '[data-action=send-note]')}.click()")
         chrome.wait_for(page, f"{_in(asset, '[data-node=E01].noted')} !== null")
         [note] = registry.asset_records(asset).events
         assert note["region"] == {"selector": "node=E01", "file": "main"}

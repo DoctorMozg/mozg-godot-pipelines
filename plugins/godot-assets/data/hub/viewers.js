@@ -16,6 +16,33 @@ window.HubDom = {
     }
     return node;
   },
+
+  // A one-field form: Enter sends, Shift+Enter breaks the line, Esc closes.
+  // spec: kind, field (data attribute of the textarea), placeholder, value, send, action,
+  // onInput(text), submit(text), cancel().
+  inlineForm(spec) {
+    const { el } = window.HubDom;
+    const text = el("textarea", { rows: 2, placeholder: spec.placeholder, value: spec.value || "", [spec.field]: "1" });
+    const action = (name, label, run, tone) => {
+      const node = el("button", { type: "button", class: `btn ${tone}`.trim(), "data-action": name }, label);
+      node.addEventListener("click", run);
+      return node;
+    };
+    const submit = () => spec.submit(text.value.trim());
+    text.addEventListener("input", () => spec.onInput(text.value));
+    text.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) submit();
+      else if (event.key === "Escape") spec.cancel();
+      else return;
+      event.preventDefault();
+    });
+    return el("div", { class: `form ${spec.kind}`, "data-form": spec.kind },
+      text,
+      el("div", { class: "row" },
+        action(spec.action, spec.send, submit, "primary"),
+        action("cancel", "Cancel", spec.cancel, ""),
+        el("span", { class: "meta" }, "Enter sends, Shift+Enter breaks the line, Esc closes")));
+  },
 };
 
 window.HubViewers = (() => {

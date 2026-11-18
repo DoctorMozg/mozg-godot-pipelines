@@ -120,26 +120,16 @@ function toggle(item, kind) {
 }
 
 function form(item, kind) {
-  const spec = FORMS[kind];
-  const text = el("textarea", {
-    rows: 2, placeholder: spec.placeholder, value: typed.get(item.asset)?.[kind] || "", [spec.field]: "1",
+  const node = window.HubDom.inlineForm({
+    ...FORMS[kind],
+    kind,
+    value: typed.get(item.asset)?.[kind],
+    onInput: (text) => typed.set(item.asset, { ...typed.get(item.asset), [kind]: text }),
+    submit: (text) => (kind === "retake" ? decide(item, "retake", text) : addNote(item, text)),
+    cancel: () => toggle(item, null),
   });
-  text.addEventListener("input", () => typed.set(item.asset, { ...typed.get(item.asset), [kind]: text.value }));
-  const submit = () => (kind === "retake"
-    ? decide(item, "retake", text.value.trim())
-    : addNote(item, text.value.trim()));
-  text.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) submit();
-    else if (event.key === "Escape") toggle(item, null);
-    else return;
-    event.preventDefault();
-  });
-  return el("div", { class: `form ${kind}`, "data-form": kind, hidden: opened.get(item.asset) !== kind },
-    text,
-    el("div", { class: "row" },
-      button(spec.action, spec.send, submit, "primary"),
-      button("cancel", "Cancel", () => toggle(item, null)),
-      el("span", { class: "meta" }, "Enter sends, Shift+Enter breaks the line, Esc closes")));
+  node.hidden = opened.get(item.asset) !== kind;
+  return node;
 }
 
 function regionNotes(item, versionId) {

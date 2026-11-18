@@ -42,7 +42,8 @@ class Retake:
         }
 
     def describe(self) -> str:
-        reason = self.decision.get("body") or "no reason given"
+        # The hub's retake hint is optional; an empty one asks for another take as is.
+        reason = self.decision.get("body") or "no hint, retry as is"
         lines = [f"- {self.title} ({self.asset}), version {self.version}: {reason}"]
         lines += [f"  - note{_where(n)}: {n['body']}" for n in self.notes]
         return "\n".join(lines)

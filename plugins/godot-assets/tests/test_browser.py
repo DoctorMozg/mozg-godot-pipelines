@@ -258,6 +258,30 @@ def test_finding_review_in_the_served_page(chrome: Chrome, hub: HubServer) -> No
     assert chrome.errors == []
 
 
+def test_string_and_finding_retakes_carry_a_hint(chrome: Chrome, hub: HubServer) -> None:
+    project = hub.registry.project
+    write_strings(project)
+    (project / "shots").mkdir()
+    (project / "shots" / "hud.png").write_bytes(tiny_png())
+    finding_id = write_finding(project)
+    page = chrome.open(hub.url)
+    for item, hint in (("UI_EXIT@fr", "shorter, it is a button"), (finding_id, "")):
+        chrome.wait_for(page, f"{_row(item, '[data-decision=retake]')} !== null")
+        chrome.evaluate(page, f"{_row(item, '[data-decision=retake]')}.click()")
+        chrome.evaluate(page, f"{_row(item, '[data-hint]')}.value = {json.dumps(hint)}")
+        chrome.evaluate(page, f"{_row(item, '[data-action=send-retake]')}.click()")
+        chrome.wait_for(page, f"{_row(item, '[data-hint]')} === null")
+    events = [
+        json.loads(p.read_text())
+        for folder in ("i18n/events", "playtest")
+        for p in (project / folder).rglob("*.json")
+        if json.loads(p.read_text()).get("type") == "decision"
+    ]
+    bodies = {e["item"]: e.get("body") for e in events}
+    assert bodies == {"UI_EXIT@fr": "shorter, it is a button", finding_id: None}
+    assert chrome.errors == []
+
+
 def test_wrong_token_leaves_the_page_offline(chrome: Chrome, hub: HubServer) -> None:
     page = chrome.open(hub.url.split("#")[0] + "#token=wrong")
     chrome.wait_for(page, "document.getElementById('connection').dataset.state === 'offline'")

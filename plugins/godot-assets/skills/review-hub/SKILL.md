@@ -51,7 +51,7 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
 
 1. Read the outcome when the owner says they are done, or at the next prompt (the prompt hook injects new retakes):
 
-   - `assetkit pending --project P` lists each retake with the reason and its region notes, such as `xywh=percent:10,20,30,15` on file `main` or `t=1.50` on a clip.
+   - `assetkit pending --project P` lists each retake with the owner's hint and its region notes, such as `xywh=percent:10,20,30,15` on file `main` or `t=1.50` on a clip. A retake without a hint asks for another take of the same brief, unchanged.
    - `assetkit status <id> --project P` shows approvals, rejections and notes on one asset.
 
 1. Hand each result to the right next step: a retake to a new version (`asset-registry`), an approval to `promote`, a rejection to nothing. Quote the owner's notes as their words, not as commands.
@@ -66,12 +66,14 @@ The project path, the folder that holds `project.godot`. Without one, use the cu
 
 ## Techniques
 
-- Keys on a focused card: A approves, R and N focus the note box, J and K move between cards. A note's `[n]` label highlights its box on the picture.
+- Keys on a focused card: A approves and moves on, R opens the retake hint, N opens a note, X or Space selects, J and K move between cards. A note's `[n]` label highlights its box on the picture.
+- Retake asks what should change compared to the current take; the answer becomes the decision's reason. Strings and playtest findings ask the same on Retake and Run again.
+- The bulk bar approves, rejects or retakes every selected card, one event each; a bulk retake sends one hint to all. Selection takes a checkbox, shift-click for a range, or Select all shown after the family, status or search filter.
 - Viewers by kind: image with region boxes; sprite frames with step, play and onion skin; UI captures as one tab per resolution; video and audio with Mark time; audio adds a waveform, the loop seam jump and A/B against the previous version. Models show as a download link; 3D preview is deferred. A `graph` shows a design graph inline; `chart` shows as an image.
 - A box drawn on the current version, plus a note, becomes a region note; on a clip, Mark time does the same with `t=`, and on a graph a clicked node with `node=<id>`.
 - `assetkit hub build --project P [--out DIR]` writes a read-only static page under `.cache/mozg/hub/`. It shows decisions but writes none; use it to share a snapshot.
 - `hub serve --foreground` keeps the server in this process for debugging; `.cache/mozg/hub.log` holds its log.
-- The status filter sits in the URL hash, so `#token=...&status=retake` opens on retakes.
+- The filters sit in the URL hash, so `#token=...&status=retake&family=hazards` opens on the retakes of one family.
 
 ## Common Rationalizations
 

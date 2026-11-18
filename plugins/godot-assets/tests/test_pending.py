@@ -45,6 +45,12 @@ class TestPending:
         ]
         assert "note at xywh=percent:0,0,50,50, frame 2: eyes too big" in retake.describe()
 
+    def test_a_retake_without_hint_asks_for_a_plain_retry(self, lane: Lane, review: Review) -> None:
+        review.decide(lane.asset, "retake", lane.version(b"one"))
+        [retake] = pending_retakes(lane.registry)
+        assert retake.as_json()["reason"] is None
+        assert retake.describe().endswith(": no hint, retry as is")
+
     @pytest.mark.parametrize("answer", ["new version", "approve"])
     def test_answered_retake_is_gone(
         self, lane: Lane, review: Review, retaken: str, answer: str

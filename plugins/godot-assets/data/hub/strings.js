@@ -10,17 +10,20 @@ window.HubStrings = (() => {
   const stateFilter = document.getElementById("string-state");
   let rows = [];
   let context = null;
+  // Retake hints being typed, by item; an open form survives the live re-render.
+  const hints = new Map();
 
-  async function decide(row, decision) {
+  async function decide(row, decision, body = null) {
     try {
       const response = await fetch("api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Hub-Token": context.token },
-        body: JSON.stringify({ type: "decision", item: row.item, decision }),
+        body: JSON.stringify({ type: "decision", item: row.item, decision, body }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
       context.showMessage("");
+      if (decision === "retake") close(row);
     } catch (error) {
       context.showMessage(`${row.item}: ${error.message}`);
     }
@@ -44,13 +47,35 @@ window.HubStrings = (() => {
   function actions(row) {
     // A stale text is not what Godot shows, so there is nothing to approve until it is redone.
     if (context.readOnly || row.state === "stale") return null;
-    const button = (decision, label) => {
-      const node = el("button", { type: "button", "data-decision": decision }, label);
-      node.addEventListener("click", () => decide(row, decision));
+    if (hints.has(row.item)) {
+      return window.HubDom.inlineForm({
+        kind: "retake", field: "data-hint", send: "Send retake", action: "send-retake",
+        placeholder: "What should change in the translation? Leave empty to just translate it again.",
+        value: hints.get(row.item),
+        onInput: (text) => hints.set(row.item, text),
+        submit: (text) => decide(row, "retake", text || null),
+        cancel: () => close(row),
+      });
+    }
+    const button = (decision, label, run) => {
+      const node = el("button", { type: "button", class: `btn ${decision}`, "data-decision": decision }, label);
+      node.addEventListener("click", run);
       return node;
     };
     return el("div", { class: "actions" },
-      row.state === "reviewed" ? null : button("approve", "Approve"), button("retake", "Retake"));
+      row.state === "reviewed" ? null : button("approve", "Approve", () => decide(row, "approve")),
+      button("retake", "Retake…", () => open(row)));
+  }
+
+  function open(row) {
+    hints.set(row.item, "");
+    draw();
+    table.querySelector(`[data-item="${CSS.escape(row.item)}"] [data-hint]`)?.focus();
+  }
+
+  function close(row) {
+    hints.delete(row.item);
+    draw();
   }
 
   function line(row) {

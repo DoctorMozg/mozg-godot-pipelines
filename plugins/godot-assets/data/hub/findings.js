@@ -9,17 +9,20 @@ window.HubFindings = (() => {
   const statusFilter = document.getElementById("finding-status");
   let rows = [];
   let context = null;
+  // Rerun hints being typed, by finding; an open form survives the live re-render.
+  const hints = new Map();
 
-  async function decide(row, decision) {
+  async function decide(row, decision, body = null) {
     try {
       const response = await fetch("api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Hub-Token": context.token },
-        body: JSON.stringify({ type: "decision", item: row.id, decision }),
+        body: JSON.stringify({ type: "decision", item: row.id, decision, body }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
       context.showMessage("");
+      if (decision === "retake") close(row);
     } catch (error) {
       context.showMessage(`${row.id}: ${error.message}`);
     }
@@ -41,13 +44,36 @@ window.HubFindings = (() => {
 
   function actions(row) {
     if (context.readOnly) return null;
-    const button = (decision, label) => {
-      const node = el("button", { type: "button", "data-decision": decision }, label);
-      node.addEventListener("click", () => decide(row, decision));
+    if (hints.has(row.id)) {
+      return window.HubDom.inlineForm({
+        kind: "retake", field: "data-hint", send: "Run again", action: "send-retake",
+        placeholder: "What should the next run do differently? Leave empty to run it again as is.",
+        value: hints.get(row.id),
+        onInput: (text) => hints.set(row.id, text),
+        submit: (text) => decide(row, "retake", text || null),
+        cancel: () => close(row),
+      });
+    }
+    const button = (decision, label, run) => {
+      const node = el("button", { type: "button", class: `btn ${decision}`, "data-decision": decision }, label);
+      node.addEventListener("click", run);
       return node;
     };
     return el("div", { class: "actions" },
-      button("approve", "Fix"), button("reject", "Not a problem"), button("retake", "Run again"));
+      button("approve", "Fix", () => decide(row, "approve")),
+      button("reject", "Not a problem", () => decide(row, "reject")),
+      button("retake", "Run again…", () => open(row)));
+  }
+
+  function open(row) {
+    hints.set(row.id, "");
+    draw();
+    table.querySelector(`[data-item="${CSS.escape(row.id)}"] [data-hint]`)?.focus();
+  }
+
+  function close(row) {
+    hints.delete(row.id);
+    draw();
   }
 
   function line(row) {

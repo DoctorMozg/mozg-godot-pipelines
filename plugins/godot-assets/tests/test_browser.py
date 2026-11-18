@@ -120,10 +120,10 @@ class TestRetakeHint:
 class TestBulk:
     @pytest.fixture
     def lanes(self, registry: Registry) -> list[Lane]:
-        lanes = [Lane(registry, title) for title in ("Exit", "Play", "Quit")]
+        lanes = [Lane(registry, title) for title in ("Exit", "Load", "Play", "Quit")]
         for lane in lanes:
             lane.version(tiny_png())
-        lanes[2].approve(lanes[2].registry.asset_records(lanes[2].asset).versions[0]["id"])
+        lanes[3].approve(lanes[3].registry.asset_records(lanes[3].asset).versions[0]["id"])
         return lanes
 
     def _bulk(self, chrome: Chrome, page: str, decision: str, hint: str = "") -> None:
@@ -136,15 +136,15 @@ class TestBulk:
         self, chrome: Chrome, hub: HubServer, lanes: list[Lane]
     ) -> None:
         page = chrome.open(hub.url)
-        chrome.wait_for(page, "document.querySelectorAll('.card').length === 3")
+        chrome.wait_for(page, "document.querySelectorAll('.card').length === 4")
         chrome.evaluate(page, "document.getElementById('select-shown').click()")
         assert chrome.evaluate(page, "document.getElementById('selected-count').textContent") == (
-            "3 selected"
+            "4 selected"
         )
         self._bulk(chrome, page, "approve")
         progress = chrome.evaluate(page, "document.getElementById('progress').textContent")
-        assert progress == "approve: 2 done, 1 already approved"
-        assert [_decisions(lane) for lane in lanes] == [[("approve", None)]] * 3
+        assert progress == "approve: 3 done, 1 already approved"
+        assert [_decisions(lane) for lane in lanes] == [[("approve", None)]] * 4
         assert chrome.evaluate(page, "document.getElementById('selected-count').textContent") == (
             "0 selected"
         )
@@ -154,20 +154,22 @@ class TestBulk:
         self, chrome: Chrome, hub: HubServer, lanes: list[Lane]
     ) -> None:
         page = chrome.open(hub.url + "&status=pending_review")
-        chrome.wait_for(page, "document.querySelectorAll('.card').length === 2")
+        chrome.wait_for(page, "document.querySelectorAll('.card').length === 3")
+        shown = "document.getElementById('shown-count').textContent"
+        assert chrome.evaluate(page, shown) == "Select all 3 shown"
         boxes = "document.querySelectorAll('[data-select]')"
         chrome.evaluate(page, f"{boxes}[0].click()")
         chrome.evaluate(
-            page, f"{boxes}[1].dispatchEvent(new MouseEvent('click', {{shiftKey: true}}))"
+            page, f"{boxes}[2].dispatchEvent(new MouseEvent('click', {{shiftKey: true}}))"
         )
         self._bulk(chrome, page, "retake", "less noise")
-        assert [_decisions(lane) for lane in lanes[:2]] == [[("retake", "less noise")]] * 2
+        assert [_decisions(lane) for lane in lanes[:3]] == [[("retake", "less noise")]] * 3
 
     def test_an_unchanged_card_keeps_its_picture(
         self, chrome: Chrome, hub: HubServer, lanes: list[Lane]
     ) -> None:
         page = chrome.open(hub.url)
-        chrome.wait_for(page, "document.querySelectorAll('.card img').length === 3")
+        chrome.wait_for(page, "document.querySelectorAll('.card img').length === 4")
         chrome.evaluate(page, f"window.kept = {_card(lanes[1], 'img')}")
         lanes[0].approve(lanes[0].registry.asset_records(lanes[0].asset).versions[0]["id"])
         chrome.wait_for(page, f"{_card(lanes[0])}.dataset.status === 'approved'")

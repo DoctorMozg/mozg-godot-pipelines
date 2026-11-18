@@ -11,6 +11,8 @@ import json
 import logging
 import mimetypes
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -19,7 +21,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from assetkit.contracts import Json
 from assetkit.findings import FINDING_ID
-from assetkit.hubdata import HubData
+from assetkit.hubdata import HASH_PREFIX, HubData
 from assetkit.registry import Registry, RegistryError
 from assetkit.review import NoteRequest, Review
 
@@ -31,6 +33,9 @@ PAGE_ROUTES = {"/" if name == "index.html" else f"/{name}": name for name in PAG
 PAGE_POLICY = "default-src 'self'; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'"
 # A registered SVG or HTML file must not run script in the hub's origin.
 FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
+# A URL carrying the content hash never changes meaning, so the browser keeps it.
+CACHED = "private, max-age=31536000, immutable"
+FILE_INDEX_MAX_AGE_S = 5.0
 
 
 class BadRequest(ValueError):
@@ -46,6 +51,32 @@ class HubConfig:
     heartbeat_s: float = 15.0
 
 
+class FileIndex:
+    """The servable files by path with their sha256, rebuilt on a miss or once it is a few
+    seconds old: one rebuild reads every record, too slow to repeat for each picture."""
+
+    def __init__(
+        self,
+        data: HubData,
+        clock: Callable[[], float] = time.monotonic,
+        max_age_s: float = FILE_INDEX_MAX_AGE_S,
+    ) -> None:
+        self._data = data
+        self._clock = clock
+        self._max_age_s = max_age_s
+        self._lock = threading.Lock()
+        self._files: dict[str, str] = {}
+        self._built_at = float("-inf")
+
+    def sha256(self, relative: str) -> str | None:
+        with self._lock:
+            stale = self._clock() - self._built_at > self._max_age_s
+            if stale or relative not in self._files:
+                self._files = self._data.files()
+                self._built_at = self._clock()
+            return self._files.get(relative)
+
+
 class HubServer(ThreadingHTTPServer):
     daemon_threads = True
 
@@ -56,6 +87,7 @@ class HubServer(ThreadingHTTPServer):
         self.registry = registry
         self.config = config
         self.data = HubData(registry)
+        self.file_index = FileIndex(self.data)
         self.review = Review(registry, config.author)
         self.write_lock = threading.Lock()
         self.closing = threading.Event()
@@ -100,7 +132,8 @@ class HubHandler(BaseHTTPRequestHandler):
         elif url.path == "/api/stream":
             self._stream()
         elif url.path.startswith("/files/"):
-            self._file(unquote(url.path.removeprefix("/files/")))
+            version = parse_qs(url.query).get("v", [""])[0]
+            self._file(unquote(url.path.removeprefix("/files/")), version)
         else:
             self._error(HTTPStatus.NOT_FOUND, f"no route {url.path}")
 
@@ -206,9 +239,10 @@ class HubHandler(BaseHTTPRequestHandler):
         content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
         self._send(HTTPStatus.OK, path.read_bytes(), content_type, PAGE_POLICY)
 
-    def _file(self, relative: str) -> None:
+    def _file(self, relative: str, version: str) -> None:
         # Only exact paths the registry records are served, so ../ or a symlink leads nowhere.
-        if relative not in self.server.data.files():
+        sha256 = self.server.file_index.sha256(relative)
+        if sha256 is None:
             self._error(HTTPStatus.NOT_FOUND, "not a registered file")
             return
         path = self.server.registry.project / relative
@@ -231,7 +265,8 @@ class HubHandler(BaseHTTPRequestHandler):
         if partial:
             self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Cache-Control", "no-store")
+        named = len(version) == HASH_PREFIX and sha256.startswith(version)
+        self.send_header("Cache-Control", CACHED if named else "no-store")
         self.send_header("Content-Security-Policy", FILE_POLICY)
         self.end_headers()
         with path.open("rb") as source:

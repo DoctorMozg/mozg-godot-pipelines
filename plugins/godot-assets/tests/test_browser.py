@@ -350,5 +350,6 @@ def test_model_is_offered_as_a_download(chrome: Chrome, hub: HubServer, registry
     chrome.wait_for(page, f"{link} !== null")
     href = chrome.evaluate(page, f"{link}.getAttribute('href')")
     assert isinstance(href, str)
-    assert href.startswith(f"files/registry/staging/{asset}/crate.glb?token=")
+    assert href.startswith(f"files/registry/staging/{asset}/crate.glb?v=")
+    assert "&token=" in href
     assert chrome.errors == []

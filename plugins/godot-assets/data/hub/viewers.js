@@ -129,7 +129,9 @@ window.HubViewers = (() => {
     const file = chosen || firstOf(version, "image/");
     const url = file && ctx.fileUrl(file);
     if (!url) return placeholder(version, "no preview");
-    const img = el("img", { class: "picture", src: url, alt: file.path, draggable: false });
+    const img = el("img", {
+      class: "picture", src: url, alt: file.path, draggable: false, loading: "lazy", decoding: "async",
+    });
     const layer = el("div", { class: "regions" });
     const stage = el("div", { class: "stage", "data-file": file.role }, img, layer);
     drawRegions(layer, item, version, ctx, { file: file.role });

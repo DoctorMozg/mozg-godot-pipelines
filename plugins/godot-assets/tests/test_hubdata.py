@@ -46,7 +46,8 @@ class TestSnapshot:
         lane.version(b"one")
         [version] = _item(lane.registry)["versions"]
         [entry] = version["files"]
-        assert entry["url"] == f"files/registry/staging/{lane.asset}/3.png"
+        sha = str(entry["sha256"])[:16]
+        assert entry["url"] == f"files/registry/staging/{lane.asset}/3.png?v={sha}"
         assert entry["media_type"] == "image/png"
 
     def test_pruned_files_are_neither_linked_nor_served(

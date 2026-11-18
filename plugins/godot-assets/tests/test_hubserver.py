@@ -11,8 +11,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from assetkit.hubserver import HubConfig, HubServer
+from assetkit.hubdata import HubData
+from assetkit.hubserver import CACHED, FileIndex, HubConfig, HubServer
+from assetkit.prune import BlobStore, Pruner
 from assetkit.registry import Registry
+from assetkit.review import Review
 from assetkit_rig import Lane, write_finding, write_strings
 
 TOKEN = "t" * 40
@@ -151,6 +154,27 @@ class TestServing:
         assert (status, body, headers["Content-Type"]) == (200, b"one", "image/png")
         assert headers["Content-Security-Policy"].startswith("sandbox")
 
+    def test_only_a_hash_named_url_may_be_cached(self, client: Client, lane: Lane) -> None:
+        lane.version(b"one")
+        [entry] = HubData(lane.registry).snapshot()["items"][0]["versions"][0]["files"]
+        url = str(entry["url"])
+        caching = {
+            hashed: client.call("GET", f"/{hashed}&token={TOKEN}")[1]["Cache-Control"]
+            for hashed in (url, url.split("?")[0] + "?v=0000000000000000")
+        }
+        assert list(caching.values()) == [CACHED, "no-store"]
+
+    def test_a_version_added_after_the_first_request_is_served(
+        self, client: Client, lane: Lane
+    ) -> None:
+        for content in (b"one", b"two"):
+            version = lane.version(content)
+            [record] = [
+                v for v in lane.registry.asset_records(lane.asset).versions if v["id"] == version
+            ]
+            path = str(record["files"][0]["path"])
+            assert client.call("GET", f"/files/{path}?token={TOKEN}")[:3:2] == (200, content)
+
     def test_decision_is_written_through_the_review_rules(self, client: Client, lane: Lane) -> None:
         version = lane.version(b"one")
         decision = {"type": "decision", "asset": lane.asset, "decision": "retake", "body": "darker"}
@@ -267,3 +291,21 @@ class TestFindings:
         assert [row["status"] for row in snapshot["findings"]] == ["rerun"]
         missing = {"type": "decision", "item": "f-ffffffffffff", "decision": "approve"}
         assert client.post(missing)[0] == 409
+
+
+class TestFileIndex:
+    def test_a_pruned_file_leaves_the_index_once_it_is_old(
+        self, lane: Lane, tmp_path: Path
+    ) -> None:
+        old = lane.version(b"too dark")
+        Review(lane.registry, "owner").decide(lane.asset, "retake", old)
+        lane.version(b"lighter")
+        [first] = [v for v in lane.registry.asset_records(lane.asset).versions if v["id"] == old]
+        path = str(first["files"][0]["path"])
+        now = [0.0]
+        index = FileIndex(HubData(lane.registry), clock=lambda: now[0], max_age_s=5.0)
+        assert index.sha256(path) is not None
+        pruner = Pruner(lane.registry, BlobStore(tmp_path / "blobs"))
+        pruner.apply(pruner.candidates()[0], "t")
+        now[0] = 6.0
+        assert index.sha256(path) is None

@@ -16,7 +16,8 @@ let items = [];
 function fileUrl(file) {
   if (!file.url) return null;
   if (staticData) return staticData.file_base + encodeURI(file.path);
-  return `${file.url}?token=${encodeURIComponent(token)}`;
+  const join = file.url.includes("?") ? "&" : "?";
+  return `${file.url}${join}token=${encodeURIComponent(token)}`;
 }
 
 function showMessage(text) {

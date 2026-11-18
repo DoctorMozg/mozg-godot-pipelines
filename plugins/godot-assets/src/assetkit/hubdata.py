@@ -15,6 +15,8 @@ from assetkit.registry import AssetRecords, Registry
 from assetkit.status import fold
 from assetkit.strings import Strings
 
+HASH_PREFIX = 16
+
 # Python's table lacks these on some systems; the page picks a viewer by media type.
 for _type, _suffix in (
     ("model/gltf-binary", ".glb"), ("model/gltf+json", ".gltf"), ("audio/ogg", ".ogg"),
@@ -127,8 +129,9 @@ def _file(entry: Mapping[str, Json], moved_out: bool) -> dict[str, Json]:
         "sha256": entry["sha256"],
         "bytes": entry["bytes"],
         "media_type": mimetypes.guess_type(path)[0],
-        # Relative, so the same page works from the server and from a static build.
-        "url": f"files/{quote(path)}" if served else None,
+        # Relative, so the same page works from the server and from a static build; the hash
+        # names the content, so the browser may keep the file for good.
+        "url": f"files/{quote(path)}?v={str(entry['sha256'])[:HASH_PREFIX]}" if served else None,
     }
 
 

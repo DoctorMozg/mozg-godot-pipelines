@@ -1,6 +1,6 @@
 {
   "name": "godot-assets",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Project asset registry for Godot: immutable versions, review events, provenance and a folded status",
   "author": {
     "name": "Stanislav Gonorovskii",

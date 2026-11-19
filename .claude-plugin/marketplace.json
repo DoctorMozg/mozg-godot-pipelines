@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code plugins for Godot 4 game development: fast verified feedback loop, review hub, game design analysis, art, UI and audio pipelines",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "plugins": [
     {
